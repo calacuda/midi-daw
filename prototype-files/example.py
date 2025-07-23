@@ -72,18 +72,22 @@ def note(
     vel=80,
     block=True,
 ):
+    """plays a note"""
     midi_out(f"playing note: {note}")
 
 
 def set_tempo(tempo: int):
+    """sets the tempo on the server"""
     pass
 
 
 def wait_for(event: str):
+    """used to wait or block on event"""
     pass
 
 
 def trigger(event: str):
+    """used to trigger an event"""
     pass
 
 
