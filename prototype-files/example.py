@@ -75,6 +75,18 @@ def note(
     midi_out(f"playing note: {note}")
 
 
+def set_tempo(tempo: int):
+    pass
+
+
+def wait_for(event: str):
+    pass
+
+
+def trigger(event: str):
+    pass
+
+
 def play_on_dev(midi_output, channel="0"):
     class Decorator:
         def __init__(self, func):
