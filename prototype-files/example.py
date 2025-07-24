@@ -1,6 +1,12 @@
 """
-all midi control functions should send singles to teh server over a unix socket.
+example.py
 
+an example file that shows how the live coding portion of this code base should be used.
+
+NOTE: all midi control functions should send singles to the server over a unix socket.
+
+
+By: Calacuda | MIT License | Epoch: Jul 22, 2025
 """
 
 # idea 1
@@ -76,6 +82,11 @@ def note(
     midi_out(f"playing note: {note}")
 
 
+def cc(cc: int, value: float):
+    """sends a cc value"""
+    pass
+
+
 def set_tempo(tempo: int):
     """sets the tempo on the server"""
     pass
@@ -88,6 +99,72 @@ def wait_for(event: str):
 
 def trigger(event: str):
     """used to trigger an event"""
+    pass
+
+
+def lfo(
+    freq: float,  # make this a class or enum that can be per beats, per quarter/eighth/sixteeth/etc note, or based on seconds
+    lfo_type: str,
+    callback: callable,
+    one_shot: bool = True,
+    bipolar: bool = False,
+    hifi_update: bool = False,
+) -> str:
+    """
+    set up a LFO automation
+
+    params:
+        freq => the freequency of the lfo oscilation
+        lfo_type => what kind of lfo is this? Options
+            - from-wav => import an LFO from a wav file.
+            - sin => sttandard sin wave.
+            - triangle => standard triangle wave.
+            - saw-up => standard saw tooth wave going up.
+            - saw-down => standard saw tooth wave going down.
+            - anti-log => anti-log tapering triable wave.
+            - anti-log-up => anti-log taper going up.
+            - anti-log-down => anti-log taper going down.
+        callable => a callback callable that will be called on every update of the lfo.
+        one_shot => if true the lfo will run to compleation only once, else it will run indefinately.
+        bipolar => if true the lfo will go above and bellow zero else it will stay positive.
+        hifi_update => should this update on an audio sample rate. if false it updated every beat (24-beat per quarter note by default)
+
+    returns: the LFO name to use to turn it off.
+    """
+    return "LFO_NAME"
+
+
+def lfo_off(lfo_name: str):
+    """turns off an LFO"""
+    pass
+
+
+def adsr(
+    atk: float,
+    decay: float,
+    sustain: float,
+    release: float,
+    callback: callable,
+    hifi_update: bool = False,
+) -> str:
+    """
+    set up an ADSR Envelope automation
+
+    params:
+        atk: adsr attack
+        decay: adsr deccay
+        sustain: adsr sustain
+        release: adsr release
+        callback: a callback callable that will be called on every update of the adsr
+        hifi_update => should this update on an audio sample rate. if false it updated every beat (24-beat per quarter note by default)
+
+    returns: the name of the adsr, used to stop it
+    """
+    return "ADSR_NAME"
+
+
+def adsr_off(adsr_name: str):
+    """turns off an adsr"""
     pass
 
 
