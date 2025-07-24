@@ -1,10 +1,11 @@
 _:
   @just -l
 
-_new-tmux-session SESSION:
+_new-tmux-dev-session SESSION:
   tmux new -ds "{{SESSION}}" -n "README"
   tmux send-keys -t "{{SESSION}}":README 'nv ./README.md "+set wrap"' ENTER
   # @just new-window "Reff" ""
+  @just _new-window "{{SESSION}}" "Ref" "nv ./prototype-files/example.py"
   @just _new-window "{{SESSION}}" "Edit" ""
   @just _new-window "{{SESSION}}" "Run" ""
   @just _new-window "{{SESSION}}" "Git" "git status"
@@ -15,5 +16,10 @@ _new-window SESSION NAME CMD:
 
 
 tmux:
-  tmux has-session -t midi-daw || just _new-tmux-session midi-daw
+  tmux has-session -t midi-daw || just _new-tmux-dev-session midi-daw
   tmux a -t midi-daw
+
+# term-test:
+#   tmux has-session -t midi-daw-test || just _new-tmux-session midi-daw-test
+#   tmux a -t midi-daw-test
+
