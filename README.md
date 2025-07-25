@@ -15,7 +15,7 @@ these are listen in no particular order.
 
 # TODO
 
-- [ ] when using decorators create a way to name the thread that a function defines, based on the file name & funtion name.
+- [ ] when using decorators create a way to name the thread that a function defines, based on the funtion name.
 - [ ] name the file based midi threads based on file name
 - [ ] define shared structs in rust using pyo3
 - [ ] start py venv for project
