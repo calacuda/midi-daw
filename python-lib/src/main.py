@@ -1,75 +1,66 @@
 """
-example.py
+main.py
 
-an example file that shows how the live coding portion of this code base should be used.
+a library that allows for live coding.
 
 NOTE: all midi control functions should send singles to the server over a unix socket.
 
 
-By: Calacuda | MIT License | Epoch: Jul 22, 2025
+By: Calacuda | MIT License | Epoch: Jul 25, 2025
 """
 
-# idea 1
+import threading
+from functools import partial
+
+MIDI_DEV = "MIDI THRU"
+MIDI_CHANNEL = "0"
 
 
-# send = Player(
-#     "MIDI-OUT",
-#     channel="0",
-# )
-#
-#
-# def main():
-#     send.note("c#4", "qn", vel=64, b=False)
+# Start threads for each link
+threads = []
 
 
-# idea 2
+def set_midi_output(dev: str, channel=None):
+    """sets the midi output device and channel"""
+    global MIDI_DEV
+    global MIDI_CHANNEL
+
+    if channel is not None:
+        MIDI_CHANNEL = channel
+
+    MIDI_DEV = dev
 
 
-# def midi_out(midi_output, midi_channel):
-#     def note(
-#         note: str,
-#         duration: str,
-#         vel=80,
-#         block=True,
-#     ):
-#         print(f"playing note: {note} on device: {midi_output} channel: {midi_channel}")
-#
-#     def decorator(func):
-#         func.__globals__.update({"note": note})
-#
-#         def wrapper(*args, **kwargs):
-#             return func(*args, **kwargs)
-#
-#         return wrapper
-#
-#     return decorator
-#
-#
-# @midi_out("MIDI-OUT", "0")
-# def main():
-#     note("c#4", "qn", vel=64, block=False)
-#
-#
-# main()
+def set_midi_chan(channel):
+    """sets the midi channel"""
+    global MIDI_CHANNEL
+
+    MIDI_CHANNEL = channel
 
 
-#
-# idea 3
-#
-# this would "compile" to a midi file that could then be played
-#
-# can compile using decorators but also not if using desiered
-#
+def _do_midi_out(midi_dev: str, midi_chan: str, midi_cmd):
+    print(f"{midi_dev}:{midi_chan}")
 
 
-COMPILE = False
+def _midi_out(midi_cmd, block: bool = True):
+    """sends midi to the rust backend"""
+    global threads
 
-
-def midi_out(*args, block: bool = True):
     if not block:
-        print("sending midi to server directly, on a secondary thread.")
+        # send requests in a sub thread
+        t = threading.Thread(
+            target=_do_midi_out,
+            args=(
+                MIDI_DEV,
+                MIDI_CHANNEL,
+                midi_cmd,
+            ),
+        )
+        threads.append(t)
+        return None
     else:
-        print("sending midi to server directly.")
+        # send request to rust back end
+        return _do_midi_out(MIDI_DEV, MIDI_CHANNEL, midi_cmd)
 
 
 def note(
@@ -79,7 +70,7 @@ def note(
     block=True,
 ):
     """plays a note"""
-    midi_out(f"playing note: {note}")
+    _midi_out(f"playing note: {note}")
 
 
 def cc(cc: int, value: float):
@@ -168,7 +159,7 @@ def adsr_off(adsr_name: str):
     pass
 
 
-def play_on_dev(midi_output, channel="0", blocking=True):
+def play_on_dev(midi_output: str, channel="0", blocking=True):
     """
     params:
         blocking => should it be started in a sub thread
@@ -176,47 +167,67 @@ def play_on_dev(midi_output, channel="0", blocking=True):
 
     class Decorator:
         def __init__(self, func):
-            global COMPILE
-            COMPILE = True
-
+            # global COMPILE
+            # COMPILE = True
             self.midi_file = ""
+            self.midi_dev = midi_output
+            self.channel = channel
             self.func = func
+            # self.threads = []
+            self.blocking = blocking
 
         def __call__(self, *args, **kwargs):
+            global threads
+
             self.midi_file = ""
-            self.func.__globals__.update({"midi_out": self.midi_out})
+            # midi_out = partial(self._midi_out, midi_output, channel)
+            midi_out = partial(_do_midi_out, midi_output, channel)
+
+            # self.func.__globals__.update({"_midi_out": self._midi_out})
+            self.func.__globals__.update({"_midi_out": midi_out})
             # print("calling")
-            result = self.func(*args, **kwargs)
+            # result = self.func(*args, **kwargs)
             print('running "midi" file on server')
-            print(self.midi_file)
+            # print(self.midi_file)
 
-            return result
+            # return result
+            if not blocking:
+                t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
+                threads.append(t)
 
-        def midi_out(self, *args, block: bool = False):
-            """append to a midi file that will get played when the function is called"""
-            self.midi_file += "" + " ".join(str(arg) for arg in args)
-            self.midi_file += "\n"
+                return None
+            else:
+                result = self.func(*args, **kwargs)
+
+                return result
+
+        # def _midi_out(
+        #     self, midi_output: str, channel: str, midi_cmd, block: bool = False
+        # ):
+        #     """append to a midi file that will get played when the function is called"""
+        #     self.midi_file += "" + " ".join(str(arg) for arg in args)
+        #     self.midi_file += "\n"
 
     return Decorator
 
 
-@play_on_dev("MIDI-OUT", channel="0")
-def main_1():
-    note("c#4", "qn", vel=64, block=False)
-    note("c#3", "qn", vel=64, block=True)
-
-
-@play_on_dev("MIDI-OUT", channel="0")
-def main_2():
-    note("c#3", "qn", vel=64, block=True)
-
-
-print("main_1")
-main_1()
-print("main_1.2")
-main_1()
-print("main_2")
-main_2()
+# @play_on_dev("MIDI-OUT", channel="0")
+# def main_1():
+#     note("c#4", "qn", vel=64, block=False)
+#     note("c#3", "qn", vel=64, block=True)
+#
+#
+# @play_on_dev("MIDI-OUT", channel="0")
+# def main_2():
+#     note("c#3", "qn", vel=64, block=True)
+#
+#
+# print("main_1")
+# main_1()
+# print("main_1.2")
+# main_1()
+# print("main_2")
+# main_2()
 
 
 # Idea 4
