@@ -38,6 +38,12 @@ def set_midi_chan(channel):
     MIDI_CHANNEL = channel
 
 
+def clear_dead_threads():
+    global threads
+
+    threads = [thread for thread in threads if thread.is_alive()]
+
+
 def _do_midi_out(midi_dev: str, midi_chan: str, midi_cmd):
     print(f"{midi_dev}:{midi_chan}")
 
@@ -56,7 +62,9 @@ def _midi_out(midi_cmd, block: bool = True):
                 midi_cmd,
             ),
         )
+        t.start()
         threads.append(t)
+
         return None
     else:
         # send request to rust back end
@@ -190,9 +198,12 @@ def play_on_dev(midi_output: str, channel="0", blocking=True):
             print('running "midi" file on server')
             # print(self.midi_file)
 
+            clear_dead_threads()
+
             # return result
             if not blocking:
                 t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
+                t.start()
                 threads.append(t)
 
                 return None
