@@ -12,3 +12,9 @@ these are listen in no particular order.
 - [emacs in no-window mode](https://www.gnu.org/software/emacs/manual/html_node/emacs/Initial-Options.html#index-_002d_002dno_002dwindow_002dsystem)
 - [helix](https://helix-editor.com/)
 - [micro](https://micro-editor.github.io/)
+
+# TODO
+
+- [ ] define shared structs in rust using pyo3
+- [ ] build rust api & threads
+- [ ] enable sendin data to api backend from python
