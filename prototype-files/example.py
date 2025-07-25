@@ -168,7 +168,13 @@ def adsr_off(adsr_name: str):
     pass
 
 
-def play_on_dev(midi_output, channel="0"):
+def play_on_dev(midi_output, channel="0", blocking=True):
+    """
+
+    params:
+        blocking => should it be started in a sub thread
+    """
+
     class Decorator:
         def __init__(self, func):
             global COMPILE
