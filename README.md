@@ -16,5 +16,6 @@ these are listen in no particular order.
 # TODO
 
 - [ ] define shared structs in rust using pyo3
+- [ ] start py venv for project
 - [ ] build rust api & threads
 - [ ] enable sendin data to api backend from python
