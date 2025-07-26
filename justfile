@@ -6,8 +6,8 @@ _new-tmux-dev-session SESSION:
   tmux send-keys -t "{{SESSION}}":README 'nv ./README.md "+set wrap"' ENTER
   # @just new-window "Reff" ""
   @just _new-window "{{SESSION}}" "Ref" "nv ./prototype-files/example.py"
-  @just _new-window "{{SESSION}}" "Edit" ""
-  @just _new-window "{{SESSION}}" "Run" ""
+  @just _new-window "{{SESSION}}" "Edit" "cd python-lib"
+  @just _new-window "{{SESSION}}" "Run" "cd python-lib"
   @just _new-window "{{SESSION}}" "Git" "git status"
 
 _new-window SESSION NAME CMD:

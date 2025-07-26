@@ -10,6 +10,7 @@ By: Calacuda | MIT License | Epoch: Jul 25, 2025
 """
 
 import threading
+from copy import copy
 from functools import partial
 
 MIDI_DEV = "MIDI THRU"
@@ -18,6 +19,7 @@ MIDI_CHANNEL = "0"
 
 # Start threads for each link
 threads = []
+running_funcs = {}
 
 
 def set_midi_output(dev: str, channel=None):
@@ -40,15 +42,19 @@ def set_midi_chan(channel):
 
 def clear_dead_threads():
     global threads
+    global running_funcs
 
     threads = [thread for thread in threads if thread.is_alive()]
+    running_funcs = {
+        name: thread for (name, thread) in running_funcs.items() if thread.is_alive()
+    }
 
 
 def _do_midi_out(midi_dev: str, midi_chan: str, midi_cmd):
-    print(f"{midi_dev}:{midi_chan}")
+    print(f"{midi_cmd} => {midi_dev}:{midi_chan}")
 
 
-def _midi_out(midi_cmd, block: bool = True):
+def _midi_out(midi_dev: str, midi_chan: str, midi_cmd, block: bool = True):
     """sends midi to the rust backend"""
     global threads
 
@@ -57,28 +63,33 @@ def _midi_out(midi_cmd, block: bool = True):
         t = threading.Thread(
             target=_do_midi_out,
             args=(
-                MIDI_DEV,
-                MIDI_CHANNEL,
+                midi_dev,
+                midi_chan,
+                # MIDI_DEV,
+                # MIDI_CHANNEL,
                 midi_cmd,
             ),
         )
         t.start()
         threads.append(t)
+        clear_dead_threads()
 
         return None
     else:
         # send request to rust back end
-        return _do_midi_out(MIDI_DEV, MIDI_CHANNEL, midi_cmd)
+        # return _do_midi_out(MIDI_DEV, MIDI_CHANNEL, midi_cmd)
+        return _do_midi_out(midi_dev, midi_chan, midi_cmd)
 
 
-def note(
-    note: str,
-    duration: str,
-    vel=80,
-    block=True,
-):
+# midi_out = partial(_midi_out, MIDI_DEV, MIDI_CHANNEL)
+def midi_out(midi_cmd, block: bool = True):
+    print("DEFAULT MIDI OUT CALLED")
+    _midi_out(MIDI_DEV, MIDI_CHANNEL, midi_cmd, block)
+
+
+def note(note: str, duration: str, vel=80, block=True, midi_out=midi_out):
     """plays a note"""
-    _midi_out(f"playing note: {note}")
+    midi_out(f"playing note: {note}")
 
 
 def cc(cc: int, value: float):
@@ -167,7 +178,7 @@ def adsr_off(adsr_name: str):
     pass
 
 
-def play_on_dev(midi_output: str, channel="0", blocking=True):
+def play_on(midi_output: str, channel="0", blocking=False):
     """
     params:
         blocking => should it be started in a sub thread
@@ -175,49 +186,44 @@ def play_on_dev(midi_output: str, channel="0", blocking=True):
 
     class Decorator:
         def __init__(self, func):
-            # global COMPILE
-            # COMPILE = True
+            new_midi_out = partial(_midi_out, midi_output, channel)
+            new_note = partial(note, midi_out=new_midi_out)
             self.midi_file = ""
             self.midi_dev = midi_output
             self.channel = channel
             self.func = func
-            # self.threads = []
             self.blocking = blocking
+            self.name = f"{func.__name__}:{midi_output}:{channel}"
+            self.api = {"note": new_note}
 
         def __call__(self, *args, **kwargs):
-            global threads
+            global running_funcs
 
             self.midi_file = ""
-            # midi_out = partial(self._midi_out, midi_output, channel)
-            midi_out = partial(_do_midi_out, midi_output, channel)
+            print('running "midi file" on server')
 
-            # self.func.__globals__.update({"_midi_out": self._midi_out})
-            self.func.__globals__.update({"_midi_out": midi_out})
-            # print("calling")
-            # result = self.func(*args, **kwargs)
-            print('running "midi" file on server')
-            # print(self.midi_file)
-
-            clear_dead_threads()
+            old = copy(self.func.__globals__)
+            self.func.__globals__.update(self.api)
 
             # return result
-            if not blocking:
+            if not self.blocking:
                 t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
                 t.start()
-                threads.append(t)
+                print(f"running function => {self.name}")
+                running_funcs[self.name] = t
+                clear_dead_threads()
+                self.func.__globals__.update(old)
 
                 return None
             else:
                 result = self.func(*args, **kwargs)
+                self.func.__globals__.update(old)
 
                 return result
 
-        # def _midi_out(
-        #     self, midi_output: str, channel: str, midi_cmd, block: bool = False
-        # ):
-        #     """append to a midi file that will get played when the function is called"""
-        #     self.midi_file += "" + " ".join(str(arg) for arg in args)
-        #     self.midi_file += "\n"
+        def compile(self):
+            """will compile the code and send it to the server for play back"""
+            pass
 
     return Decorator
 
