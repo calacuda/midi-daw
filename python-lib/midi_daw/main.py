@@ -223,7 +223,7 @@ def play_on(midi_output: str, channel="0", blocking=False):
 
         def compile(self):
             """will compile the code and send it to the server for play back"""
-            pass
+            print("compiling")
 
     return Decorator
 
