@@ -4,14 +4,15 @@ _:
 _new-tmux-dev-session SESSION:
   tmux new -ds "{{SESSION}}" -n "README"
   tmux send-keys -t "{{SESSION}}":README 'nv ./README.md "+set wrap"' ENTER
-  # @just new-window "Reff" ""
-  @just _new-window "{{SESSION}}" "Ref" "nv ./prototype-files/example.py"
-  @just _new-window "{{SESSION}}" "Edit" "cd python-lib"
+  @just _new-window "{{SESSION}}" "Server" "cd midi-daw-server"
+  @just _new-window "{{SESSION}}" "Data Types" "cd midi-daw-types"
+  @just _new-window "{{SESSION}}" "Edit Py" "cd python-lib"
   @just _new-window "{{SESSION}}" "Run" "cd python-lib"
   @just _new-window "{{SESSION}}" "Git" "git status"
 
 _new-window SESSION NAME CMD:
   tmux new-w -t "{{SESSION}}" -n "{{NAME}}"
+  tmux send-keys -t "{{SESSION}}":"{{NAME}}" ". ./.venv/bin/activate" ENTER
   tmux send-keys -t "{{SESSION}}":"{{NAME}}" "{{CMD}}" ENTER
 
 
