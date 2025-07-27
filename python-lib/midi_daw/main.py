@@ -178,6 +178,11 @@ def adsr_off(adsr_name: str):
     pass
 
 
+def all_off(midi_output: str, channel="0"):
+    """stops all playing notes on device: midi_output on channel: channel"""
+    pass
+
+
 def play_on(midi_output: str, channel="0", blocking=False):
     """
     params:

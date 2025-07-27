@@ -16,6 +16,10 @@ fn main() {
         std::thread::spawn(move || midi_out(midi_msg_out_rx, new_midi_dev_rx));
 
         // TODO: start a thread for midi device discovery.
+
+        // TODO: start a automation thread.
+
+        // let (automation_tx, automation_rx) = unbounded();
     }
 
     // TODO: run webserver.
