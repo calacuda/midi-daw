@@ -78,7 +78,8 @@ impl MidiChannel {
         }
     }
 
-    pub fn from_hex(&self, hex: String) -> Self {
+    #[staticmethod]
+    pub fn from_hex(hex: String) -> Self {
         let hex = hex.to_lowercase();
         let hex = if hex.starts_with("0x") {
             hex.replace("0x", "")
@@ -108,7 +109,8 @@ impl MidiChannel {
         }
     }
 
-    pub fn from_int(&self, n: isize) -> Self {
+    #[staticmethod]
+    pub fn from_int(n: isize) -> Self {
         if !(1..=16).contains(&n) {
             return Self::Ch1;
         }

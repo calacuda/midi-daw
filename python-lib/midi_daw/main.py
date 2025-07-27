@@ -31,9 +31,9 @@ def mk_channel(channel):
     if channel is None:
         ch = None
     elif isinstance(channel, str):
-        ch = MidiChannel().from_hex(channel)
+        ch = MidiChannel.from_hex(channel)
     elif isinstance(channel, int):
-        ch = MidiChannel().from_int(channel)
+        ch = MidiChannel.from_int(channel)
     else:
         ch = MidiChannel()
 
