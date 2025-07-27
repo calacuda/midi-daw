@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -138,9 +140,26 @@ impl MidiChannel {
     }
 }
 
-// #[pyclass]
-// #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default, Clone, Copy)]
-// pub  {}
+#[pyclass]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub enum MidiNote {
+    C0,
+}
+
+#[pyclass]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub enum MidiMsg {
+    PlayNote {
+        target: MidiTarget,
+        note: MidiNote,
+        velocity: u8,
+        duration: Duration,
+    },
+    StopNote {
+        target: MidiTarget,
+        note: u8,
+    },
+}
 
 // /// Formats the sum of two numbers as string.
 // #[pyfunction]
@@ -153,6 +172,8 @@ impl MidiChannel {
 fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MidiChannel>()?;
     m.add_class::<MidiTarget>()?;
+    m.add_class::<MidiMsg>()?;
+    m.add_class::<MidiNote>()?;
 
     // m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     Ok(())

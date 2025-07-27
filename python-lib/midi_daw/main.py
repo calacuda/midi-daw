@@ -13,7 +13,7 @@ import threading
 from copy import copy
 from functools import partial
 
-from midi_daw_types import MidiChannel, MidiTarget
+from midi_daw_types import MidiChannel, MidiMsg, MidiTarget
 
 # MIDI_DEV = "MIDI THRU"
 # MIDI_CHANNEL = "0"
@@ -77,11 +77,11 @@ def clear_dead_threads():
     }
 
 
-def _do_midi_out(midi_dev: str, midi_chan: str, midi_cmd):
-    print(f"{midi_cmd} => {midi_dev}:{midi_chan}")
+def _do_midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg):
+    print(f"{midi_cmd} => {midi_target.name}:{midi_target.ch}")
 
 
-def _midi_out(midi_dev: str, midi_chan: str, midi_cmd, block: bool = True):
+def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
     """sends midi to the rust backend"""
     global threads
 
@@ -90,10 +90,11 @@ def _midi_out(midi_dev: str, midi_chan: str, midi_cmd, block: bool = True):
         t = threading.Thread(
             target=_do_midi_out,
             args=(
-                midi_dev,
-                midi_chan,
+                # midi_dev,
+                # midi_chan,
                 # MIDI_DEV,
                 # MIDI_CHANNEL,
+                midi_target,
                 midi_cmd,
             ),
         )
@@ -105,13 +106,13 @@ def _midi_out(midi_dev: str, midi_chan: str, midi_cmd, block: bool = True):
     else:
         # send request to rust back end
         # return _do_midi_out(MIDI_DEV, MIDI_CHANNEL, midi_cmd)
-        return _do_midi_out(midi_dev, midi_chan, midi_cmd)
+        return _do_midi_out(midi_target, midi_cmd)
 
 
 # midi_out = partial(_midi_out, MIDI_DEV, MIDI_CHANNEL)
-def midi_out(midi_cmd, block: bool = True):
+def midi_out(midi_cmd: MidiMsg, block: bool = True):
     print("DEFAULT MIDI OUT CALLED")
-    _midi_out(MIDI_TARGET.name, MIDI_TARGET.ch, midi_cmd, block)
+    _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
 def note(note: str, duration: str, vel=80, block=True, midi_out=midi_out):
@@ -225,7 +226,10 @@ def play_on(midi_output: str, channel="0", blocking=False):
             self.func = func
             self.blocking = blocking
             self.name = f"{func.__name__}:{midi_output}:{self.channel}"
-            new_midi_out = partial(_midi_out, midi_output, self.channel)
+            self.midi_target = MidiTarget()
+            self.midi_target.name = self.midi_dev
+            self.midi_target.ch = self.channel
+            new_midi_out = partial(_midi_out, self.midi_target)
             new_note = partial(note, midi_out=new_midi_out)
             self.api = {"note": new_note}
 
@@ -259,35 +263,3 @@ def play_on(midi_output: str, channel="0", blocking=False):
             print("compiling")
 
     return Decorator
-
-
-# @play_on_dev("MIDI-OUT", channel="0")
-# def main_1():
-#     note("c#4", "qn", vel=64, block=False)
-#     note("c#3", "qn", vel=64, block=True)
-#
-#
-# @play_on_dev("MIDI-OUT", channel="0")
-# def main_2():
-#     note("c#3", "qn", vel=64, block=True)
-#
-#
-# print("main_1")
-# main_1()
-# print("main_1.2")
-# main_1()
-# print("main_2")
-# main_2()
-
-
-# Idea 4
-
-
-# in the midi_out lib thered be a global that would be mutated by "set_midi_output" and would be used by the "note function"
-# from midi_out import note, set_midi_output
-#
-# set_midi_output("MIDI_DEVICE", "0")
-#
-#
-# def main():
-#     note("c#4", "qn", vel=64, block=False)
