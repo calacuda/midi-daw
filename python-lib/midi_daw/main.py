@@ -13,31 +13,58 @@ import threading
 from copy import copy
 from functools import partial
 
-MIDI_DEV = "MIDI THRU"
-MIDI_CHANNEL = "0"
+from midi_daw_types import MidiChannel, MidiTarget
 
+# MIDI_DEV = "MIDI THRU"
+# MIDI_CHANNEL = "0"
+
+MIDI_TARGET = MidiTarget()
 
 # Start threads for each link
 threads = []
 running_funcs = {}
 
 
+def mk_channel(channel):
+    ch = None
+
+    if channel is None:
+        ch = None
+    elif isinstance(channel, str):
+        ch = MidiChannel().from_hex(channel)
+    elif isinstance(channel, int):
+        ch = MidiChannel().from_int(channel)
+    else:
+        ch = MidiChannel()
+
+    return ch
+
+
 def set_midi_output(dev: str, channel=None):
     """sets the midi output device and channel"""
-    global MIDI_DEV
-    global MIDI_CHANNEL
+    # global MIDI_DEV
+    # global MIDI_CHANNEL
+    #
+    # if channel is not None:
+    #     MIDI_CHANNEL = channel
+    #
+    # MIDI_DEV = dev
+    global MIDI_TARGET
+
+    channel = mk_channel(channel)
 
     if channel is not None:
-        MIDI_CHANNEL = channel
+        print("channel is", channel)
+        MIDI_TARGET.ch = channel
 
-    MIDI_DEV = dev
+    MIDI_TARGET.name = dev
 
 
 def set_midi_chan(channel):
     """sets the midi channel"""
-    global MIDI_CHANNEL
+    global MIDI_TARGET
 
-    MIDI_CHANNEL = channel
+    MIDI_TARGET.ch = mk_channel(channel)
 
 
 def clear_dead_threads():
@@ -84,7 +111,7 @@ def _midi_out(midi_dev: str, midi_chan: str, midi_cmd, block: bool = True):
 # midi_out = partial(_midi_out, MIDI_DEV, MIDI_CHANNEL)
 def midi_out(midi_cmd, block: bool = True):
     print("DEFAULT MIDI OUT CALLED")
-    _midi_out(MIDI_DEV, MIDI_CHANNEL, midi_cmd, block)
+    _midi_out(MIDI_TARGET.name, MIDI_TARGET.ch, midi_cmd, block)
 
 
 def note(note: str, duration: str, vel=80, block=True, midi_out=midi_out):
@@ -191,21 +218,22 @@ def play_on(midi_output: str, channel="0", blocking=False):
 
     class Decorator:
         def __init__(self, func):
-            new_midi_out = partial(_midi_out, midi_output, channel)
-            new_note = partial(note, midi_out=new_midi_out)
+
             self.midi_file = ""
             self.midi_dev = midi_output
-            self.channel = channel
+            self.channel = mk_channel(channel)
             self.func = func
             self.blocking = blocking
-            self.name = f"{func.__name__}:{midi_output}:{channel}"
+            self.name = f"{func.__name__}:{midi_output}:{self.channel}"
+            new_midi_out = partial(_midi_out, midi_output, self.channel)
+            new_note = partial(note, midi_out=new_midi_out)
             self.api = {"note": new_note}
 
         def __call__(self, *args, **kwargs):
             global running_funcs
 
             self.midi_file = ""
-            print('running "midi file" on server')
+            # print('running "midi file" on server')
 
             old = copy(self.func.__globals__)
             self.func.__globals__.update(self.api)

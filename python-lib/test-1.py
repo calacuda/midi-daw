@@ -7,7 +7,7 @@ def main_1():
     note("c#3", "qn", vel=64, block=True)
 
 
-@play_on("OTHER-OUTPUT", channel="0", blocking=True)
+@play_on("OTHER-OUTPUT", channel="e", blocking=True)
 def main_2():
     note("c#3", "qn", vel=64, block=True)
 
@@ -28,4 +28,10 @@ print()
 print("main_3")
 main_3()
 print()
+print("main_3.2")
+set_midi_chan(5)
+main_3()
+print()
 main_2.compile()
+print()
+main_2()
