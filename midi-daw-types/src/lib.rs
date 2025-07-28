@@ -141,7 +141,8 @@ impl MidiChannel {
 // #[pyclass]
 // #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 // pub enum MidiNote {
-//     C0,
+//     C(u8),
+//     C#(u8),
 // }
 
 // #[pyclass]
