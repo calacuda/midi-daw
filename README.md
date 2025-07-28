@@ -17,9 +17,9 @@ these are listen in no particular order.
 
 - [x] when using decorators create a way to name the thread that a function defines, based on the funtion name.
 - [x] name the file based midi threads based on file name
-- [ ] define shared structs in rust using pyo3
+- [x] define shared structs in rust using pyo3
   - [x] make lib
-  - [ ] define types
-- [ ] start py venv for project
+  - [x] define types
+- [x] start py venv for project
 - [ ] build rust api & threads
-- [ ] enable sendin data to api backend from python
+- [ ] enable sending data to api backend from python
