@@ -21,8 +21,8 @@ Ch14 = MidiChannel.Ch14
 Ch15 = MidiChannel.Ch15
 Ch16 = MidiChannel.Ch16
 
-H = NoteLen.H
-Q = NoteLen.Q
+Hn = NoteLen.H
+Qn = NoteLen.Q
 Eth = NoteLen.Eth
 Sth = NoteLen.Sth
 Thnd = NoteLen.Thnd
