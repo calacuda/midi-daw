@@ -1,19 +1,19 @@
 from midi_daw import *
 
 
-@play_on("MIDI-OUT", channel="0", blocking=True)
+@play_on("MIDI-OUT", channel=Ch1, blocking=True)
 def main_1():
-    note("c#4", "qn", vel=64, block=False)
-    note("c#3", "qn", vel=64, block=True)
+    note("c#4", Q(1), vel=80, block=False)
+    note("c#3", Q(1), vel=80, block=True)
 
 
-@play_on("OTHER-OUTPUT", channel="e", blocking=True)
+@play_on("OTHER-OUTPUT", channel=Ch15, blocking=True)
 def main_2():
-    note("c#3", "qn", vel=64, block=True)
+    note("c#3", Q(1), vel=75, block=True)
 
 
 def main_3():
-    note("c#5", "qn", vel=64, block=True)
+    note("c#5", Q(1), vel=64, block=True)
 
 
 print("main_1")

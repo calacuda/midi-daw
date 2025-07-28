@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -140,25 +138,88 @@ impl MidiChannel {
     }
 }
 
-#[pyclass]
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub enum MidiNote {
-    C0,
+// #[pyclass]
+// #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+// pub enum MidiNote {
+//     C0,
+// }
+
+// #[pyclass]
+// #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default, Clone, Copy, Debug)]
+// pub enum MidiChannel {
+//
+// }
+
+#[pyclass(name = "NoteLen")]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+pub enum NoteDuration {
+    // how_many: u8
+    H(u8),
+    Q(u8),
+    Eth(u8),
+    Sth(u8),
+    Thnd(u8),
+    S4(u8),
+}
+
+impl Default for NoteDuration {
+    fn default() -> Self {
+        Self::Sth(1)
+    }
+}
+
+#[pymethods]
+impl NoteDuration {
+    #[new]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    // pub fn __str__(&self) -> String {
+    //     match *self {
+    //     }
+    // }
+
+    // #[staticmethod]
+    // pub fn from_str(str_repr: String) -> Self {
+    //     let str_repr = str_repr.to_lowercase();
+    //
+    //
+    // }
 }
 
 #[pyclass]
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum MidiMsg {
     PlayNote {
-        target: MidiTarget,
-        note: MidiNote,
+        // target: MidiTarget,
+        // note: MidiNote,
+        note: u8,
         velocity: u8,
-        duration: Duration,
+        duration: NoteDuration,
     },
     StopNote {
-        target: MidiTarget,
+        // target: MidiTarget,
         note: u8,
     },
+    PitchBend {
+        bend: u16,
+    },
+    CC {
+        control: u8,
+        value: u8,
+    },
+    // TODO: consider adding the bellow messages
+    //
+    // ModWheel { amt: u16 },
+    // Volume { amt: u16 },
+}
+
+#[pymethods]
+impl MidiMsg {
+    fn __repr__(&self) -> String {
+        format!("{self:?}")
+    }
 }
 
 // /// Formats the sum of two numbers as string.
@@ -167,14 +228,78 @@ pub enum MidiMsg {
 //     Ok((a + b).to_string())
 // }
 
+/// gets midi note as a u8 from a string name.
+#[pyfunction]
+fn note_from_str(name: String) -> Option<u8> {
+    let mut name = name.to_lowercase().replace(" ", "");
+    // let mut octave = 24;
+
+    let scale_offset: u8 = if name.starts_with("b#") || name.starts_with("cb") {
+        print!("[Error] Sorry but \"{name}\" is not a real note");
+        return None
+    } else if name.starts_with("c#") || name.starts_with("db") {
+        name = name.replace("c#", "").replace("db", "");
+        1
+    } else if name.starts_with("d#") || name.starts_with("eb") {
+        name = name.replace("d#", "").replace("eb", "");
+        3
+    } else if name.starts_with("e#") || name.starts_with("fb") {
+        print!("[Error] Sorry but \"{name}\" is not a real note");
+        return None
+    } else if name.starts_with("f#") || name.starts_with("gb") {
+        name = name.replace("f#", "").replace("gb", "");
+        6
+    } else if name.starts_with("g#") || name.starts_with("ab") {
+        name = name.replace("g#", "").replace("ab", "");
+        8
+    } else if name.starts_with("a#") || name.starts_with("bb") {
+        name = name.replace("a#", "").replace("bb", "");
+        10
+    } else if name.starts_with("c") {
+        name = name.replace("c", "");
+        0
+    } else if name.starts_with("d") {
+        name = name.replace("d", "");
+        2
+    } else if name.starts_with("e") {
+        name = name.replace("e", "");
+        4
+    } else if name.starts_with("f") {
+        name = name.replace("f", "");
+        5
+    } else if name.starts_with("g") {
+        name = name.replace("g", "");
+        7
+    } else if name.starts_with("a") {
+        name = name.replace("a", "");
+        9
+    } else if name.starts_with("b") {
+        name = name.replace("b", "");
+        11
+    } else {
+        print!("[Error] Sorry but \"{name}\" is not a real note");
+        return None;
+    };
+
+    let octave: u8 = if let Ok(octave) = name.parse() && !name.is_empty() {
+        octave
+    } else { 
+        1
+    };
+
+    Some(12 * octave + scale_offset + 12)
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MidiChannel>()?;
     m.add_class::<MidiTarget>()?;
     m.add_class::<MidiMsg>()?;
-    m.add_class::<MidiNote>()?;
+    m.add_class::<NoteDuration>()?;
 
     // m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+    m.add_function(wrap_pyfunction!(note_from_str, m)?)?;
+
     Ok(())
 }

@@ -13,10 +13,8 @@ import threading
 from copy import copy
 from functools import partial
 
-from midi_daw_types import MidiChannel, MidiMsg, MidiTarget
-
-# MIDI_DEV = "MIDI THRU"
-# MIDI_CHANNEL = "0"
+from midi_daw_types import (MidiChannel, MidiMsg, MidiTarget, NoteLen,
+                            note_from_str)
 
 MIDI_TARGET = MidiTarget()
 
@@ -30,6 +28,8 @@ def mk_channel(channel):
 
     if channel is None:
         ch = None
+    elif isinstance(channel, MidiChannel):
+        ch = channel
     elif isinstance(channel, str):
         ch = MidiChannel.from_hex(channel)
     elif isinstance(channel, int):
@@ -42,13 +42,6 @@ def mk_channel(channel):
 
 def set_midi_output(dev: str, channel=None):
     """sets the midi output device and channel"""
-    # global MIDI_DEV
-    # global MIDI_CHANNEL
-    #
-    # if channel is not None:
-    #     MIDI_CHANNEL = channel
-    #
-    # MIDI_DEV = dev
     global MIDI_TARGET
 
     channel = mk_channel(channel)
@@ -115,9 +108,10 @@ def midi_out(midi_cmd: MidiMsg, block: bool = True):
     _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
-def note(note: str, duration: str, vel=80, block=True, midi_out=midi_out):
+def note(note: str, duration: NoteLen, vel=80, block=True, midi_out=midi_out):
     """plays a note"""
-    midi_out(f"playing note: {note}")
+    midi_cmd = MidiMsg.PlayNote(note_from_str(note), vel, duration)
+    midi_out(midi_cmd)
 
 
 def cc(cc: int, value: float):
