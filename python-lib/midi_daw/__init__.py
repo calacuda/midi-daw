@@ -1,5 +1,3 @@
-# import midi_daw_types.MidiChannel
-# from midi_daw_types.NoteLen import *
 from midi_daw_types import MidiChannel, NoteLen
 
 from .main import *
