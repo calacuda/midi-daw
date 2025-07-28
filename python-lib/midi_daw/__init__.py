@@ -23,7 +23,7 @@ Ch16 = MidiChannel.Ch16
 
 Hn = NoteLen.H
 Qn = NoteLen.Q
-Eth = NoteLen.Eth
-Sth = NoteLen.Sth
-Thnd = NoteLen.Thnd
-S4 = NoteLen.S4
+En = NoteLen.Eth
+Sn = NoteLen.Sth
+Tn = NoteLen.Thnd
+S4n = NoteLen.S4
