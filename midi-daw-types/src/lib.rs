@@ -154,17 +154,17 @@ impl MidiChannel {
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub enum NoteDuration {
     // how_many: u8
-    H(u8),
-    Q(u8),
-    Eth(u8),
-    Sth(u8),
-    Thnd(u8),
-    S4(u8),
+    Hn(u8),
+    Qn(u8),
+    En(u8),
+    Sn(u8),
+    Tn(u8),
+    S4n(u8),
 }
 
 impl Default for NoteDuration {
     fn default() -> Self {
-        Self::Sth(1)
+        Self::Sn(1)
     }
 }
 

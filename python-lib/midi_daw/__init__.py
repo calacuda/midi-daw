@@ -1,6 +1,6 @@
 # import midi_daw_types.MidiChannel
 # from midi_daw_types.NoteLen import *
-from midi_daw_types import *
+from midi_daw_types import MidiChannel, NoteLen
 
 from .main import *
 
@@ -21,9 +21,9 @@ Ch14 = MidiChannel.Ch14
 Ch15 = MidiChannel.Ch15
 Ch16 = MidiChannel.Ch16
 
-Hn = NoteLen.H
-Qn = NoteLen.Q
-En = NoteLen.Eth
-Sn = NoteLen.Sth
-Tn = NoteLen.Thnd
-S4n = NoteLen.S4
+Hn = NoteLen.Hn
+Qn = NoteLen.Qn
+En = NoteLen.En
+Sn = NoteLen.Sn
+Tn = NoteLen.Tn
+S4n = NoteLen.S4n
