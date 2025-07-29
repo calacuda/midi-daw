@@ -14,7 +14,7 @@ _new-tmux-dev-session SESSION:
 _new-window SESSION NAME CMD:
   tmux new-w -t "{{SESSION}}" -n "{{NAME}}"
   tmux send-keys -t "{{SESSION}}":"{{NAME}}" ". ./.venv/bin/activate" ENTER
-  [[ "{{CMD}}" != "" ]] && tmux send-keys -t "{{SESSION}}":"{{NAME}}" "{{CMD}}" ENTER
+  [[ "{{CMD}}" != "" ]] && tmux send-keys -t "{{SESSION}}":"{{NAME}}" "{{CMD}}" ENTER || true
 
 
 tmux:
