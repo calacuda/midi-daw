@@ -22,4 +22,6 @@ these are listen in no particular order.
   - [x] define types
 - [x] start py venv for project
 - [ ] build rust api & threads
+  - [x] threads
+  - [ ] api
 - [ ] enable sending data to api backend from python

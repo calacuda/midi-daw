@@ -7,7 +7,7 @@ pub mod server;
 
 fn main() {
     // tempo
-    let tempo = RwLock::new(99);
+    let tempo = RwLock::new(99.0);
 
     // prepare mpsc.
     let (midi_msg_out_tx, midi_msg_out_rx) = unbounded();
@@ -30,5 +30,5 @@ fn main() {
     };
 
     // run webserver.
-    server::run();
+    server::run(tempo, midi_msg_out_tx);
 }

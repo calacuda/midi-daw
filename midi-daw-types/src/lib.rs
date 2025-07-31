@@ -1,6 +1,8 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
+pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
+
 pub type MidiDeviceName = String;
 
 #[pyclass]
@@ -310,6 +312,7 @@ fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     m.add_function(wrap_pyfunction!(note_from_str, m)?)?;
+    m.add("UDS_SERVER_PATH", UDS_SERVER_PATH)?;
 
     Ok(())
 }
