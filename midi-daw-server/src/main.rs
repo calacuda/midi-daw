@@ -1,11 +1,14 @@
 use crate::midi::{dev::new_midi_dev, out::midi_out};
 use crossbeam::channel::unbounded;
-use std::thread::spawn;
+use std::{sync::RwLock, thread::spawn};
 
 pub mod midi;
 pub mod server;
 
 fn main() {
+    // tempo
+    let tempo = RwLock::new(99);
+
     // prepare mpsc.
     let (midi_msg_out_tx, midi_msg_out_rx) = unbounded();
 
@@ -19,11 +22,13 @@ fn main() {
         let midi_dev_jh = spawn(move || new_midi_dev(new_midi_dev_tx));
 
         // start a automation thread.
-
         // let (automation_tx, automation_rx) = unbounded();
+        //
+        // let automation_jh = spawn(move || automation(automation_rx, midi_msg_out_tx.clone()));
 
         (midi_out_jh, midi_dev_jh)
     };
 
-    // TODO: run webserver.
+    // run webserver.
+    server::run();
 }

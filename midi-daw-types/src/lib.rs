@@ -151,6 +151,15 @@ impl MidiChannel {
 //
 // }
 
+// #[pyclass]
+// #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default, Clone, Copy, Debug)]
+// pub enum AutomationConf {
+//     LFO {
+//         freq: f64,
+//
+//     }        
+// }
+
 #[pyclass(name = "NoteLen")]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub enum NoteDuration {

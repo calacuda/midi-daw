@@ -1,3 +1,4 @@
+pub mod automation;
 pub mod dev;
 pub mod out;
 
