@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+actix = "0.13.5"
+actix-broker = "0.4.4"
+actix-web = "4.11.0"
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 fx-hash = { version = "0.1.0", features = ["nightly"] }
 log = "0.4.27"
