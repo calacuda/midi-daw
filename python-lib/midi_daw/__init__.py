@@ -19,6 +19,7 @@ Ch14 = MidiChannel.Ch14
 Ch15 = MidiChannel.Ch15
 Ch16 = MidiChannel.Ch16
 
+Wn = NoteLen.Wn
 Hn = NoteLen.Hn
 Qn = NoteLen.Qn
 En = NoteLen.En

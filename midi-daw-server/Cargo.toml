@@ -13,3 +13,4 @@ log = "0.4.27"
 midi-daw-types = { version = "0.1.0", path = "../midi-daw-types" }
 midi-msg = "0.8.0"
 midir = "0.10.1"
+serde = { version = "1.0.219", features = ["derive"] }

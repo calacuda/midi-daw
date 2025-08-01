@@ -114,6 +114,11 @@ def note(note: str, duration: NoteLen, vel=80, block=True, midi_out=midi_out):
     midi_out(midi_cmd)
 
 
+def rest(duration: NoteLen):
+    """musical rest"""
+    pass
+
+
 def cc(cc: int, value: float):
     """sends a cc value"""
     pass

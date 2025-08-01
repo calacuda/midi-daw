@@ -1,3 +1,4 @@
+use midi_msg::Channel;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -166,6 +167,7 @@ impl MidiChannel {
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub enum NoteDuration {
     // how_many: u8
+    Wn(u8),
     Hn(u8),
     Qn(u8),
     En(u8),
@@ -302,6 +304,81 @@ fn note_from_str(name: String) -> Option<u8> {
     Some(12 * octave + scale_offset + 12)
 }
 
+#[pyclass]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct MidiReqBody {
+    pub midi_dev: String,
+    pub channel: MidiChannel,
+    pub msg: MidiMsg
+}
+
+#[pymethods]
+impl MidiReqBody {
+    #[new]
+    fn new(midi_dev: String, channel: MidiChannel, msg: MidiMsg) -> Self {
+        Self {
+            midi_dev,
+            channel,
+            msg
+        }
+
+    }
+
+    fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+// impl Into<Channel> for MidiChannel {
+//     fn into(self) -> Channel {
+//         match self {
+//             Self::Ch1 => Channel::Ch1,
+//             Self::Ch2 => Channel::Ch2,
+//             Self::Ch3 => Channel::Ch3,
+//             Self::Ch4 => Channel::Ch4,
+//             Self::Ch5 => Channel::Ch5,
+//             Self::Ch6 => Channel::Ch6,
+//             Self::Ch7 => Channel::Ch7,
+//             Self::Ch8 => Channel::Ch8,
+//             Self::Ch9 => Channel::Ch9,
+//             Self::Ch10 => Channel::Ch10,
+//             Self::Ch11 => Channel::Ch11,
+//             Self::Ch12 => Channel::Ch12,
+//             Self::Ch13 => Channel::Ch13,
+//             Self::Ch14 => Channel::Ch14,
+//             Self::Ch15 => Channel::Ch15,
+//             Self::Ch16 => Channel::Ch16,
+//         }
+//     }
+// }
+
+impl From<MidiChannel> for Channel {
+    fn from(value: MidiChannel) -> Self {
+        match value {
+            MidiChannel::Ch1 => Channel::Ch1,
+            MidiChannel::Ch2 => Channel::Ch2,
+            MidiChannel::Ch3 => Channel::Ch3,
+            MidiChannel::Ch4 => Channel::Ch4,
+            MidiChannel::Ch5 => Channel::Ch5,
+            MidiChannel::Ch6 => Channel::Ch6,
+            MidiChannel::Ch7 => Channel::Ch7,
+            MidiChannel::Ch8 => Channel::Ch8,
+            MidiChannel::Ch9 => Channel::Ch9,
+            MidiChannel::Ch10 => Channel::Ch10,
+            MidiChannel::Ch11 => Channel::Ch11,
+            MidiChannel::Ch12 => Channel::Ch12,
+            MidiChannel::Ch13 => Channel::Ch13,
+            MidiChannel::Ch14 => Channel::Ch14,
+            MidiChannel::Ch15 => Channel::Ch15,
+            MidiChannel::Ch16 => Channel::Ch16,
+        }
+    }
+}
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -309,6 +386,7 @@ fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MidiTarget>()?;
     m.add_class::<MidiMsg>()?;
     m.add_class::<NoteDuration>()?;
+    m.add_class::<MidiReqBody>()?;
 
     // m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     m.add_function(wrap_pyfunction!(note_from_str, m)?)?;
