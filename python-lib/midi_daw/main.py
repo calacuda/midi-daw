@@ -114,27 +114,27 @@ def note(note: str, duration: NoteLen, vel=80, block=True, midi_out=midi_out):
     midi_out(midi_cmd)
 
 
-def rest(duration: NoteLen):
+def rest(duration: NoteLen, midi_out=midi_out):
     """musical rest"""
     pass
 
 
-def cc(cc: int, value: float):
+def cc(cc: int, value: float, midi_out=midi_out):
     """sends a cc value"""
     pass
 
 
-def set_tempo(tempo: int):
+def set_tempo(tempo: int, midi_out=midi_out):
     """sets the tempo on the server"""
     pass
 
 
-def wait_for(event: str):
+def wait_for(event: str, midi_out=midi_out):
     """used to wait or block on event"""
     pass
 
 
-def trigger(event: str):
+def trigger(event: str, midi_out=midi_out):
     """used to trigger an event"""
     pass
 
@@ -146,6 +146,7 @@ def lfo(
     one_shot: bool = True,
     bipolar: bool = False,
     hifi_update: bool = False,
+    midi_out=midi_out,
 ) -> str:
     """
     set up a LFO automation
@@ -171,7 +172,7 @@ def lfo(
     return "LFO_NAME"
 
 
-def lfo_off(lfo_name: str):
+def lfo_off(lfo_name: str, midi_out=midi_out):
     """turns off an LFO"""
     pass
 
@@ -183,6 +184,7 @@ def adsr(
     release: float,
     callback: callable,
     hifi_update: bool = False,
+    midi_out=midi_out,
 ) -> str:
     """
     set up an ADSR Envelope automation
@@ -200,12 +202,12 @@ def adsr(
     return "ADSR_NAME"
 
 
-def adsr_off(adsr_name: str):
+def adsr_off(adsr_name: str, midi_out=midi_out):
     """turns off an adsr"""
     pass
 
 
-def all_off(midi_output: str, channel="0"):
+def all_off(midi_output: str, channel="0", midi_out=midi_out):
     """stops all playing notes on device: midi_output on channel: channel"""
     pass
 

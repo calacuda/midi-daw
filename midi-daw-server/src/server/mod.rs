@@ -6,7 +6,7 @@ use actix_web::{
 };
 use async_std::sync::RwLock;
 use crossbeam::channel::Sender;
-use midi_daw_types::{MidiMsg, MidiReqBody, UDS_SERVER_PATH};
+use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
 
 mod note;
 
@@ -38,6 +38,16 @@ async fn midi(
     HttpResponse::Ok()
 }
 
+#[post("rest")]
+async fn rest(tempo: web::Data<RwLock<f64>>, durration: Json<NoteDuration>) -> impl Responder {
+    let tempo = tempo.read().await;
+
+    // serde_json::to_string(&*tempo).map(|tempo| HttpResponse::Ok().body(tempo))
+    note::rest(*tempo, *durration).await;
+
+    HttpResponse::Ok()
+}
+
 #[post("tempo")]
 async fn set_tempo(tempo: web::Data<RwLock<f64>>, req_body: Json<f64>) -> impl Responder {
     let mut tempo = tempo.write().await;
@@ -61,10 +71,10 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
         App::new()
             .app_data(tempo.clone())
             .app_data(midi_out.clone())
-            // .route("/hey", web::get().to(manual_hello))
             .service(midi)
             .service(get_tempo)
             .service(set_tempo)
+            .service(rest)
     })
     .bind(("127.0.0.1", 8888))?
     .bind_uds(UDS_SERVER_PATH)?

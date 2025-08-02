@@ -333,13 +333,13 @@ impl MidiReqBody {
     }
 }
 
-// #[pyclass]
-// #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
-// pub struct TempoSetReqBody {
-//     pub tempo: String,
-//     // pub channel: MidiChannel,
-//     // pub msg: MidiMsg
-// }
+#[pyclass]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct RestReqBody {
+    pub tempo: String,
+    // pub channel: MidiChannel,
+    // pub msg: MidiMsg
+}
 
 
 // impl Into<Channel> for MidiChannel {

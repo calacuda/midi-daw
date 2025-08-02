@@ -6,6 +6,21 @@ use actix_web::web::{self};
 use midi_daw_types::{MidiChannel, NoteDuration};
 use midi_msg::ControlChange;
 
+pub async fn rest(tempo: f64, dur: NoteDuration) {
+    let (mul, denom) = match dur {
+        NoteDuration::Wn(n) => (n, 1.0),
+        NoteDuration::Hn(n) => (n, 2.0),
+        NoteDuration::Qn(n) => (n, 4.0),
+        NoteDuration::En(n) => (n, 8.0),
+        NoteDuration::Sn(n) => (n, 16.0),
+        NoteDuration::Tn(n) => (n, 32.0),
+        NoteDuration::S4n(n) => (n, 64.0),
+    };
+    let mul = mul as f64;
+
+    sleep(Duration::from_secs_f64((tempo / 60.0) * 2.0 * mul / denom)).await;
+}
+
 pub async fn play_note(
     tempo: f64,
     midi_out: web::Data<MidiOut>,
@@ -22,18 +37,7 @@ pub async fn play_note(
 
     _ = midi_out.send((dev.clone(), msg));
 
-    let (mul, denom) = match dur {
-        NoteDuration::Wn(n) => (n, 1.0),
-        NoteDuration::Hn(n) => (n, 2.0),
-        NoteDuration::Qn(n) => (n, 4.0),
-        NoteDuration::En(n) => (n, 8.0),
-        NoteDuration::Sn(n) => (n, 16.0),
-        NoteDuration::Tn(n) => (n, 32.0),
-        NoteDuration::S4n(n) => (n, 64.0),
-    };
-    let mul = mul as f64;
-
-    sleep(Duration::from_secs_f64((tempo / 60.0) * 2.0 * mul / denom)).await;
+    rest(tempo, dur).await;
 
     let msg = midi_msg::MidiMsg::ChannelVoice {
         channel: channel.into(),
