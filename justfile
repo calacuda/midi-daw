@@ -24,6 +24,9 @@ tmux:
 play-note:
   http -j post http://127.0.0.1:8888/midi --raw '{"midi_dev":"OUTPUT-DEVICE","channel":"Ch1","msg":{"PlayNote":{"note":42,"velocity":100,"duration":{"Sn":1}}}}'
 
+get-devs:
+  http http://127.0.0.1:8888/midi
+
 # term-test:
 #   tmux has-session -t midi-daw-test || just _new-tmux-session midi-daw-test
 #   tmux a -t midi-daw-test

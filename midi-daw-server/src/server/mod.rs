@@ -7,10 +7,9 @@ use actix_web::{
 use async_std::sync::RwLock;
 use crossbeam::channel::Sender;
 use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
-use tracing::subscriber;
+use midir::MidiOutput;
 use tracing_actix_web::TracingLogger;
-use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
-use tracing_subscriber::{layer::SubscriberExt, EnvFilter, FmtSubscriber, Registry};
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod note;
 
@@ -42,7 +41,7 @@ async fn midi(
     HttpResponse::Ok()
 }
 
-#[post("rest")]
+#[post("/rest")]
 async fn rest(tempo: web::Data<RwLock<f64>>, durration: Json<NoteDuration>) -> impl Responder {
     let tempo = tempo.read().await;
 
@@ -52,7 +51,7 @@ async fn rest(tempo: web::Data<RwLock<f64>>, durration: Json<NoteDuration>) -> i
     HttpResponse::Ok()
 }
 
-#[post("tempo")]
+#[post("/tempo")]
 async fn set_tempo(tempo: web::Data<RwLock<f64>>, req_body: Json<f64>) -> impl Responder {
     let mut tempo = tempo.write().await;
     *tempo = *req_body;
@@ -60,11 +59,23 @@ async fn set_tempo(tempo: web::Data<RwLock<f64>>, req_body: Json<f64>) -> impl R
     HttpResponse::Ok()
 }
 
-#[get("tempo")]
+#[get("/tempo")]
 async fn get_tempo(tempo: web::Data<RwLock<f64>>) -> impl Responder {
     let tempo = tempo.read().await;
 
     serde_json::to_string(&*tempo).map(|tempo| HttpResponse::Ok().body(tempo))
+}
+
+#[get("/midi")]
+async fn get_devs() -> impl Responder {
+    let midi_out = MidiOutput::new("MIDI-DAW-API").unwrap();
+    let midi_devs_names: Vec<String> = midi_out
+        .ports()
+        .into_iter()
+        .filter_map(|port| midi_out.port_name(&port).ok())
+        .collect();
+
+    serde_json::to_string(&midi_devs_names).map(|tempo| HttpResponse::Ok().body(tempo))
 }
 
 pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
@@ -90,6 +101,7 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
             .app_data(tempo.clone())
             .app_data(midi_out.clone())
             .service(midi)
+            .service(get_devs)
             .service(get_tempo)
             .service(set_tempo)
             .service(rest)
