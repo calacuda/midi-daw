@@ -96,6 +96,7 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
     global threads
 
     if not block:
+        clear_dead_threads()
         # send requests in a sub thread
         t = threading.Thread(
             target=_do_midi_out,
@@ -110,7 +111,6 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
         )
         t.start()
         threads.append(t)
-        clear_dead_threads()
 
         return None
     else:
@@ -125,10 +125,10 @@ def midi_out(midi_cmd: MidiMsg, block: bool = True):
     _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
-def note(note: str, duration: NoteLen, vel=80, block=True, midi_out=midi_out):
+def note(note: str, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out):
     """plays a note"""
     midi_cmd = MidiMsg.PlayNote(note_from_str(note), vel, duration)
-    midi_out(midi_cmd)
+    midi_out(midi_cmd, block=block)
 
 
 def rest(duration: NoteLen, midi_out=midi_out):
@@ -268,7 +268,7 @@ def play_on(midi_output: str, channel="0", blocking=False):
                 t.start()
                 print(f"running function => {self.name}")
                 running_funcs[self.name] = t
-                clear_dead_threads()
+                # clear_dead_threads()
                 self.func.__globals__.update(old)
 
                 return None

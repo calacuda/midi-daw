@@ -106,6 +106,8 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
             .service(set_tempo)
             .service(rest)
     })
+    .worker_max_blocking_threads(1)
+    .workers(24)
     .bind(("127.0.0.1", 8888))?
     .bind_uds(UDS_SERVER_PATH)?
     .run()
