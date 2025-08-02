@@ -4,6 +4,12 @@ use fx_hash::{FxHashMap, FxHashSet};
 use midir::MidiOutput;
 use std::{thread::sleep, time::Duration};
 
+pub fn fmt_dev_name(name: impl ToString) -> String {
+    let name = name.to_string();
+    let tokens: Vec<&str> = name.split(":").collect();
+    format!("{}:{}", tokens[0], tokens.last().unwrap())
+}
+
 pub fn new_midi_dev(new_dev_tx: Sender<MidiDev>) -> ! {
     let mut midi_devs: FxHashMap<String, String> = FxHashMap::default();
 
@@ -16,7 +22,7 @@ pub fn new_midi_dev(new_dev_tx: Sender<MidiDev>) -> ! {
             .filter_map(|port| {
                 midi_out
                     .port_name(&port)
-                    .map_or(None, |name| Some((name, port.id())))
+                    .map_or(None, |name| Some((fmt_dev_name(&name), port.id())))
             })
             .collect();
 

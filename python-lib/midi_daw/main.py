@@ -127,18 +127,20 @@ def midi_out(midi_cmd: MidiMsg, block: bool = True):
 
 def note(note: str, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out):
     """plays a note"""
+    # TODO: add int, and lists types as notes
     midi_cmd = MidiMsg.PlayNote(note_from_str(note), vel, duration)
     midi_out(midi_cmd, block=block)
 
 
-def rest(duration: NoteLen, midi_out=midi_out):
+def rest(duration: NoteLen):
     """musical rest"""
     pass
 
 
 def cc(cc: int, value: float, midi_out=midi_out):
     """sends a cc value"""
-    pass
+    midi_cmd = MidiMsg.CC(cc, value)
+    midi_out(midi_cmd)
 
 
 def set_tempo(tempo: int):
@@ -250,8 +252,8 @@ def play_on(midi_output: str, channel="0", blocking=False):
             new_midi_out = partial(_midi_out, self.midi_target)
             new_note = partial(note, midi_out=new_midi_out)
             new_cc = partial(cc, midi_out=new_midi_out)
-            new_rest = partial(rest, midi_out=new_midi_out)
-            self.api = {"note": new_note, "rest": new_rest, "cc": new_cc}
+            # new_rest = partial(rest)
+            self.api = {"note": new_note, "cc": new_cc}
 
         def __call__(self, *args, **kwargs):
             global running_funcs

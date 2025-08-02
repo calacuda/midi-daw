@@ -1,4 +1,7 @@
-use crate::server::note::{pitch_bend, play_note, send_cc, stop_note};
+use crate::{
+    midi::dev::fmt_dev_name,
+    server::note::{pitch_bend, play_note, send_cc, stop_note},
+};
 use actix_web::{
     get, post,
     web::{self, Json},
@@ -72,7 +75,8 @@ async fn get_devs() -> impl Responder {
     let midi_devs_names: Vec<String> = midi_out
         .ports()
         .into_iter()
-        .filter_map(|port| midi_out.port_name(&port).ok())
+        .filter_map(|port| midi_out.port_name(&port).ok().map(fmt_dev_name))
+        // .map(|port| port.id())
         .collect();
 
     serde_json::to_string(&midi_devs_names).map(|tempo| HttpResponse::Ok().body(tempo))
@@ -107,7 +111,7 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
             .service(rest)
     })
     .worker_max_blocking_threads(1)
-    .workers(24)
+    .workers(12)
     .bind(("127.0.0.1", 8888))?
     .bind_uds(UDS_SERVER_PATH)?
     .run()
