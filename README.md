@@ -26,4 +26,5 @@ these are listen in no particular order.
   - [x] midi api
   - [ ] message bus
   - [x] tempo get/set
-- [ ] enable sending data to api backend from python
+  - [ ] add listing of midi devices
+- [x] enable sending data to api backend from python

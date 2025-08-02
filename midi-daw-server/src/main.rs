@@ -6,6 +6,8 @@ use std::thread::spawn;
 pub mod midi;
 pub mod server;
 
+const APP_NAME: &str = "MIDI-DAW";
+
 #[actix::main]
 async fn main() -> std::io::Result<()> {
     // fn main() -> std::io::Result<()> {

@@ -1,1 +1,2 @@
 ../midi-daw-types/
+requests-unixsocket==0.4.1

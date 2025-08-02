@@ -7,6 +7,10 @@ use actix_web::{
 use async_std::sync::RwLock;
 use crossbeam::channel::Sender;
 use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
+use tracing::subscriber;
+use tracing_actix_web::TracingLogger;
+use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter, FmtSubscriber, Registry};
 
 mod note;
 
@@ -67,8 +71,22 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
     let midi_out = web::Data::new(midi_out);
 
+    // Filter based on level - trace, debug, info, warn, error
+    // Tunable via `RUST_LOG` env variable
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+    FmtSubscriber::builder()
+        .with_file(true)
+        .with_line_number(true)
+        .with_level(true)
+        .with_thread_names(false)
+        .with_thread_ids(false)
+        .with_env_filter(env_filter)
+        .without_time()
+        .init();
+
     HttpServer::new(move || {
         App::new()
+            .wrap(TracingLogger::default())
             .app_data(tempo.clone())
             .app_data(midi_out.clone())
             .service(midi)

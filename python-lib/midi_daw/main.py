@@ -9,12 +9,19 @@ NOTE: all midi control functions should send singles to the server over a unix s
 By: Calacuda | MIT License | Epoch: Jul 25, 2025
 """
 
+import logging
 import threading
 from copy import copy
 from functools import partial
 
-from midi_daw_types import (MidiChannel, MidiMsg, MidiTarget, NoteLen,
-                            note_from_str)
+import requests
+import requests_unixsocket
+from midi_daw_types import (UDS_SERVER_PATH, MidiChannel, MidiMsg, MidiReqBody,
+                            MidiTarget, NoteLen, note_from_str)
+
+requests_unixsocket.monkeypatch()
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 MIDI_TARGET = MidiTarget()
 
@@ -71,7 +78,17 @@ def clear_dead_threads():
 
 
 def _do_midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg):
-    print(f"{midi_cmd} => {midi_target.name}:{midi_target.ch}")
+    # print(f"{midi_cmd} => {midi_target.name}:{midi_target.ch}")
+    socket = UDS_SERVER_PATH.replace("/", "%2F")
+    headers = {"Content-Type": "application/json"}
+    res = requests.post(
+        f"http+unix://{socket}/midi",
+        data=MidiReqBody(midi_target.name, midi_target.ch, midi_cmd).json(),
+        headers=headers,
+    )
+
+    if res.status_code != 200:
+        log.warning(f"{res.text}")
 
 
 def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
@@ -104,7 +121,7 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
 
 # midi_out = partial(_midi_out, MIDI_DEV, MIDI_CHANNEL)
 def midi_out(midi_cmd: MidiMsg, block: bool = True):
-    print("DEFAULT MIDI OUT CALLED")
+    # print("DEFAULT MIDI OUT CALLED")
     _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
@@ -124,17 +141,17 @@ def cc(cc: int, value: float, midi_out=midi_out):
     pass
 
 
-def set_tempo(tempo: int, midi_out=midi_out):
+def set_tempo(tempo: int):
     """sets the tempo on the server"""
     pass
 
 
-def wait_for(event: str, midi_out=midi_out):
+def wait_for(event: str):
     """used to wait or block on event"""
     pass
 
 
-def trigger(event: str, midi_out=midi_out):
+def trigger(event: str):
     """used to trigger an event"""
     pass
 
@@ -146,7 +163,7 @@ def lfo(
     one_shot: bool = True,
     bipolar: bool = False,
     hifi_update: bool = False,
-    midi_out=midi_out,
+    # midi_out=midi_out,
 ) -> str:
     """
     set up a LFO automation
@@ -172,7 +189,7 @@ def lfo(
     return "LFO_NAME"
 
 
-def lfo_off(lfo_name: str, midi_out=midi_out):
+def lfo_off(lfo_name: str):
     """turns off an LFO"""
     pass
 
@@ -184,7 +201,7 @@ def adsr(
     release: float,
     callback: callable,
     hifi_update: bool = False,
-    midi_out=midi_out,
+    # midi_out=midi_out,
 ) -> str:
     """
     set up an ADSR Envelope automation
@@ -202,12 +219,12 @@ def adsr(
     return "ADSR_NAME"
 
 
-def adsr_off(adsr_name: str, midi_out=midi_out):
+def adsr_off(adsr_name: str):
     """turns off an adsr"""
     pass
 
 
-def all_off(midi_output: str, channel="0", midi_out=midi_out):
+def all_off(midi_output: str, channel="0"):
     """stops all playing notes on device: midi_output on channel: channel"""
     pass
 
@@ -232,7 +249,9 @@ def play_on(midi_output: str, channel="0", blocking=False):
             self.midi_target.ch = self.channel
             new_midi_out = partial(_midi_out, self.midi_target)
             new_note = partial(note, midi_out=new_midi_out)
-            self.api = {"note": new_note}
+            new_cc = partial(cc, midi_out=new_midi_out)
+            new_rest = partial(rest, midi_out=new_midi_out)
+            self.api = {"note": new_note, "rest": new_rest, "cc": new_cc}
 
         def __call__(self, *args, **kwargs):
             global running_funcs

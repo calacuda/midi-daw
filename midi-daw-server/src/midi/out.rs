@@ -1,9 +1,9 @@
 use crate::midi::MidiDev;
 use crossbeam::channel::Receiver;
 use fx_hash::FxHashMap;
-use log::*;
 use midi_msg::MidiMsg;
 use midir::MidiOutput;
+use tracing::log::*;
 
 pub fn midi_out(midi_msg_out: Receiver<(String, MidiMsg)>, new_dev: Receiver<MidiDev>) -> ! {
     let mut midi_devs = FxHashMap::default();
