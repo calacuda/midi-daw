@@ -25,5 +25,5 @@ these are listen in no particular order.
   - [x] threads
   - [x] midi api
   - [ ] message bus
-  - [ ] tempo get/set
+  - [x] tempo get/set
 - [ ] enable sending data to api backend from python
