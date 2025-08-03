@@ -164,7 +164,7 @@ def note(note, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out)
             midi_cmd = mk_cmd(n)
             send_midi_cmd(midi_cmd, block=False)
 
-        if len(note) > 1:
+        if len(note) >= 1:
             midi_cmd = mk_cmd(note[-1])
             send_midi_cmd(midi_cmd)
     else:
