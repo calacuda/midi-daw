@@ -31,6 +31,7 @@ _new-tmux-dev-session-2 SESSION:
 
 tmux:
   tmux has-session -t midi-daw || just _new-tmux-dev-session midi-daw
+  tmux has-session -t midi-daw-test || just _new-tmux-dev-session-2 midi-daw-test
   tmux a -t midi-daw
 
 tmux-2:
