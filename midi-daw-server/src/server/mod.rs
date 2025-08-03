@@ -1,11 +1,13 @@
+use std::time::Duration;
+
 use crate::{
     midi::dev::fmt_dev_name,
     server::{
-        message_bus::{message_bug, MbMessageEvent},
+        message_bus::{message_bug, MbMessageEvent, MbMessageWrapper},
         note::{pitch_bend, play_note, send_cc, stop_note},
     },
 };
-use actix::Actor;
+use actix::{clock::sleep, spawn, Actor, Addr};
 use actix_web::{
     get, post,
     web::{self, Json},
@@ -70,7 +72,6 @@ async fn set_tempo(tempo: web::Data<RwLock<f64>>, req_body: Json<f64>) -> impl R
 #[get("/tempo")]
 async fn get_tempo(tempo: web::Data<RwLock<f64>>) -> impl Responder {
     let tempo = tempo.read().await;
-
     serde_json::to_string(&*tempo).map(|tempo| HttpResponse::Ok().body(tempo))
 }
 
@@ -85,6 +86,35 @@ async fn get_devs() -> impl Responder {
         .collect();
 
     serde_json::to_string(&midi_devs_names).map(|tempo| HttpResponse::Ok().body(tempo))
+}
+
+/// sends a message to the message bus every note
+pub async fn clock_notif(
+    data: web::Data<Addr<MbMessageEvent>>,
+    tempo: web::Data<RwLock<f64>>,
+) -> ! {
+    let mut sn = 0;
+    let id = uuid::Uuid::new_v4();
+    let msgs: Vec<String> = vec![
+        "1", "1e", "1&", "1a", "2", "2e", "2&", "2a", "3", "3e", "3&", "3a", "4", "4e", "4&", "4a",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+
+    loop {
+        let message: String = msgs[sn].clone();
+
+        let msg = MbMessageWrapper { id, message };
+
+        data.do_send(msg);
+
+        sn += 1;
+        sn %= 16;
+
+        let sleep_time = (*tempo.read().await / 60.0) * 2.0 / 16.0;
+        sleep(Duration::from_secs_f64(sleep_time)).await
+    }
 }
 
 pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
@@ -104,6 +134,8 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
         .with_env_filter(env_filter)
         .without_time()
         .init();
+
+    let _jh = spawn(clock_notif(msg_event_addr.clone(), tempo.clone()));
 
     HttpServer::new(move || {
         App::new()

@@ -14,8 +14,8 @@ pub struct MbMessageEvent;
 #[derive(Clone, Debug, Message)]
 #[rtype(result = "()")]
 pub struct MbMessageWrapper {
-    id: Uuid,
-    message: MbMsgType,
+    pub id: Uuid,
+    pub message: MbMsgType,
 }
 
 impl Actor for MbMessageEvent {
@@ -96,4 +96,3 @@ pub async fn message_bug(
 
     resp
 }
-
