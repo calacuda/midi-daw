@@ -12,13 +12,27 @@ def chord_prog_1():
     note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"], en(), vel=80, block=True)
 
 
+@play_on("monologue:1", channel=Ch1, blocking=False, loop=-1)
+def bass():
+    note("b4", qn(), vel=80, block=True)
+    note("a#4", sn(), vel=80, block=True)
+    note("f#4", en(), vel=80, block=True)
+    note("C#5", qn(), vel=80, block=True)
+    note("f#4", en(), vel=80, block=True)
+    note("C#5", en(), vel=80, block=True)
+    note("a#4", sn(), vel=80, block=True)
+
+
 @play_on("microKORG2:0", channel=Ch1, blocking=False, loop=-1)
 def chords():
-    note(["b3", "d4", "f#4", "a4", "c#5"][0], qn(), vel=80, block=True)
-    note(["a#3", "C#4", "D4", "f4", "g#4"][0], sn(), vel=80, block=True)
-    note(["f#3", "a#4", "c#4", "d#4", "e4"][0], en(), vel=80, block=True)
-    note(["C#4", "D#4", "e4", "g#4", "b4"][0], qn(), vel=80, block=True)
-    note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"][0], en(), vel=80, block=True)
+    note(["b3", "d4", "f#4", "a4", "c#5"], qn(), vel=80, block=True)
+    note(["a#3", "C#4", "D4", "f4", "g#4"], sn(), vel=80, block=True)
+    note(["f#3", "a#4", "c#4", "d#4", "e4"], en(), vel=80, block=True)
+    note(["C#4", "D#4", "e4", "g#4", "b4"], qn(), vel=80, block=True)
+    rest(sn())
+    note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"], sn(4), vel=80, block=True)
+    # note(["C#4", "D#4", "e4", "g#4", "b4"], en(), vel=80, block=True)
+    # note(["a#3", "C#4", "D4", "f4", "g#4"], sn(), vel=80, block=True)
 
 
 def sp(pad_n: int) -> int:
@@ -49,5 +63,18 @@ def drums():
     do_drums()
 
 
+@play_on("TD-3-MO:0", channel=Ch4, blocking=False, loop=-1)
+def lead():
+    note("f#3", qn(), vel=100, block=True)
+    note("D3", sn(), vel=80, block=True)
+    note("c#3", en(), vel=100, block=True)
+    note("e3", qn(), vel=80, block=True)
+    note("A#2", sn(), vel=100, block=True)
+    note("e3", en(), vel=80, block=True)
+    note("D3", sn(), vel=80, block=True)
+
+
 chords()
 drums()
+bass()
+lead()
