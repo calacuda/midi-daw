@@ -10,10 +10,10 @@ By: Calacuda | MIT License | Epoch: Jul 25, 2025
 """
 
 import logging
+import threading
 from copy import copy
 from functools import partial
-# import threading
-from multiprocessing import Process, process
+from multiprocessing import Process
 
 import requests
 import requests_unixsocket
@@ -100,7 +100,7 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
     global threads
 
     if not block:
-        clear_dead_threads()
+        # clear_dead_threads()
         # send requests in a sub thread
         # t = threading.Thread(
         t = Process(
@@ -121,7 +121,7 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
 
 # midi_out = partial(_midi_out, MIDI_DEV, MIDI_CHANNEL)
 def midi_out(midi_cmd: MidiMsg, block: bool = True):
-    print("DEFAULT MIDI OUT CALLED")
+    # print("DEFAULT MIDI OUT CALLED")
     _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
@@ -146,7 +146,7 @@ def note(note, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out)
     if isinstance(note, list) and not isinstance(note, str):
         for n in note[:-1]:
             midi_cmd = mk_cmd(n)
-            send_midi_cmd(midi_cmd)
+            send_midi_cmd(midi_cmd, block=False)
 
         if len(note) > 1:
             midi_cmd = mk_cmd(note[-1])
