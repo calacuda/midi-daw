@@ -7,6 +7,7 @@ edition = "2024"
 actix = "0.13.5"
 actix-broker = "0.4.4"
 actix-web = "4.11.0"
+actix-web-actors = "4.3.1"
 async-std = "1.13.1"
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 fx-hash = { version = "0.1.0", features = ["nightly"] }
@@ -19,3 +20,4 @@ tracing = { version = "0.1.41", features = ["async-await"] }
 tracing-actix-web = "0.7.19"
 tracing-bunyan-formatter = "0.3.10"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "tracing"] }
+uuid = { version = "1.17.0", features = ["v4"] }

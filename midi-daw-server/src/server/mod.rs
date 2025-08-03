@@ -1,7 +1,11 @@
 use crate::{
     midi::dev::fmt_dev_name,
-    server::note::{pitch_bend, play_note, send_cc, stop_note},
+    server::{
+        message_bus::{message_bug, MbMessageEvent},
+        note::{pitch_bend, play_note, send_cc, stop_note},
+    },
 };
+use actix::Actor;
 use actix_web::{
     get, post,
     web::{self, Json},
@@ -14,6 +18,7 @@ use midir::MidiOutput;
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
+mod message_bus;
 mod note;
 
 pub type MidiOut = Sender<(String, midi_msg::MidiMsg)>;
@@ -85,6 +90,7 @@ async fn get_devs() -> impl Responder {
 pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
     let midi_out = web::Data::new(midi_out);
+    let msg_event_addr = web::Data::new(MbMessageEvent.start());
 
     // Filter based on level - trace, debug, info, warn, error
     // Tunable via `RUST_LOG` env variable
@@ -104,11 +110,13 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
             .wrap(TracingLogger::default())
             .app_data(tempo.clone())
             .app_data(midi_out.clone())
+            .app_data(msg_event_addr.clone())
             .service(midi)
             .service(get_devs)
             .service(get_tempo)
             .service(set_tempo)
             .service(rest)
+            .service(message_bug)
     })
     .worker_max_blocking_threads(1)
     .workers(12)

@@ -21,10 +21,10 @@ these are listen in no particular order.
   - [x] make lib
   - [x] define types
 - [x] start py venv for project
-- [ ] build rust api & threads
+- [x] build rust api & threads
   - [x] threads
   - [x] midi api
-  - [ ] message bus
+  - [x] message bus
   - [x] tempo get/set
   - [x] add listing of midi devices
 - [x] enable sending data to api backend from python

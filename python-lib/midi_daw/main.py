@@ -9,6 +9,7 @@ NOTE: all midi control functions should send singles to the server over a unix s
 By: Calacuda | MIT License | Epoch: Jul 25, 2025
 """
 
+import asyncio
 import logging
 import threading
 from copy import copy
@@ -19,6 +20,8 @@ import requests
 import requests_unixsocket
 from midi_daw_types import (UDS_SERVER_PATH, MidiChannel, MidiMsg, MidiReqBody,
                             MidiTarget, NoteLen, note_from_str)
+# import websockets
+from websockets.sync.client import unix_connect
 
 requests_unixsocket.monkeypatch()
 log = logging.getLogger(__name__)
@@ -189,21 +192,79 @@ def set_tempo(tempo: int):
 
 
 def get_tempo() -> float:
-    return 0.0
+    return get("tempo")
 
 
 def get_devs() -> list[str]:
     return get("midi")
 
 
+async def do_wait_for(event: str):
+    unix_socket_path = UDS_SERVER_PATH
+    socket = unix_socket_path.replace("/", "%2F")
+    uri = f"ws://{socket}/message-bus"
+
+    # async with websockets.unix_connect(unix_socket_path) as websocket:
+    async with websockets.unix_connect(path=unix_socket_path, uri=uri) as websocket:
+        # await websocket.send("Hello from client!")
+        recv = await websocket.recv()
+        recv = recv.replace('"', "")
+        # print(f"Received from server: {response}")
+        log.info(recv)
+        # print(recv)
+
+        while recv != event:
+            recv = await websocket.recv()
+            recv = recv.replace('"', "")
+            log.info(recv)
+
+        log.info("out of while-loop")
+
+
 def wait_for(event: str):
     """used to wait or block on event"""
-    pass
+    unix_socket_path = UDS_SERVER_PATH
+    socket = unix_socket_path.replace("/", "%2F")
+    uri = f"ws://{socket}/message-bus"
+
+    ws = unix_connect(path=unix_socket_path, uri=uri)
+    recv = ws.recv()
+    recv = recv.replace('"', "")
+    print(recv)
+
+    while recv != event:
+        print(recv, "!=", event)
+        recv = ws.recv()
+        recv = recv.replace('"', "")
+        log.info(recv)
+
+    log.info("event recved")
+
+    # ws = create_connection(f"ws://{UDS_SERVER_PATH}/message-bus")
+    # recv = ws.recv()
+    # log.info(recv)
+    #
+    # while recv is not event:
+    #     recv = ws.recv()
+    #     log.info(recv)
+
+    # print("Sending 'Hello, World'...")
+    # ws.send("Hello, World")
+    # print("Sent")
+    # print("Receiving...")
+    # result = ws.recv()
+    # print("Received '%s'" % result)
+    # ws.close()
 
 
 def trigger(event: str):
     """used to trigger an event"""
-    pass
+    unix_socket_path = UDS_SERVER_PATH
+    socket = unix_socket_path.replace("/", "%2F")
+    uri = f"ws://{socket}/message-bus"
+
+    ws = unix_connect(path=unix_socket_path, uri=uri)
+    ws.send(event)
 
 
 def lfo(
