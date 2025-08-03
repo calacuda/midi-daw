@@ -16,7 +16,7 @@ def lead():
     note("C#6", qn(), vel=80)
     note("f#5", en(), vel=80)
     note("C#6", en(), vel=80)
-    note("f#5", sn(), vel=80)
+    note("f#6", sn(), vel=80)
 
 
 lead()
