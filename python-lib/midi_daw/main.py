@@ -10,9 +10,10 @@ By: Calacuda | MIT License | Epoch: Jul 25, 2025
 """
 
 import logging
-import threading
 from copy import copy
 from functools import partial
+# import threading
+from multiprocessing import Process, process
 
 import requests
 import requests_unixsocket
@@ -91,17 +92,6 @@ def post(data, path):
 
 
 def _do_midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg):
-    # print(f"{midi_cmd} => {midi_target.name}:{midi_target.ch}")
-    # socket = UDS_SERVER_PATH.replace("/", "%2F")
-    # headers = {"Content-Type": "application/json"}
-    # res = requests.post(
-    #     f"http+unix://{socket}/midi",
-    #     data=MidiReqBody(midi_target.name, midi_target.ch, midi_cmd).json(),
-    #     headers=headers,
-    # )
-    #
-    # if res.status_code != 200:
-    #     log.warning(f"{res.text}")
     post(MidiReqBody(midi_target.name, midi_target.ch, midi_cmd).json(), "midi")
 
 
@@ -112,13 +102,10 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
     if not block:
         clear_dead_threads()
         # send requests in a sub thread
-        t = threading.Thread(
+        # t = threading.Thread(
+        t = Process(
             target=_do_midi_out,
             args=(
-                # midi_dev,
-                # midi_chan,
-                # MIDI_DEV,
-                # MIDI_CHANNEL,
                 midi_target,
                 midi_cmd,
             ),
@@ -129,13 +116,12 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
         return None
     else:
         # send request to rust back end
-        # return _do_midi_out(MIDI_DEV, MIDI_CHANNEL, midi_cmd)
         return _do_midi_out(midi_target, midi_cmd)
 
 
 # midi_out = partial(_midi_out, MIDI_DEV, MIDI_CHANNEL)
 def midi_out(midi_cmd: MidiMsg, block: bool = True):
-    # print("DEFAULT MIDI OUT CALLED")
+    print("DEFAULT MIDI OUT CALLED")
     _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
@@ -157,18 +143,17 @@ def note(note, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out)
         if cmd is not None:
             midi_out(cmd, block=block)
 
-    if isinstance(note, list):
+    if isinstance(note, list) and not isinstance(note, str):
         for n in note[:-1]:
             midi_cmd = mk_cmd(n)
-            midi_out(midi_cmd, False)
+            send_midi_cmd(midi_cmd)
 
-        midi_cmd = mk_cmd(note[-1])
-        send_midi_cmd(midi_cmd)
+        if len(note) > 1:
+            midi_cmd = mk_cmd(note[-1])
+            send_midi_cmd(midi_cmd)
     else:
         midi_cmd = mk_cmd(note)
         send_midi_cmd(midi_cmd)
-
-    midi_out(midi_cmd, block=block)
 
 
 def rest(duration: NoteLen):
@@ -293,6 +278,7 @@ def play_on(midi_output: str, channel="0", blocking=False):
             new_cc = partial(cc, midi_out=new_midi_out)
             # new_rest = partial(rest)
             self.api = {"note": new_note, "cc": new_cc}
+            print(dir(self.func))
 
         def __call__(self, *args, **kwargs):
             global running_funcs
@@ -305,12 +291,14 @@ def play_on(midi_output: str, channel="0", blocking=False):
 
             # return result
             if not self.blocking:
-                t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
+                clear_dead_threads()
+                # t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
+                t = Process(target=self.func, args=args, kwargs=kwargs)
                 t.start()
+                self.func.__globals__.update(old)
                 print(f"running function => {self.name}")
                 running_funcs[self.name] = t
                 # clear_dead_threads()
-                self.func.__globals__.update(old)
 
                 return None
             else:

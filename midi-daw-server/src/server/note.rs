@@ -1,10 +1,10 @@
-use std::time::Duration;
-
 use crate::server::MidiOut;
 use actix::clock::sleep;
 use actix_web::web::{self};
 use midi_daw_types::{MidiChannel, NoteDuration};
 use midi_msg::ControlChange;
+use std::time::Duration;
+use tracing::log::*;
 
 pub async fn rest(tempo: f64, dur: NoteDuration) {
     let (mul, denom) = match dur {
@@ -30,6 +30,8 @@ pub async fn play_note(
     velocity: u8,
     dur: NoteDuration,
 ) {
+    info!("playing note {note}");
+
     let msg = midi_msg::MidiMsg::ChannelVoice {
         channel: channel.into(),
         msg: midi_msg::ChannelVoiceMsg::NoteOn { note, velocity },
