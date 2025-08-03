@@ -200,6 +200,14 @@ impl NoteDuration {
     //
     //
     // }
+
+    fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
 }
 
 #[pyclass]
