@@ -28,3 +28,4 @@ these are listen in no particular order.
   - [x] tempo get/set
   - [x] add listing of midi devices
 - [x] enable sending data to api backend from python
+- [ ] automation
