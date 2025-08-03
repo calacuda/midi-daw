@@ -274,12 +274,12 @@ def adsr_off(adsr_name: str):
     pass
 
 
-def all_off(midi_output: str, channel="0"):
+def all_off(midi_output: str, channel=MidiChannel.Ch1):
     """stops all playing notes on device: midi_output on channel: channel"""
     pass
 
 
-def play_on(midi_output: str, channel="0", blocking=False):
+def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, blocking=False):
     """
     params:
         blocking => should it be started in a sub thread
@@ -303,6 +303,8 @@ def play_on(midi_output: str, channel="0", blocking=False):
             # new_rest = partial(rest)
             self.api = {"note": new_note, "cc": new_cc}
             # print(dir(self.func))
+            self.should_loop = loop != 0
+            self.loop_number = -1 if isinstance(loop, bool) and loop else loop
 
         def __call__(self, *args, **kwargs):
             global running_funcs
@@ -317,7 +319,8 @@ def play_on(midi_output: str, channel="0", blocking=False):
             if not self.blocking:
                 clear_dead_threads()
                 # t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
-                t = Process(target=self.func, args=args, kwargs=kwargs)
+                f = self.loop_f if self.should_loop else self.func
+                t = Process(target=f, args=args, kwargs=kwargs)
                 t.start()
                 self.func.__globals__.update(old)
                 # print(f"running function => {self.name}")
@@ -330,6 +333,15 @@ def play_on(midi_output: str, channel="0", blocking=False):
                 self.func.__globals__.update(old)
 
                 return result
+
+        def loop_f(self, *args, **kwargs):
+            # while True:
+            if self.loop_number < 0:
+                while True:
+                    self.func(*args, *kwargs)
+            else:
+                for _ in range(self.loop_number):
+                    self.func(*args, *kwargs)
 
         def compile(self):
             """will compile the code and send it to the server for play back"""
