@@ -94,6 +94,5 @@ def drums():
 
 chords()
 drums()
-# bass()
 bass()
 # lead()

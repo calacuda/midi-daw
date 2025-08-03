@@ -78,6 +78,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MessageBus {
             Ok(ws::Message::Binary(_bin)) => {
                 ctx.text("{\"response\":\"binary messages/responces are not yet implemented\"}")
             } // ctx.binary(bin),
+            Ok(ws::Message::Close(_)) => {
+                ctx.close(None);
+            }
             _ => (),
         }
     }
