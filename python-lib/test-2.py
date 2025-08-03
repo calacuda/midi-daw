@@ -10,6 +10,7 @@ def main():
 @play_on("SP-404MKII:0", channel=Ch1, blocking=True)
 def main_2():
     note("d#3", Qn(1), vel=100, block=True)
+    rest(Hn(1))
     note("b2", Qn(1), vel=100, block=True)
 
 

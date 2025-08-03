@@ -77,18 +77,32 @@ def clear_dead_threads():
     }
 
 
-def _do_midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg):
-    # print(f"{midi_cmd} => {midi_target.name}:{midi_target.ch}")
+def post(data, path):
     socket = UDS_SERVER_PATH.replace("/", "%2F")
     headers = {"Content-Type": "application/json"}
     res = requests.post(
-        f"http+unix://{socket}/midi",
-        data=MidiReqBody(midi_target.name, midi_target.ch, midi_cmd).json(),
+        f"http+unix://{socket}/{path}",
+        data=data,
         headers=headers,
     )
 
     if res.status_code != 200:
         log.warning(f"{res.text}")
+
+
+def _do_midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg):
+    # print(f"{midi_cmd} => {midi_target.name}:{midi_target.ch}")
+    # socket = UDS_SERVER_PATH.replace("/", "%2F")
+    # headers = {"Content-Type": "application/json"}
+    # res = requests.post(
+    #     f"http+unix://{socket}/midi",
+    #     data=MidiReqBody(midi_target.name, midi_target.ch, midi_cmd).json(),
+    #     headers=headers,
+    # )
+    #
+    # if res.status_code != 200:
+    #     log.warning(f"{res.text}")
+    post(MidiReqBody(midi_target.name, midi_target.ch, midi_cmd).json(), "midi")
 
 
 def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
@@ -125,16 +139,41 @@ def midi_out(midi_cmd: MidiMsg, block: bool = True):
     _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
-def note(note: str, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out):
+def note(note, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out):
     """plays a note"""
-    # TODO: add int, and lists types as notes
-    midi_cmd = MidiMsg.PlayNote(note_from_str(note), vel, duration)
+    # add int, and lists types as notes
+
+    def mk_cmd(note):
+        midi_cmd = None
+
+        if isinstance(note, int):
+            midi_cmd = MidiMsg.PlayNote(note, vel, duration)
+        elif isinstance(note, str):
+            midi_cmd = MidiMsg.PlayNote(note_from_str(note), vel, duration)
+
+        return midi_cmd
+
+    def send_midi_cmd(cmd, block=block):
+        if cmd is not None:
+            midi_out(cmd, block=block)
+
+    if isinstance(note, list):
+        for n in note[:-1]:
+            midi_cmd = mk_cmd(n)
+            midi_out(midi_cmd, False)
+
+        midi_cmd = mk_cmd(note[-1])
+        send_midi_cmd(midi_cmd)
+    else:
+        midi_cmd = mk_cmd(note)
+        send_midi_cmd(midi_cmd)
+
     midi_out(midi_cmd, block=block)
 
 
 def rest(duration: NoteLen):
     """musical rest"""
-    pass
+    post(duration.json(), "rest")
 
 
 def cc(cc: int, value: float, midi_out=midi_out):
@@ -145,7 +184,7 @@ def cc(cc: int, value: float, midi_out=midi_out):
 
 def set_tempo(tempo: int):
     """sets the tempo on the server"""
-    pass
+    post(float(tempo), "tempo")
 
 
 def wait_for(event: str):
