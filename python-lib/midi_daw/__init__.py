@@ -41,11 +41,11 @@ def qn(n=1):
 
 
 def en(n=1):
-    return NoteLen.en(n)
+    return NoteLen.En(n)
 
 
 def sn(n=1):
-    return NoteLen.sn(n)
+    return NoteLen.Sn(n)
 
 
 def tn(n=1):

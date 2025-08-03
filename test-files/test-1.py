@@ -35,13 +35,13 @@ def sp(pad_n: int) -> int:
 
 def do_drums():
     note([sp(4), sp(1)], sn(), vel=100, block=True)
-    note(sp(1), Sn(1), vel=100, block=True)
+    note(sp(1), sn(1), vel=100, block=True)
     note([sp(7), sp(1)], sn(), vel=100, block=True)
-    note(sp(1), Sn(1), vel=100, block=True)
+    note(sp(1), sn(1), vel=100, block=True)
     note([sp(4), sp(1)], sn(), vel=100, block=True)
-    note(sp(1), Sn(1), vel=100, block=True)
+    note(sp(1), sn(1), vel=100, block=True)
     note([sp(3), sp(1)], sn(), vel=100, block=True)
-    note(sp(1), Sn(1), vel=100, block=True)
+    note(sp(1), sn(1), vel=100, block=True)
 
 
 @play_on("SP-404MKII:0", channel=Ch1, blocking=False)
