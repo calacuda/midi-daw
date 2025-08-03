@@ -5,21 +5,21 @@ print(devs)
 
 
 def chord_prog_1():
-    note(["b3", "d4", "f#4", "a4", "c#5"], Qn(1), vel=80, block=True)
-    note(["a#3", "C#4", "D4", "f4", "g#4"], Sn(1), vel=80, block=True)
-    note(["f#3", "a#4", "c#4", "d#4", "e4"], En(1), vel=80, block=True)
-    note(["C#4", "D#4", "e4", "g#4", "b4"], Qn(1), vel=80, block=True)
-    note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"], En(1), vel=80, block=True)
+    note(["b3", "d4", "f#4", "a4", "c#5"], qn(), vel=80, block=True)
+    note(["a#3", "C#4", "D4", "f4", "g#4"], sn(), vel=80, block=True)
+    note(["f#3", "a#4", "c#4", "d#4", "e4"], en(), vel=80, block=True)
+    note(["C#4", "D#4", "e4", "g#4", "b4"], qn(), vel=80, block=True)
+    note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"], en(), vel=80, block=True)
 
 
 @play_on("microKORG2:0", channel=Ch1, blocking=False)
 def chords():
     while True:
-        note(["b3", "d4", "f#4", "a4", "c#5"][0], Qn(1), vel=80, block=True)
-        note(["a#3", "C#4", "D4", "f4", "g#4"][0], Sn(1), vel=80, block=True)
-        note(["f#3", "a#4", "c#4", "d#4", "e4"][0], En(1), vel=80, block=True)
-        note(["C#4", "D#4", "e4", "g#4", "b4"][0], Qn(1), vel=80, block=True)
-        note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"][0], En(1), vel=80, block=True)
+        note(["b3", "d4", "f#4", "a4", "c#5"][0], qn(), vel=80, block=True)
+        note(["a#3", "C#4", "D4", "f4", "g#4"][0], sn(), vel=80, block=True)
+        note(["f#3", "a#4", "c#4", "d#4", "e4"][0], en(), vel=80, block=True)
+        note(["C#4", "D#4", "e4", "g#4", "b4"][0], qn(), vel=80, block=True)
+        note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"][0], en(), vel=80, block=True)
 
 
 def sp(pad_n: int) -> int:
@@ -34,13 +34,13 @@ def sp(pad_n: int) -> int:
 
 
 def do_drums():
-    note([sp(4), sp(1)], Sn(1), vel=100, block=True)
+    note([sp(4), sp(1)], sn(), vel=100, block=True)
     note(sp(1), Sn(1), vel=100, block=True)
-    note([sp(7), sp(1)], Sn(1), vel=100, block=True)
+    note([sp(7), sp(1)], sn(), vel=100, block=True)
     note(sp(1), Sn(1), vel=100, block=True)
-    note([sp(4), sp(1)], Sn(1), vel=100, block=True)
+    note([sp(4), sp(1)], sn(), vel=100, block=True)
     note(sp(1), Sn(1), vel=100, block=True)
-    note([sp(3), sp(1)], Sn(1), vel=100, block=True)
+    note([sp(3), sp(1)], sn(), vel=100, block=True)
     note(sp(1), Sn(1), vel=100, block=True)
 
 
