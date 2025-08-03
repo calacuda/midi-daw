@@ -172,6 +172,14 @@ def set_tempo(tempo: int):
     post(float(tempo), "tempo")
 
 
+def get_tempo() -> float:
+    return 0.0
+
+
+def get_devs() -> list[str]:
+    return []
+
+
 def wait_for(event: str):
     """used to wait or block on event"""
     pass
