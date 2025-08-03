@@ -5,7 +5,7 @@ print(devs)
 
 
 def start_event():
-    wait_for("start")
+    wait_for("1")
 
 
 def chord_prog_1():
@@ -28,7 +28,7 @@ def lead():
 
 
 @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1, setup=start_event)
-def bass_2():
+def bass():
     note("b2", qn(), vel=100)
     note("a#2", sn(), vel=80)
     note("f#2", en(), vel=100)
@@ -95,5 +95,5 @@ def drums():
 chords()
 drums()
 # bass()
-bass_2()
-lead()
+bass()
+# lead()
