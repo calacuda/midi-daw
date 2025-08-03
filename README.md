@@ -29,3 +29,4 @@ these are listen in no particular order.
   - [x] add listing of midi devices
 - [x] enable sending data to api backend from python
 - [ ] automation
+- [ ] add an optional "setup" function that must run before a decorated function with looping enabled can start looping
