@@ -28,6 +28,7 @@ MIDI_TARGET = MidiTarget()
 
 # Start threads for each link
 threads = []
+processes = []
 running_funcs = {}
 
 
@@ -91,6 +92,21 @@ def post(data, path):
         log.warning(f"{res.text}")
 
 
+def get(path):
+    socket = UDS_SERVER_PATH.replace("/", "%2F")
+    # headers = {"Content-Type": "application/json"}
+    res = requests.get(
+        f"http+unix://{socket}/{path}",
+        # data=data,
+        # headers=headers,
+    )
+
+    if res.status_code != 200:
+        log.warning(f"{res.text}")
+
+    return res.json()
+
+
 def _do_midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg):
     post(MidiReqBody(midi_target.name, midi_target.ch, midi_cmd).json(), "midi")
 
@@ -102,8 +118,8 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
     if not block:
         # clear_dead_threads()
         # send requests in a sub thread
-        # t = threading.Thread(
-        t = Process(
+        t = threading.Thread(
+            # t = Process(
             target=_do_midi_out,
             args=(
                 midi_target,
@@ -177,7 +193,7 @@ def get_tempo() -> float:
 
 
 def get_devs() -> list[str]:
-    return []
+    return get("midi")
 
 
 def wait_for(event: str):
@@ -286,7 +302,7 @@ def play_on(midi_output: str, channel="0", blocking=False):
             new_cc = partial(cc, midi_out=new_midi_out)
             # new_rest = partial(rest)
             self.api = {"note": new_note, "cc": new_cc}
-            print(dir(self.func))
+            # print(dir(self.func))
 
         def __call__(self, *args, **kwargs):
             global running_funcs
@@ -304,7 +320,7 @@ def play_on(midi_output: str, channel="0", blocking=False):
                 t = Process(target=self.func, args=args, kwargs=kwargs)
                 t.start()
                 self.func.__globals__.update(old)
-                print(f"running function => {self.name}")
+                # print(f"running function => {self.name}")
                 running_funcs[self.name] = t
                 # clear_dead_threads()
 
