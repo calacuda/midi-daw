@@ -279,10 +279,10 @@ def all_off(midi_output: str, channel=MidiChannel.Ch1):
     pass
 
 
-def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, blocking=False):
+def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setup=None):
     """
     params:
-        blocking => should it be started in a sub thread
+        block => should it be started in a sub thread
     """
 
     class Decorator:
@@ -292,7 +292,7 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, blocking=False):
             self.midi_dev = midi_output
             self.channel = mk_channel(channel)
             self.func = func
-            self.blocking = blocking
+            self.is_blocking = block
             self.name = f"{func.__name__}:{midi_output}:{self.channel}"
             self.midi_target = MidiTarget()
             self.midi_target.name = self.midi_dev
@@ -305,6 +305,7 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, blocking=False):
             # print(dir(self.func))
             self.should_loop = loop != 0
             self.loop_number = -1 if isinstance(loop, bool) and loop else loop
+            self.setup_f = setup
 
         def __call__(self, *args, **kwargs):
             global running_funcs
@@ -316,7 +317,7 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, blocking=False):
             self.func.__globals__.update(self.api)
 
             # return result
-            if not self.blocking:
+            if not self.is_blocking:
                 clear_dead_threads()
                 # t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
                 f = self.loop_f if self.should_loop else self.func
@@ -335,7 +336,9 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, blocking=False):
                 return result
 
         def loop_f(self, *args, **kwargs):
-            # while True:
+            if self.setup_f is not None:
+                self.setup_f()
+
             if self.loop_number < 0:
                 while True:
                     self.func(*args, *kwargs)
