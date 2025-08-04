@@ -199,28 +199,6 @@ def get_devs() -> list[str]:
     return get("midi")
 
 
-# async def do_wait_for(event: str):
-#     unix_socket_path = UDS_SERVER_PATH
-#     socket = unix_socket_path.replace("/", "%2F")
-#     uri = f"ws://{socket}/message-bus"
-#
-#     # async with websockets.unix_connect(unix_socket_path) as websocket:
-#     async with websockets.unix_connect(path=unix_socket_path, uri=uri) as websocket:
-#         # await websocket.send("Hello from client!")
-#         recv = await websocket.recv()
-#         recv = recv.replace('"', "")
-#         # print(f"Received from server: {response}")
-#         log.info(recv)
-#         # print(recv)
-#
-#         while recv != event:
-#             recv = await websocket.recv()
-#             recv = recv.replace('"', "")
-#             log.info(recv)
-#
-#         log.info("out of while-loop")
-
-
 def wait_for(event: str):
     """used to wait or block on event"""
     unix_socket_path = UDS_SERVER_PATH
