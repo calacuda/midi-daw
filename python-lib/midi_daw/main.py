@@ -205,15 +205,15 @@ def wait_for(event: str):
     socket = unix_socket_path.replace("/", "%2F")
     uri = f"ws://{socket}/message-bus"
 
-    ws = unix_connect(path=unix_socket_path, uri=uri)
-    recv = ws.recv()
-    recv = recv.replace('"', "")
-
-    while recv != event:
+    with unix_connect(path=unix_socket_path, uri=uri) as ws:
         recv = ws.recv()
         recv = recv.replace('"', "")
 
-    log.info("event recved")
+        while recv != event:
+            recv = ws.recv()
+            recv = recv.replace('"', "")
+
+        log.info("event recved")
 
 
 def trigger(event: str):
@@ -222,8 +222,8 @@ def trigger(event: str):
     socket = unix_socket_path.replace("/", "%2F")
     uri = f"ws://{socket}/message-bus"
 
-    ws = unix_connect(path=unix_socket_path, uri=uri)
-    ws.send(event)
+    with unix_connect(path=unix_socket_path, uri=uri) as ws:
+        ws.send(event)
 
 
 def lfo(

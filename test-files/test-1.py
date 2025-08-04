@@ -86,9 +86,7 @@ def do_drums(pad):
 @play_on("SP-404MKII:0", channel=Ch1, block=False, loop=-1, setup=start_event)
 def drums():
     # 36 - 52
-    for _ in range(3):
-        do_drums(1)
-
+    do_drums(1)
     do_drums(9)
 
 

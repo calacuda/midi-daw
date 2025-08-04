@@ -1,13 +1,11 @@
-use std::time::Duration;
-
 use crate::{
     midi::dev::fmt_dev_name,
     server::{
-        message_bus::{message_bug, MbMessageEvent, MbMessageWrapper},
+        message_bus::{MbServer, MbServerHandle},
         note::{pitch_bend, play_note, send_cc, stop_note},
     },
 };
-use actix::{clock::sleep, spawn, Actor, Addr};
+use actix::{clock::sleep, spawn};
 use actix_web::{
     get, post,
     web::{self, Json},
@@ -17,6 +15,7 @@ use async_std::sync::RwLock;
 use crossbeam::channel::Sender;
 use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
 use midir::MidiOutput;
+use std::time::Duration;
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -89,10 +88,7 @@ async fn get_devs() -> impl Responder {
 }
 
 /// sends a message to the message bus every note
-pub async fn clock_notif(
-    data: web::Data<Addr<MbMessageEvent>>,
-    tempo: web::Data<RwLock<f64>>,
-) -> ! {
+pub async fn clock_notif(data: MbServerHandle, tempo: web::Data<RwLock<f64>>) -> ! {
     let mut sn = 0;
     let id = uuid::Uuid::new_v4();
     let msgs: Vec<String> = vec![
@@ -105,9 +101,10 @@ pub async fn clock_notif(
     loop {
         let message: String = msgs[sn].clone();
 
-        let msg = MbMessageWrapper { id, message };
+        // let msg = MbMessageWrapper { id, message };
 
-        data.do_send(msg);
+        // data.do_send(msg);
+        data.send_message(id, message).await;
 
         sn += 1;
         sn %= 16;
@@ -120,7 +117,10 @@ pub async fn clock_notif(
 pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
     let midi_out = web::Data::new(midi_out);
-    let msg_event_addr = web::Data::new(MbMessageEvent.start());
+    // let msg_event_addr = web::Data::new(MbMessageEvent.start());
+    let (mb_server, server_tx) = MbServer::new();
+
+    let _chat_server = spawn(mb_server.run());
 
     // Filter based on level - trace, debug, info, warn, error
     // Tunable via `RUST_LOG` env variable
@@ -135,20 +135,23 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
         .without_time()
         .init();
 
-    let _jh = spawn(clock_notif(msg_event_addr.clone(), tempo.clone()));
+    let _jh = spawn(clock_notif(server_tx.clone(), tempo.clone()));
 
-    HttpServer::new(move || {
-        App::new()
-            .wrap(TracingLogger::default())
-            .app_data(tempo.clone())
-            .app_data(midi_out.clone())
-            .app_data(msg_event_addr.clone())
-            .service(midi)
-            .service(get_devs)
-            .service(get_tempo)
-            .service(set_tempo)
-            .service(rest)
-            .service(message_bug)
+    HttpServer::new({
+        let server_tx = web::Data::new(server_tx);
+        move || {
+            App::new()
+                .wrap(TracingLogger::default())
+                .app_data(tempo.clone())
+                .app_data(midi_out.clone())
+                .app_data(server_tx.clone())
+                .service(midi)
+                .service(get_devs)
+                .service(get_tempo)
+                .service(set_tempo)
+                .service(rest)
+                .service(message_bus::message_bus)
+        }
     })
     .worker_max_blocking_threads(1)
     .workers(12)
@@ -156,4 +159,8 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
     .bind_uds(UDS_SERVER_PATH)?
     .run()
     .await
+
+    // try_join!(http_server, async move { chat_server.await.unwrap() })?;
+
+    // Ok(())
 }
