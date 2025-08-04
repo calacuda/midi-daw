@@ -24,7 +24,7 @@ def lead():
     note("C#6", qn(), vel=80)
     note("f#5", en(), vel=80)
     note("C#6", en(), vel=80)
-    note("f#5", sn(), vel=80)
+    note("f#6", sn(), vel=80)
 
 
 @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1, setup=start_event)
@@ -92,7 +92,7 @@ def drums():
     do_drums(9)
 
 
-chords()
+# chords()
 drums()
 bass()
-# lead()
+lead()
