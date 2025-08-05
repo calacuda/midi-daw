@@ -17,16 +17,12 @@ _new-window SESSION NAME CMD:
   [[ "{{CMD}}" != "" ]] && tmux send-keys -t "{{SESSION}}":"{{NAME}}" "{{CMD}}" ENTER || true
 
 _new-tmux-dev-session-2 SESSION:
-  tmux new -ds "{{SESSION}}" -n "Edit"
-  tmux send-keys -t "{{SESSION}}":Edit '. ./.venv/bin/activate' ENTER
-  tmux send-keys -t "{{SESSION}}":Edit 'cd ./test-files/' ENTER
-  # @just _new-window "{{SESSION}}" "Server" "cd midi-daw-server && nv src/{main.rs,**/*.rs}"
-  # @just _new-window "{{SESSION}}" "Data Types" "cd midi-daw-types && nv src/lib.rs"
-  # @just _new-window "{{SESSION}}" "Edit Py" "cd python-lib && nv midi_daw/main.py"
-  # @just _new-window "{{SESSION}}" "Run" "cd python-lib"
-  # @just _new-window "{{SESSION}}" "Misc" ""
-  # @just _new-window "{{SESSION}}" "Git" "git status"
-  @just _new-window "{{SESSION}}" "Run" "cd ./test-files/"
+  tmux new -ds "{{SESSION}}" -n "Edit-1"
+  tmux send-keys -t "{{SESSION}}":"Edit-1" '. ./.venv/bin/activate' ENTER
+  tmux send-keys -t "{{SESSION}}":"Edit-1" 'cd ./test-files/' ENTER
+  @just _new-window "{{SESSION}}" "Run-1" "cd ./test-files/"
+  @just _new-window "{{SESSION}}" "Edit-2" "cd ./test-files/"
+  @just _new-window "{{SESSION}}" "Run-2" "cd ./test-files/"
   @just _new-window "{{SESSION}}" "Misc" "cd ./test-files/"
 
 tmux:
