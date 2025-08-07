@@ -9,12 +9,12 @@ NOTE: all midi control functions should send singles to the server over a unix s
 By: Calacuda | MIT License | Epoch: Jul 25, 2025
 """
 
-import asyncio
+# import asyncio
 import logging
 import threading
 from copy import copy
 from functools import partial
-from multiprocessing import Process
+from multiprocessing import Manager, Process
 
 import requests
 import requests_unixsocket
@@ -59,6 +59,16 @@ class Automation:
         # self.func.__globals__.update(old)
         # print(f"running function => {self.name}")
         AUTOMATION_THREADS[self.name] = t
+        return self.name
+
+    def stop(self):
+        """stops the running automation thread"""
+        global AUTOMATION_THREADS
+
+        proc = AUTOMATION_THREADS.get(self.name)
+
+        if proc is not None:
+            proc.kill()
 
     def init_automation(self):
         """initializes the automation to initial state"""
@@ -189,12 +199,24 @@ def note(note, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out)
     # add int, and lists types as notes
 
     def mk_cmd(note):
+        midi_note = None
+        # msg_func = MidiMsg.PlayNote if duration else MidiMsg.StopNote
+        #
+        # if isinstance(note, int):
+        #     midi_cmd = msg_func(note, vel, duration)
+        # elif isinstance(note, str):
+        #     midi_cmd = msg_func(note_from_str(note), vel, duration)
+        if isinstance(note, int):
+            midi_note = note
+        elif isinstance(note, str):
+            midi_note = note_from_str(note)
+
         midi_cmd = None
 
-        if isinstance(note, int):
-            midi_cmd = MidiMsg.PlayNote(note, vel, duration)
-        elif isinstance(note, str):
-            midi_cmd = MidiMsg.PlayNote(note_from_str(note), vel, duration)
+        if duration and midi_note is not None:
+            midi_cmd = MidiMsg.PlayNote(midi_note, vel, duration)
+        elif not duration and midi_note is not None:
+            midi_cmd = MidiMsg.StopNote(midi_note)
 
         return midi_cmd
 
@@ -213,6 +235,11 @@ def note(note, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out)
     else:
         midi_cmd = mk_cmd(note)
         send_midi_cmd(midi_cmd)
+
+
+def stop_notes(notes, midi_out=midi_out):
+    for n in notes:
+        note(n, None, midi_out=midi_out)
 
 
 def rest(duration: NoteLen):
@@ -312,7 +339,9 @@ def lfo(
     # TODO: make an LFO automation in rust
     lfo = None
     lfo_type = lfo_type.lower()
-
+    # lfo_types = {
+    # "wave":
+    # }
     # if lfo_type
 
     return partial(Automation, automation=lfo)
@@ -378,11 +407,15 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             self.midi_target = MidiTarget()
             self.midi_target.name = self.midi_dev
             self.midi_target.ch = self.channel
-            new_midi_out = partial(_midi_out, self.midi_target)
-            new_note = partial(note, midi_out=new_midi_out)
-            new_cc = partial(cc, midi_out=new_midi_out)
+            self.new_midi_out = partial(_midi_out, self.midi_target)
+            self.send_note_to = partial(note, midi_out=self.new_midi_out)
+            # self.playing_notes = Array(0, 64)
+            self.manager = Manager()
+            self.playing_notes = self.manager.list()
+            self.new_note = partial(self.note, self.playing_notes)
+            new_cc = partial(cc, midi_out=self.new_midi_out)
             # new_rest = partial(rest)
-            self.api = {"note": new_note, "cc": new_cc}
+            self.api = {"note": self.new_note, "cc": new_cc}
             # print(dir(self.func))
             self.should_loop = loop != 0
             self.loop_number = -1 if isinstance(loop, bool) and loop else loop
@@ -409,12 +442,44 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
                 running_funcs[self.name] = t
                 # clear_dead_threads()
 
-                return None
+                return self.name
             else:
                 result = self.func(*args, **kwargs)
                 self.func.__globals__.update(old)
 
                 return result
+
+        def note(self, playing_notes, *args, **kwargs):
+            # send_note_to = partial(self.note, midi_out=self.new_midi_out)
+            try:
+                playing_notes.append(args[0])
+            except BrokenPipeError:
+                pass
+
+            # print(playing_notes)
+            self.send_note_to(*args, **kwargs)
+            # self.playing_notes = [notes for notes in self.playing_notes if notes is not args[0]]
+            try:
+                # print("rm")
+                playing_notes.remove(args[0])
+            except ValueError:
+                pass
+            except BrokenPipeError:
+                pass
+
+        def stop(self):
+            """stops the running play back thread"""
+            global running_funcs
+
+            proc = running_funcs.get(self.name)
+
+            if proc is not None:
+                proc.kill()
+
+            if self.playing_notes:
+                stop_notes(self.playing_notes, midi_out=self.new_midi_out)
+
+            log.info(f"stopped function {self.name}")
 
         def loop_f(self, *args, **kwargs):
             if self.setup_f is not None:

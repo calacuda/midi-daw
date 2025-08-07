@@ -1,3 +1,5 @@
+from time import sleep
+
 from midi_daw import *
 
 devs = get_devs()
@@ -27,7 +29,8 @@ def lead():
     note("f#6", sn(), vel=80)
 
 
-@play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1, setup=start_event)
+# @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1, setup=start_event)
+@play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
 def bass():
     note("b2", qn(), vel=100)
     note("a#2", sn(), vel=80)
@@ -83,7 +86,8 @@ def do_drums(pad):
     note(sp(pad), sn(1), vel=100)
 
 
-@play_on("SP-404MKII:0", channel=Ch1, block=False, loop=-1, setup=start_event)
+# @play_on("SP-404MKII:0", channel=Ch1, block=False, loop=-1, setup=start_event)
+@play_on("SP-404MKII:0", channel=Ch1, block=False, loop=-1)
 def drums():
     # 36 - 52
     do_drums(1)
@@ -94,3 +98,21 @@ def drums():
 drums()
 bass()
 lead()
+
+sleep(5)
+
+drums.stop()
+
+
+@play_on("TD-3-MO:0", channel=Ch4, block=False, loop=False)
+def stop_test():
+    note("b2", wn(2), vel=80)
+
+
+# sleep(0.5)
+# drums.stop()
+# stop_test()
+# rest(en())
+# stop_test.stop()
+
+# print("stopped")
