@@ -33,6 +33,46 @@ MIDI_TARGET = MidiTarget()
 threads = []
 processes = []
 running_funcs = {}
+AUTOMATION_THREADS = {}
+
+
+class Automation:
+    def __init__(self, func, automation=None):
+        self.func = func
+        self.name = (
+            f"{func.__name__}:{automation.automation_type()}:{automation.sub_type()}"
+        )
+        self.automation = automation
+
+    def __call__(self, *args, **kwargs):
+        global AUTOMATION_THREADS
+
+        # old = copy(self.func.__globals__)
+        # self.func.__globals__.update(self.api)
+
+        # t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
+        # f = self.loopLesson 4 - Cable Car_f if self.should_loop else self.func
+        args = (self.automation.step()) + args
+        f = self.func
+        t = Process(target=f, args=args, kwargs=kwargs)
+        t.start()
+        # self.func.__globals__.update(old)
+        # print(f"running function => {self.name}")
+        AUTOMATION_THREADS[self.name] = t
+
+    def init_automation(self):
+        """initializes the automation to initial state"""
+        if self.automation is not None:
+            self.automation.init()
+
+    def reset_automation(self):
+        """ressets the automation"""
+        if self.automation is not None:
+            self.automation.reset()
+
+    def get_name(self):
+        """returns the threads name"""
+        return self.name
 
 
 def mk_channel(channel):
@@ -229,19 +269,19 @@ def trigger(event: str):
 def lfo(
     freq: float,  # make this a class or enum that can be per beats, per quarter/eighth/sixteeth/etc note, or based on seconds
     lfo_type: str,
-    callback: callable,
+    # callback: callable,
     one_shot: bool = True,
     bipolar: bool = False,
     hifi_update: bool = False,
     # midi_out=midi_out,
-) -> str:
+):
     """
     set up a LFO automation
 
     params:
         freq => the freequency of the lfo oscilation
         lfo_type => what kind of lfo is this? Options
-            - from-wav => import an LFO from a wav file.
+            - WaveTable => import an LFO from a wav file.
             - sin => sttandard sin wave.
             - triangle => standard triangle wave.
             - saw-up => standard saw tooth wave going up.
@@ -249,14 +289,33 @@ def lfo(
             - anti-log => anti-log tapering triable wave.
             - anti-log-up => anti-log taper going up.
             - anti-log-down => anti-log taper going down.
-        callable => a callback callable that will be called on every update of the lfo.
+        # callable => a callback callable that will be called on every update of the lfo.
         one_shot => if true the lfo will run to compleation only once, else it will run indefinately.
         bipolar => if true the lfo will go above and bellow zero else it will stay positive.
         hifi_update => should this update on an audio sample rate. if false it updated every beat (24-beat per quarter note by default)
 
     returns: the LFO name to use to turn it off.
     """
-    return "LFO_NAME"
+    # lfo = []
+
+    # def outer(callback):
+    #     def wrapper(*args, **kwargs):
+    #         nonlocal lfo
+    #
+    #         lfo_value = lfo.step()
+    #         callback(lfo_value)
+    #
+    #     return wrapper
+
+    # return "LFO_NAME"
+    # return outer
+    # TODO: make an LFO automation in rust
+    lfo = None
+    lfo_type = lfo_type.lower()
+
+    # if lfo_type
+
+    return partial(Automation, automation=lfo)
 
 
 def lfo_off(lfo_name: str):
@@ -272,7 +331,7 @@ def adsr(
     callback: callable,
     hifi_update: bool = False,
     # midi_out=midi_out,
-) -> str:
+):
     """
     set up an ADSR Envelope automation
 
@@ -286,7 +345,9 @@ def adsr(
 
     returns: the name of the adsr, used to stop it
     """
-    return "ADSR_NAME"
+    # return "ADSR_NAME"
+    adsr = None
+    return partial(Automation, automation=adsr)
 
 
 def adsr_off(adsr_name: str):
