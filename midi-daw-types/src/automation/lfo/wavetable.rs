@@ -45,14 +45,24 @@ impl WaveTable {
     }
 
     pub fn get_sample(&mut self) -> f64 {
-        let mut sample = 0.0;
-
-        sample += self.lerp();
+        let sample = self.lerp();
 
         self.index += self.index_increment;
         self.index %= self.wavetable.len() as f64;
 
         sample * 0.9
+    }
+
+    /// steps forward by n samples with out computing a sample
+    pub fn step_forward(&mut self, n: usize) {
+        // let mut sample = 0.0;
+
+        // sample += self.lerp();
+
+        self.index += self.index_increment * n as f64;
+        self.index %= self.wavetable.len() as f64;
+
+        // sample * 0.9
     }
 
     fn lerp(&self) -> f64 {
