@@ -99,14 +99,14 @@ drums()
 bass()
 lead()
 
-sleep(5)
+# sleep(5)
 
-drums.stop()
+# drums.stop()
 
 
-@play_on("TD-3-MO:0", channel=Ch4, block=False, loop=False)
-def stop_test():
-    note("b2", wn(2), vel=80)
+# @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=False)
+# def stop_test():
+#     note("b2", wn(2), vel=80)
 
 
 # sleep(0.5)
