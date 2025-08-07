@@ -8,7 +8,7 @@ pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
 
 pub type MidiDeviceName = String;
 
-// pub mod automation;
+pub mod automation;
 
 #[pyclass]
 #[pyo3(get_all, set_all)]

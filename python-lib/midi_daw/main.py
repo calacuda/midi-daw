@@ -314,8 +314,8 @@ def lfo(
             - saw-up => standard saw tooth wave going up.
             - saw-down => standard saw tooth wave going down.
             - anti-log => anti-log tapering triable wave.
-            - anti-log-up => anti-log taper going up.
-            - anti-log-down => anti-log taper going down.
+            - anti-log-up => anti-log saw wave shaped taper going up.
+            - anti-log-down => anti-log saw wave shaped taper going down.
         # callable => a callback callable that will be called on every update of the lfo.
         one_shot => if true the lfo will run to compleation only once, else it will run indefinately.
         bipolar => if true the lfo will go above and bellow zero else it will stay positive.
@@ -337,19 +337,29 @@ def lfo(
     # return "LFO_NAME"
     # return outer
     # TODO: make an LFO automation in rust
-    lfo = None
+    # lfo = None
     lfo_type = lfo_type.lower()
-    # lfo_types = {
-    # "wave":
-    # }
-    # if lfo_type
+    lfo_types = {
+        "wave": None,
+        "sin": None,
+        "triangle": None,
+        "saw-up": None,
+        "saw-down": None,
+        "antilog": None,
+        "antilog-up": None,
+        "antilog-down": None,
+    }
+    lfo_builder = lfo_types.get(lfo_type)
 
-    return partial(Automation, automation=lfo)
+    if lfo_builder is not None:
+        return partial(Automation, automation=lfo_builder)
+    else:
+        return None
 
 
-def lfo_off(lfo_name: str):
-    """turns off an LFO"""
-    pass
+# def lfo_off(lfo_name: str):
+#     """turns off an LFO"""
+#     pass
 
 
 def adsr(
@@ -379,9 +389,9 @@ def adsr(
     return partial(Automation, automation=adsr)
 
 
-def adsr_off(adsr_name: str):
-    """turns off an adsr"""
-    pass
+# def adsr_off(adsr_name: str):
+#     """turns off an adsr"""
+#     pass
 
 
 def all_off(midi_output: str, channel=MidiChannel.Ch1):

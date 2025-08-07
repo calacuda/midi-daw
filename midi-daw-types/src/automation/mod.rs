@@ -1,48 +1,56 @@
 use enum_dispatch::enum_dispatch;
+use lfo::{wavetable, Lfo};
 use pyo3::{prelude::*, PyClass};
 use serde::{Deserialize, Serialize};
 
-pub mod envelopes;
+// pub mod envelope;
 pub mod lfo;
 
 #[enum_dispatch]
 pub trait AutomationTrait: PyClass {
     // fn automation_type(&self) -> impl Into<String>;
     fn sub_type(&self) -> impl Into<String>;
+    /// used to update the state of the automation
     fn update(&mut self);
+    /// used to get the last value of automation
     fn get_value(&self) -> f64;
-    fn automation_step(&mut self) -> f64 {
+    fn step(&mut self) -> f64 {
         self.update();
         self.get_value()
     }
 }
 
 #[pyclass]
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+#[derive(PartialEq, PartialOrd, Clone, Debug)]
 #[enum_dispatch(AutomationTrait)]
 pub enum AutomationTypes {
     Lfo(lfo::Lfo),
-    EnvelopeGen(envelopes::Envelope),
+    // EnvelopeGen(envelope::Envelope),
 }
 
 #[pyclass]
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Clone, Debug)]
 pub enum AutomationConf {
-    Lfo(lfo::LFOConf),
-    EnvelopeGen(envelopes::EnvelopeConf),
+    Lfo(lfo::LfoConfig),
+    // EnvelopeGen(envelope::EnvConfig),
 }
 
 impl From<AutomationConf> for AutomationTypes {
     fn from(value: AutomationConf) -> Self {
         match value {
-            // AutomationConf::Lfo() => {}
+            AutomationConf::Lfo(lfo::LfoConfig::WaveTable { file, freq }) => {
+                // TODO: read wav file to Vec<f64>
+                // TODO: build WaveTable
+                // TODO: set WaveTable frequency to freq
+                todo!("do this");
+            }
             // AutomationConf::EnvelopeGen() => {}
         }
     }
 }
 
 #[pyclass]
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+#[derive(PartialEq, PartialOrd, Clone, Debug)]
 pub struct Automation {
     automation: AutomationTypes,
 }
@@ -56,13 +64,13 @@ impl Automation {
     }
 
     fn step(&mut self) -> f64 {
-        self.automation.automation_step()
+        self.automation.step()
     }
 
     fn get_repr(&self) -> String {
         match self.automation.clone() {
-            AutomationTypes::Lfo(lfo) => format!("lfo:{}", lfo.sub_type()),
-            AutomationTypes::EnvelopeGen(env) => format!("env:{}", env.sub_type()),
+            AutomationTypes::Lfo(lfo) => format!("lfo:{}", lfo.sub_type().into()),
+            // AutomationTypes::EnvelopeGen(env) => format!("env:{}", env.sub_type().into()),
         }
     }
 
