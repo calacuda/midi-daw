@@ -30,8 +30,8 @@ def pitch_wobble(lfo):
 
 
 lead()
-pitch_wobble()
+# pitch_wobble()
 
-rest(wn())
-print("stopping")
-pitch_wobble.stop()
+# rest(wn())
+# print("stopping")
+# pitch_wobble.stop()

@@ -18,7 +18,8 @@ def chord_prog_1():
     note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"], en(), vel=80)
 
 
-@play_on("monologue:1", channel=Ch1, block=False, loop=-1, setup=start_event)
+@play_on("mono:1", channel=Ch1, block=False, loop=-1, setup=start_event)
+# @play_on("monologue:1", channel=Ch1, block=False, loop=-1, setup=start_event)
 def lead():
     note("b5", qn(), vel=80)
     note("a#5", sn(), vel=80)
@@ -27,10 +28,11 @@ def lead():
     note("f#5", en(), vel=80)
     note("C#6", en(), vel=80)
     note("f#6", sn(), vel=80)
+    # rest(sn())
 
 
-# @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1, setup=start_event)
-@play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
+@play_on("td3", channel=Ch4, block=False, loop=-1, setup=start_event)
+# @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
 def bass():
     note("b2", qn(), vel=100)
     note("a#2", sn(), vel=80)
@@ -39,6 +41,7 @@ def bass():
     note("f#2", en(), vel=100)
     note("c#2", en(), vel=80)
     note("f#2", sn(), vel=80)
+    # rest(sn())
 
 
 def wait_time():
@@ -87,11 +90,14 @@ def do_drums(pad):
 
 
 # @play_on("SP-404MKII:0", channel=Ch1, block=False, loop=-1, setup=start_event)
-@play_on("SP-404MKII:0", channel=Ch1, block=False, loop=-1)
+@play_on("sp404", channel=Ch1, block=False, loop=-1, setup=start_event)
+# @play_on("SP-404MKII:0", channel=Ch1, block=False, loop=-1)
 def drums():
     # 36 - 52
     do_drums(1)
     do_drums(9)
+    # panic()
+    # rest(sn())
 
 
 # chords()
@@ -99,9 +105,10 @@ drums()
 bass()
 lead()
 
-# sleep(5)
+sleep(5)
 
 # drums.stop()
+# chords.stop()
 
 
 # @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=False)

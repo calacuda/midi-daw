@@ -22,7 +22,7 @@ import requests_unixsocket
 from midi_daw_types import (UDS_SERVER_PATH, Automation, AutomationConf,
                             LfoConfig, MidiChannel, MidiMsg, MidiReqBody,
                             MidiTarget, NoteLen, note_from_str)
-# import websockets
+from thefuzz import process
 from websockets.sync.client import unix_connect
 
 requests_unixsocket.monkeypatch()
@@ -254,6 +254,11 @@ def stop_notes(notes, midi_out=midi_out):
         note(n, None, midi_out=midi_out)
 
 
+def panic(midi_out=midi_out):
+    # for n in notes:
+    note(list(range(127)), None, block=True, midi_out=midi_out)
+
+
 def rest(duration: NoteLen):
     """musical rest"""
     post(duration.json(), "rest")
@@ -276,6 +281,17 @@ def get_tempo() -> float:
 
 def get_devs() -> list[str]:
     return get("midi")
+
+
+def find_dev(dev_name) -> str:
+    """uses a fuzzy finding algo to get the proper device"""
+    choices = get_devs()
+    one = process.extractOne(dev_name, choices)
+
+    if one is None:
+        return MIDI_TARGET
+    else:
+        return one[0]
 
 
 def wait_for(event: str):
@@ -432,11 +448,13 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
         block => should it be started in a sub thread
     """
 
-    class Decorator:
+    class PlayOn:
         def __init__(self, func):
 
             self.midi_file = ""
-            self.midi_dev = midi_output
+            self.midi_dev = (
+                midi_output if midi_out in get_devs() else find_dev(midi_output)
+            )
             self.channel = mk_channel(channel)
             self.func = func
             self.is_blocking = block
@@ -453,9 +471,11 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             new_cc = partial(cc, midi_out=self.new_midi_out)
             # new_rest = partial(rest)
             self.new_pitch_bend = partial(pitch_bend, midi_out=self.new_midi_out)
+            self.new_panic = partial(panic, midi_out=self.new_midi_out)
             self.api = {
                 "note": self.new_note,
                 "cc": new_cc,
+                "panic": self.new_panic,
                 "pitch_bend": self.new_pitch_bend,
             }
             # print(dir(self.func))
@@ -540,4 +560,4 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             """will compile the code and send it to the server for play back"""
             print("compiling")
 
-    return Decorator
+    return PlayOn
