@@ -20,8 +20,8 @@ def lead():
 
 
 @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
-@lfo("test-wavetable.wav", 5.5)
-def res_wobble(lfo):
+@lfo("test-wavetable.wav", 10.5)
+def pitch_wobble(lfo):
     # print(lfo)
     bend_amt = lfo * 0.75
     # do pitch bend
@@ -30,8 +30,8 @@ def res_wobble(lfo):
 
 
 lead()
-res_wobble()
+pitch_wobble()
 
 rest(wn())
 print("stopping")
-res_wobble.stop()
+pitch_wobble.stop()

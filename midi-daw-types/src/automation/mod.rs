@@ -1,5 +1,5 @@
 use enum_dispatch::enum_dispatch;
-use hound::WavReader;
+use hound::{SampleFormat, WavReader};
 use lfo::{wavetable, Lfo};
 use pyo3::{exceptions::PyValueError, prelude::*, PyClass};
 use serde::{Deserialize, Serialize};
@@ -55,15 +55,26 @@ impl TryFrom<AutomationConf> for AutomationTypes {
                 //         Ok((sample as f64) / (i32::MAX as f64))
                 //     })
                 //     .collect::<Result<Vec<f64>, String>>()?;
-                let samples = reader
-                    .samples::<f32>()
-                    .map(|sample| {
-                        let sample = sample
-                            .map_err(|e| format!("sample failed to decode with error: {e}"))?;
-                        // Ok((sample as f64) / (i32::MAX as f64))
-                        Ok(sample as f64)
-                    })
-                    .collect::<Result<Vec<f64>, String>>()?;
+                let samples = match reader.spec().sample_format {
+                    SampleFormat::Int => reader
+                        .samples::<i32>()
+                        .map(|sample| {
+                            let sample = sample
+                                .map_err(|e| format!("sample failed to decode with error: {e}"))?;
+                            Ok((sample as f64) / (i32::MAX as f64))
+                        })
+                        .collect::<Result<Vec<f64>, String>>()?,
+
+                    SampleFormat::Float => reader
+                        .samples::<f32>()
+                        .map(|sample| {
+                            let sample = sample
+                                .map_err(|e| format!("sample failed to decode with error: {e}"))?;
+                            // Ok((sample as f64) / (i32::MAX as f64))
+                            Ok(sample as f64)
+                        })
+                        .collect::<Result<Vec<f64>, String>>()?,
+                };
 
                 // build WaveTable
                 let mut wavetable =
