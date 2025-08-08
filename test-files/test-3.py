@@ -13,6 +13,7 @@ set_midi_output(dev_name)
 
 # @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
 def lead():
+    panic()
     while True:
         note("b2", qn(), vel=80)
         note("a#2", sn(), vel=80)

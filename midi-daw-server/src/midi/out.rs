@@ -31,8 +31,10 @@ pub fn midi_out(midi_msg_out: Receiver<(String, MidiMsg)>, new_dev: Receiver<Mid
                 MidiDev::CreateVirtual(dev_name) => {
                     let midi_out = MidiOutput::new("MIDI-DAW-NEW-DEV").unwrap();
 
-                    if let Ok(dev) = midi_out.create_virtual(&dev_name) {
+                    if let Ok(dev) = midi_out.create_virtual(&dev_name) && !midi_devs.contains_key(&dev_name) {
                         midi_devs.insert(dev_name, dev);
+                    } else if midi_devs.contains_key(&dev_name) {
+                        info!("device already exists")
                     } else {
                         error!("failed to make virtual output device");
                         // eprintln!("failed to make virtual output device");

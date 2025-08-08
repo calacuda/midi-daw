@@ -2,6 +2,7 @@ from time import sleep
 
 from midi_daw import *
 
+new_dev("VITAL")
 devs = get_devs()
 print(devs)
 
@@ -50,15 +51,16 @@ def wait_time():
     time.sleep(0.25)
 
 
-@play_on("microKORG2:0", channel=Ch1, block=False, loop=-1, setup=start_event)
+@play_on("VITAL", channel=Ch1, block=False, loop=-1, setup=start_event)
 def chords():
     note(["b3", "d4", "f#4", "a4", "c#5"], qn(), vel=80)
-    note(["a#3", "C#4", "D4", "f4", "g#4"], sn(), vel=80)
-    note(["f#3", "a#4", "c#4", "d#4", "e4"], sn(), vel=80)
+    note(["a#3", "C#4", "D3", "f4", "g#4"], sn(), vel=80)
+    note(["f#3", "a#4", "c#4", "d#3", "e4"], sn(), vel=80)
     rest(sn())
-    note(["C#4", "D#4", "e4", "g#4", "b4"], qn(), vel=80)
+    note(["C#4", "D#4", "e5", "g#4", "b4"], qn(), vel=80)
     rest(sn(4))
-    note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"], sn(1), vel=80)
+    note(["f#4", "a#4", "c#4", "d#4", "e4"], sn(), vel=80)
+    # note(["f#3", "g#3", "A#3", "b3", "c#4", "d#4"], sn(1), vel=80)
     # note(["C#4", "D#4", "e4", "g#4", "b4"], en(), vel=80, block=True)
     # note(["a#3", "C#4", "D4", "f4", "g#4"], sn(), vel=80, block=True)
 
@@ -100,10 +102,10 @@ def drums():
     # rest(sn())
 
 
-# chords()
+chords()
 drums()
-bass()
-lead()
+# bass()
+# lead()
 
 sleep(5)
 

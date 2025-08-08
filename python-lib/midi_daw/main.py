@@ -198,7 +198,13 @@ def midi_out(midi_cmd: MidiMsg, block: bool = True):
     _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
-def note(note, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out):
+def note(
+    note,
+    duration: NoteLen = NoteLen.Sn(1),
+    vel=80,
+    block: bool = True,
+    midi_out=midi_out,
+):
     """plays a note"""
     # add int, and lists types as notes
 
