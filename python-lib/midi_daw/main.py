@@ -463,6 +463,7 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             self.loop_number = -1 if isinstance(loop, bool) and loop else loop
             self.setup_f = setup
             self.__name__ = self.name
+            self.__globals__ = self.func.__globals__
 
         def __call__(self, *args, **kwargs):
             global running_funcs
