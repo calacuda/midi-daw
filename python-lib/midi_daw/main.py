@@ -15,10 +15,12 @@ import threading
 from copy import copy
 from functools import partial
 from multiprocessing import Manager, Process
+from os import path
 
 import requests
 import requests_unixsocket
-from midi_daw_types import (UDS_SERVER_PATH, MidiChannel, MidiMsg, MidiReqBody,
+from midi_daw_types import (UDS_SERVER_PATH, Automation, AutomationConf,
+                            LfoConfig, MidiChannel, MidiMsg, MidiReqBody,
                             MidiTarget, NoteLen, note_from_str)
 # import websockets
 from websockets.sync.client import unix_connect
@@ -36,30 +38,33 @@ running_funcs = {}
 AUTOMATION_THREADS = {}
 
 
-class Automation:
-    def __init__(self, func, automation=None):
-        self.func = func
-        self.name = (
-            f"{func.__name__}:{automation.automation_type()}:{automation.sub_type()}"
-        )
+class AutomationWrapper:
+    def __init__(self, func, automation=None, main_type=None):
+        self._func = func
+        self.name = f"{func.__name__}:{main_type}:{automation.sub_type()}"
         self.automation = automation
+        self.__name__ = self.name
+        self.__globals__ = self._func.__globals__
 
     def __call__(self, *args, **kwargs):
         global AUTOMATION_THREADS
 
-        # old = copy(self.func.__globals__)
-        # self.func.__globals__.update(self.api)
-
         # t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
         # f = self.loopLesson 4 - Cable Car_f if self.should_loop else self.func
-        args = (self.automation.step()) + args
-        f = self.func
-        t = Process(target=f, args=args, kwargs=kwargs)
-        t.start()
-        # self.func.__globals__.update(old)
-        # print(f"running function => {self.name}")
-        AUTOMATION_THREADS[self.name] = t
-        return self.name
+        # f = self.func
+        # t = Process(target=f, args=args, kwargs=kwargs)
+        # t.start()
+        # # self.func.__globals__.update(old)
+        # # print(f"running function => {self.name}")
+        # AUTOMATION_THREADS[self.name] = t
+        # return self.name
+        return self.func(*args, **kwargs)
+
+    def func(self, *args, **kwargs):
+        auto_val = self.automation.step()
+        # print("auto_val", auto_val)
+        args = (auto_val,) + args
+        self._func(*args, **kwargs)
 
     def stop(self):
         """stops the running automation thread"""
@@ -237,6 +242,13 @@ def note(note, duration: NoteLen, vel=80, block: bool = True, midi_out=midi_out)
         send_midi_cmd(midi_cmd)
 
 
+def pitch_bend(amt, block: bool = True, midi_out=midi_out):
+    abs_val = abs(amt * 16383)
+    amt = int(abs_val)
+    cmd = MidiMsg.PitchBend(amt)
+    midi_out(cmd, block=block)
+
+
 def stop_notes(notes, midi_out=midi_out):
     for n in notes:
         note(n, None, midi_out=midi_out)
@@ -294,8 +306,8 @@ def trigger(event: str):
 
 
 def lfo(
-    freq: float,  # make this a class or enum that can be per beats, per quarter/eighth/sixteeth/etc note, or based on seconds
     lfo_type: str,
+    freq: float,  # make this a class or enum that can be per beats, per quarter/eighth/sixteeth/etc note, or based on seconds
     # callback: callable,
     one_shot: bool = True,
     bipolar: bool = False,
@@ -337,10 +349,9 @@ def lfo(
     # return "LFO_NAME"
     # return outer
     # TODO: make an LFO automation in rust
-    # lfo = None
     lfo_type = lfo_type.lower()
     lfo_types = {
-        "wave": None,
+        # "wave": None,
         "sin": None,
         "triangle": None,
         "saw-up": None,
@@ -353,7 +364,23 @@ def lfo(
 
     if lfo_builder is not None:
         return partial(Automation, automation=lfo_builder)
+    elif lfo_type.endswith(".wav") and path.exists(lfo_type):
+        # build wave table lfo
+        conf = LfoConfig.WaveTable(lfo_type, freq)
+
+        try:
+            automation = Automation(AutomationConf.Lfo(conf))
+        except ValueError as e:
+            log.error(f"{e}")
+        else:
+            # print("returning automation")
+            return partial(AutomationWrapper, automation=automation, main_type="lfo")
+
+    elif lfo_type.endswith(".wav") and not path.exists(lfo_type):
+        print("lfo_type apears to be a file path but it doen't exists.")
+        return None
     else:
+        print("unknown lfo_type")
         return None
 
 
@@ -425,11 +452,17 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             self.new_note = partial(self.note, self.playing_notes)
             new_cc = partial(cc, midi_out=self.new_midi_out)
             # new_rest = partial(rest)
-            self.api = {"note": self.new_note, "cc": new_cc}
+            self.new_pitch_bend = partial(pitch_bend, midi_out=self.new_midi_out)
+            self.api = {
+                "note": self.new_note,
+                "cc": new_cc,
+                "pitch_bend": self.new_pitch_bend,
+            }
             # print(dir(self.func))
             self.should_loop = loop != 0
             self.loop_number = -1 if isinstance(loop, bool) and loop else loop
             self.setup_f = setup
+            self.__name__ = self.name
 
         def __call__(self, *args, **kwargs):
             global running_funcs
@@ -442,7 +475,7 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
 
             # return result
             if not self.is_blocking:
-                clear_dead_threads()
+                # clear_dead_threads()
                 # t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
                 f = self.loop_f if self.should_loop else self.func
                 t = Process(target=f, args=args, kwargs=kwargs)

@@ -27,8 +27,8 @@ impl AutomationTrait for WaveTable {
 }
 
 impl WaveTable {
-    pub fn new(wavetable: Vec<f64>, sample_rate: f64) -> Self {
-        let wavetable = wavetable.into();
+    pub fn new(wavetable: Arc<[f64]>, sample_rate: f64) -> Self {
+        // let wavetable = wavetable.into();
 
         Self {
             sample_rate,

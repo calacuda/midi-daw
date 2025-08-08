@@ -2,6 +2,8 @@ use midi_msg::Channel;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::automation::{lfo::LfoConfig, Automation, AutomationConf, AutomationTypes};
+
 // use crate::automation::{lfo::LfoConfig, Automation, AutomationConf, AutomationTypes};
 
 pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
@@ -409,11 +411,11 @@ fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NoteDuration>()?;
     m.add_class::<MidiReqBody>()?;
 
-    // m.add_class::<Automation>()?;
-    // m.add_class::<AutomationTypes>()?;
-    // m.add_class::<AutomationConf>()?;
+    m.add_class::<Automation>()?;
+    m.add_class::<AutomationTypes>()?;
+    m.add_class::<AutomationConf>()?;
+    m.add_class::<LfoConfig>()?;
     // m.add_class::<LfoConfig>()?;
-    // // m.add_class::<LfoConfig>()?;
 
     // m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     m.add_function(wrap_pyfunction!(note_from_str, m)?)?;

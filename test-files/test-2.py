@@ -8,15 +8,30 @@ def start_event():
     wait_for("1")
 
 
-@play_on("monologue:1", channel=Ch1, block=False, loop=-1, setup=start_event)
+@play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
 def lead():
-    note("b5", qn(), vel=80)
-    note("a#5", sn(), vel=80)
-    note("f#5", en(), vel=80)
-    note("C#6", qn(), vel=80)
-    note("f#5", en(), vel=80)
-    note("C#6", en(), vel=80)
-    note("f#6", sn(), vel=80)
+    note("b2", qn(), vel=80)
+    note("a#2", sn(), vel=80)
+    note("f#2", en(), vel=80)
+    note("C#3", qn(), vel=80)
+    note("f#2", en(), vel=80)
+    note("C#3", en(), vel=80)
+    note("f#3", sn(), vel=80)
+
+
+@play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
+@lfo("test-wavetable.wav", 5.5)
+def res_wobble(lfo):
+    # print(lfo)
+    bend_amt = lfo * 0.75
+    # do pitch bend
+    # print(bend_amt)
+    pitch_bend(bend_amt)
 
 
 lead()
+res_wobble()
+
+rest(wn())
+print("stopping")
+res_wobble.stop()
