@@ -6,7 +6,7 @@ _new-tmux-dev-session SESSION:
   tmux send-keys -t "{{SESSION}}":README 'nv ./README.md "+set wrap"' ENTER
   @just _new-window "{{SESSION}}" "Server" "cd midi-daw-server && nv src/{main.rs,**/*.rs}"
   @just _new-window "{{SESSION}}" "Data Types" "cd midi-daw-types && nv src/lib.rs src/automation/{mod.rs,**/{mod.rs,*.rs}}"
-  @just _new-window "{{SESSION}}" "Edit Py" "cd python-lib && nv midi_daw/main.py"
+  @just _new-window "{{SESSION}}" "Edit Py" "cd python-lib && nv midi_daw/{main.py,__init__.py}"
   @just _new-window "{{SESSION}}" "Run" "cd python-lib"
   @just _new-window "{{SESSION}}" "Misc" ""
   @just _new-window "{{SESSION}}" "Git" "git status"
