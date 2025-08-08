@@ -2,7 +2,7 @@ use crate::midi::MidiDev;
 use crossbeam::channel::Receiver;
 use fx_hash::FxHashMap;
 use midi_msg::MidiMsg;
-use midir::MidiOutput;
+use midir::{os::unix::VirtualOutput, MidiOutput};
 use tracing::log::*;
 
 pub fn midi_out(midi_msg_out: Receiver<(String, MidiMsg)>, new_dev: Receiver<MidiDev>) -> ! {
@@ -28,6 +28,16 @@ pub fn midi_out(midi_msg_out: Receiver<(String, MidiMsg)>, new_dev: Receiver<Mid
                 MidiDev::RMed(dev_name) => {
                     midi_devs.remove(&dev_name);
                 }
+                MidiDev::CreateVirtual(dev_name) => {
+                    let midi_out = MidiOutput::new("MIDI-DAW-NEW-DEV").unwrap();
+
+                    if let Ok(dev) = midi_out.create_virtual(&dev_name) {
+                        midi_devs.insert(dev_name, dev);
+                    } else {
+                        error!("failed to make virtual output device");
+                        // eprintln!("failed to make virtual output device");
+                    }
+                }
             }
         }
 
@@ -37,16 +47,20 @@ pub fn midi_out(midi_msg_out: Receiver<(String, MidiMsg)>, new_dev: Receiver<Mid
                 (dev_name, msg) if midi_devs.contains_key(&dev_name) => {
                     // send messages
                     let Some(dev) = midi_devs.get_mut(&dev_name) else {
-                    error!("an error occured finding the midi device with the name \"{dev_name}\"");
-                    continue;
-                };
+                        error!("an error occured finding the midi device with the name \"{dev_name}\"");
+                        // eprintln!("an error occured finding the midi device with the name \"{dev_name}\"");
+                        continue;
+                    };
 
                     if let Err(e) = dev.send(&msg.to_midi()) {
                         error!("midi output failed with error {e}");
+                        // eprintln!("midi output failed with error {e}");
                     }
                 }
                 (dev_name, _msg) => {
-                    error!("the requested midi device, \"{dev_name}\", is not connected.")
+                    error!("the requested midi device, \"{dev_name}\", is not connected.");
+                    // eprintln!("the requested midi device, \"{dev_name}\", is not connected.");
+                    error!("known devs = {:?}", midi_devs.keys());
                 }
             }
         }

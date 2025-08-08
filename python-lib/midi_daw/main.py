@@ -111,10 +111,9 @@ def set_midi_output(dev: str, channel=None):
     """sets the midi output device and channel"""
     global MIDI_TARGET
 
-    channel = mk_channel(channel)
-
     if channel is not None:
-        print("channel is", channel)
+        channel = mk_channel(channel)
+        log.debug("channel is", channel)
         MIDI_TARGET.ch = channel
 
     MIDI_TARGET.name = dev
@@ -255,8 +254,8 @@ def stop_notes(notes, midi_out=midi_out):
 
 
 def panic(midi_out=midi_out):
-    # for n in notes:
-    note(list(range(127)), None, block=True, midi_out=midi_out)
+    """stops all playing notes on device: midi_output on channel: channel"""
+    note(list(range(128)), None, block=True, midi_out=midi_out)
 
 
 def rest(duration: NoteLen):
@@ -437,9 +436,13 @@ def adsr(
 #     pass
 
 
-def all_off(midi_output: str, channel=MidiChannel.Ch1):
-    """stops all playing notes on device: midi_output on channel: channel"""
-    pass
+# def all_off(midi_output: str, channel=MidiChannel.Ch1):
+#     pass
+
+
+def new_dev(dev_name):
+    """used to add virtual midi devices"""
+    post(f'"{dev_name}"', "new-dev")
 
 
 def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setup=None):

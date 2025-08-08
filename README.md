@@ -29,4 +29,14 @@ these are listen in no particular order.
   - [x] add listing of midi devices
 - [x] enable sending data to api backend from python
 - [ ] automation
+  - [ ] LFO
+      - [x] wavetable
+      - [ ] sin
+      - [ ] saws
+      - [ ] anti-logs
+      - [ ] logs
+  - [ ] envelopes
+      - [ ] adsr
+      - [ ] ar
 - [x] add an optional "setup" function that must run before a decorated function with looping enabled can start looping
+- [x] create virtual midi-outs

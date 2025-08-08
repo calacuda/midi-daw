@@ -10,20 +10,20 @@ pub mod server;
 
 #[actix::main]
 async fn main() -> std::io::Result<()> {
-    // fn main() -> std::io::Result<()> {
     // tempo
     let tempo = RwLock::new(99.0);
 
     // prepare mpsc.
     let (midi_msg_out_tx, midi_msg_out_rx) = unbounded();
+    let (new_midi_dev_tx, new_midi_dev_rx) = unbounded();
 
     let (_jh_1, _jh_2 /* _jh_3 */) = {
         // start midi output thread.
-        let (new_midi_dev_tx, new_midi_dev_rx) = unbounded();
 
         let midi_out_jh = spawn(move || midi_out(midi_msg_out_rx, new_midi_dev_rx));
 
         // start a thread for midi device discovery.
+        let new_midi_dev_tx = new_midi_dev_tx.clone();
         let midi_dev_jh = spawn(move || new_midi_dev(new_midi_dev_tx));
 
         // start a automation thread.
@@ -35,5 +35,5 @@ async fn main() -> std::io::Result<()> {
     };
 
     // run webserver.
-    server::run(tempo, midi_msg_out_tx).await
+    server::run(tempo, midi_msg_out_tx, new_midi_dev_tx).await
 }

@@ -1,5 +1,5 @@
 use crate::{
-    midi::dev::fmt_dev_name,
+    midi::{dev::fmt_dev_name, MidiDev},
     server::{
         message_bus::{MbServer, MbServerHandle},
         note::{pitch_bend, play_note, send_cc, stop_note},
@@ -13,9 +13,12 @@ use actix_web::{
 };
 use async_std::sync::RwLock;
 use crossbeam::channel::Sender;
+use fx_hash::FxHashSet;
 use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
 use midir::MidiOutput;
 use std::time::Duration;
+use tokio::sync::Mutex;
+use tracing::log::*;
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -75,16 +78,40 @@ async fn get_tempo(tempo: web::Data<RwLock<f64>>) -> impl Responder {
 }
 
 #[get("/midi")]
-async fn get_devs() -> impl Responder {
+async fn get_devs(virtual_devs: web::Data<Mutex<FxHashSet<String>>>) -> impl Responder {
     let midi_out = MidiOutput::new("MIDI-DAW-API").unwrap();
-    let midi_devs_names: Vec<String> = midi_out
+    let mut midi_devs_names: Vec<String> = midi_out
         .ports()
         .into_iter()
         .filter_map(|port| midi_out.port_name(&port).ok().map(fmt_dev_name))
         // .map(|port| port.id())
         .collect();
+    midi_devs_names.append(&mut virtual_devs.lock().await.clone().into_iter().collect());
 
     serde_json::to_string(&midi_devs_names).map(|tempo| HttpResponse::Ok().body(tempo))
+}
+
+// TODO: make an end point to make new virtual midi-out
+#[post("/new-dev")]
+async fn new_dev(
+    req_body: Json<String>,
+    new_dev_tx: web::Data<Sender<MidiDev>>,
+    virtual_devs: web::Data<Mutex<FxHashSet<String>>>,
+) -> impl Responder {
+    let port_name = &req_body.0;
+
+    // if let Err(e) = dev_id {
+    //     error!("making new dev {e}");
+    // } else {
+    //     info!("made output device {port_name}");
+    // }
+
+    if let Err(e) = new_dev_tx.send(MidiDev::CreateVirtual(port_name.to_string())) {
+        error!("{e}");
+    }
+    virtual_devs.lock().await.insert(port_name.to_string());
+
+    serde_json::to_string(&port_name).map(|tempo| HttpResponse::Ok().body(tempo))
 }
 
 /// sends a message to the message bus every note
@@ -114,9 +141,15 @@ pub async fn clock_notif(data: MbServerHandle, tempo: web::Data<RwLock<f64>>) ->
     }
 }
 
-pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
+pub async fn run(
+    tempo: RwLock<f64>,
+    midi_out: MidiOut,
+    new_dev_tx: Sender<MidiDev>,
+) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
     let midi_out = web::Data::new(midi_out);
+    let new_dev_tx = web::Data::new(new_dev_tx);
+    let virtual_devs = web::Data::new(Mutex::new(FxHashSet::<String>::default()));
     // let msg_event_addr = web::Data::new(MbMessageEvent.start());
     let (mb_server, server_tx) = MbServer::new();
 
@@ -145,11 +178,14 @@ pub async fn run(tempo: RwLock<f64>, midi_out: MidiOut) -> std::io::Result<()> {
                 .app_data(tempo.clone())
                 .app_data(midi_out.clone())
                 .app_data(server_tx.clone())
+                .app_data(new_dev_tx.clone())
+                .app_data(virtual_devs.clone())
                 .service(midi)
                 .service(get_devs)
                 .service(get_tempo)
                 .service(set_tempo)
                 .service(rest)
+                .service(new_dev)
                 .service(message_bus::message_bus)
         }
     })
