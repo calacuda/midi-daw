@@ -199,52 +199,35 @@ def midi_out(midi_cmd: MidiMsg, block: bool = True):
 
 
 def note(
-    note,
+    notes,
     duration: NoteLen = NoteLen.Sn(1),
     vel=80,
     block: bool = True,
     midi_out=midi_out,
 ):
     """plays a note"""
-    # add int, and lists types as notes
+    midi_cmd = None
 
-    def mk_cmd(note):
-        midi_note = None
-        # msg_func = MidiMsg.PlayNote if duration else MidiMsg.StopNote
-        #
-        # if isinstance(note, int):
-        #     midi_cmd = msg_func(note, vel, duration)
-        # elif isinstance(note, str):
-        #     midi_cmd = msg_func(note_from_str(note), vel, duration)
-        if isinstance(note, int):
-            midi_note = note
-        elif isinstance(note, str):
-            midi_note = note_from_str(note)
-
-        midi_cmd = None
-
-        if duration and midi_note is not None:
-            midi_cmd = MidiMsg.PlayNote(midi_note, vel, duration)
-        elif not duration and midi_note is not None:
-            midi_cmd = MidiMsg.StopNote(midi_note)
-
-        return midi_cmd
+    if duration:
+        midi_cmd = MidiMsg.PlayNote
+    else:
+        midi_cmd = MidiMsg.StopNote
 
     def send_midi_cmd(cmd, block=block):
         if cmd is not None:
             midi_out(cmd, block=block)
 
-    if isinstance(note, list) and not isinstance(note, str):
-        for n in note[:-1]:
-            midi_cmd = mk_cmd(n)
-            send_midi_cmd(midi_cmd, block=False)
-
-        if len(note) >= 1:
-            midi_cmd = mk_cmd(note[-1])
+    match notes:
+        case str():
+            midi_note = note_from_str(notes)
+            midi_cmd = midi_cmd(midi_note, vel, duration)
             send_midi_cmd(midi_cmd)
-    else:
-        midi_cmd = mk_cmd(note)
-        send_midi_cmd(midi_cmd)
+        case int():
+            midi_cmd = midi_cmd(notes, vel, duration)
+            send_midi_cmd(midi_cmd)
+        case list():
+            for n in notes:
+                note(n, duration, vel, block, midi_out)
 
 
 def pitch_bend(amt, block: bool = True, midi_out=midi_out):
@@ -477,16 +460,17 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             self.manager = Manager()
             self.playing_notes = self.manager.list()
             self.new_note = partial(self.note, self.playing_notes)
-            new_cc = partial(cc, midi_out=self.new_midi_out)
+            # new_cc = partial(cc, midi_out=self.new_midi_out)
             # new_rest = partial(rest)
-            self.new_pitch_bend = partial(pitch_bend, midi_out=self.new_midi_out)
-            self.new_panic = partial(panic, midi_out=self.new_midi_out)
-            self.api = {
-                "note": self.new_note,
-                "cc": new_cc,
-                "panic": self.new_panic,
-                "pitch_bend": self.new_pitch_bend,
-            }
+            # self.new_pitch_bend = partial(pitch_bend, midi_out=self.new_midi_out)
+            # self.new_panic = partial(panic, midi_out=self.new_midi_out)
+            # self.api = {
+            #     "note": self.new_note,
+            #     "cc": new_cc,
+            #     "panic": self.new_panic,
+            #     "pitch_bend": self.new_pitch_bend,
+            # }
+            self.api = {"note": self.new_note, "MIDI_TARGET": self.midi_target}
             # print(dir(self.func))
             self.should_loop = loop != 0
             self.loop_number = -1 if isinstance(loop, bool) and loop else loop
