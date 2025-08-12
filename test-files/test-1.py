@@ -87,7 +87,7 @@ def do_drums(pad):
     note(sp(1), sn(1), vel=100)
     note([sp(4), sp(1)], sn(), vel=100)
     note(sp(1), sn(1), vel=100)
-    note([sp(3)], sn(), vel=100)
+    note([sp(7)], sn(), vel=100)
     note(sp(pad), sn(1), vel=100)
 
 
@@ -104,7 +104,7 @@ def drums():
 
 chords()
 drums()
-# bass()
+bass()
 # lead()
 
 sleep(5)
