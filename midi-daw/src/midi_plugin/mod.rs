@@ -59,7 +59,6 @@ impl Plugin for MidiOutPlugin {
         // .insert_resource(LastPlayedPulse(None))
         .insert_resource(PlayingSyncPulse(true))
         .insert_resource(CmdPallet(false))
-        .insert_resource(Playing(true))
         .insert_resource(EdittingCell(false))
         .init_resource::<FirstViewTrack>()
         .add_systems(Startup, setup)
@@ -77,18 +76,7 @@ impl Plugin for MidiOutPlugin {
     }
 }
 
-fn setup(
-    // mut cmds: Commands,
-    tempo: Res<Tempo>,
-    // screen: Res<Screen>,
-    // mut next_state: ResMut<NextState<PlayingState>>,
-    mut sync_timer: ResMut<SyncTimer>,
-    // mut playing_phrase: ResMut<PlayingPhrase>,
-    // output: Res<MidiOutput>,
-    // connection: Res<MidiOutputConnection>,
-    // controller: Res<ControllerName>,
-    bpq: Res<BPQ>,
-) {
+fn setup(tempo: Res<Tempo>, mut sync_timer: ResMut<SyncTimer>, bpq: Res<BPQ>) {
     sync_timer.0 = Timer::new(
         Duration::from_secs_f64(60.0 / tempo.0 as f64 / bpq.0 as f64),
         TimerMode::Repeating,
@@ -97,72 +85,26 @@ fn setup(
     // set playback cursor loc.
 }
 
-// fn cleanup(
-//     mut cmds: Commands,
-//     mut playing_phrases: Query<(Entity, &mut PlayingPhrase)>,
-//     mut state_updated: EventWriter<StateUpdated>,
-// ) {
-//     for (id, ref mut playing_phrase) in playing_phrases.iter_mut() {
-//         // set playback cursor loc.
-//         playing_phrase.2 = None;
-//         playing_phrase.1 = 0;
-//         cmds.entity(id).insert(PlayingQueued);
-//         state_updated.write_default();
-//     }
-// }
-
 fn sync_pulsing(pulsing: Res<PlayingSyncPulse>) -> bool {
     **pulsing
 }
 
 fn sync(
     mut sync_timer: ResMut<SyncTimer>,
-    // time: Res<Time>,
     time: Res<Time>,
     tempo: Res<Tempo>,
     mut pulse: ResMut<SyncPulse>,
-    // mut state_updated: EventWriter<StateUpdated>,
-    // output: Res<MidiOutput>,
     bpq: Res<BPQ>,
-    // mut log: EventWriter<Log>,
 ) {
-    // time.tick();
     sync_timer.0.tick(time.delta());
 
     if sync_timer.0.just_finished() {
-        // if pulse.n_pulses == 0 {
-        //     let midi_bytes = MidiMsg::SystemRealTime {
-        //         msg: SystemRealTimeMsg::Start,
-        //     }
-        //     .to_midi();
-        //
-        //     output.send(MidiMessage {
-        //         msg: midi_bytes.into(),
-        //     });
-        // }
-
-        // // send sync message
-        // let midi_bytes = MidiMsg::SystemRealTime {
-        //     msg: SystemRealTimeMsg::TimingClock,
-        // }
-        // .to_midi();
-        //
-        // output.send(MidiMessage {
-        //     msg: midi_bytes.into(),
-        // });
-
-        // warn!("sync");
-
         pulse.n_pulses += 1;
         pulse.n_pulses %= usize::MAX;
-        // log.write(Log::info("pulse"));
-
-        // set last sync pulse time
 
         sync_timer.0.set_duration(Duration::from_secs_f64(
             60.0 / tempo.0 as f64 / bpq.0 as f64,
         ));
-        // sync_timer.0.reset();
     }
 }
 
