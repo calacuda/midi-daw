@@ -1,0 +1,3 @@
+[target.x86_64-unknown-linux-gnu] # Or your specific target
+linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold"] # Adjust path to mold if needed
