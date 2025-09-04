@@ -4,12 +4,13 @@ use bevy::{
 };
 // use bevy_ratatui::RatatuiPlugins;
 use crossbeam::channel::unbounded;
-use midi_daw::midi::{dev::new_midi_dev, out::midi_out};
+use midi_daw::midi::{MidiDev, dev::new_midi_dev, out::midi_out};
 use midi_daw_lib::{
     COL_W, CursorLocation, DisplayStart, MainState, MidiCmd, MidiOutput, N_STEPS, NewMidiDev,
     Screen, Step, Track, TrackID, button_tracker::ButtonTrackerPlugin, display::MainDisplayPlugin,
     midi_plugin::MidiOutPlugin, sphere::SphereMode,
 };
+use midi_msg::Channel;
 use std::thread::spawn;
 
 // use bevy_ascii_terminal::{render::TerminalMeshTileScaling, *};
@@ -38,9 +39,9 @@ fn main() {
         (midi_out_jh, midi_dev_jh)
     };
 
-    // new_midi_dev_tx
-    //     .send(MidiDev::CreateVirtual("TEST-DEV".into()))
-    //     .unwrap();
+    new_midi_dev_tx
+        .send(MidiDev::CreateVirtual("TEST-DEV".into()))
+        .unwrap();
     //
     // let frame_time = std::time::Duration::from_secs_f32(1. / 60.);
 
@@ -160,27 +161,28 @@ fn setup(mut commands: Commands) {
 }
 
 fn setup_tracks(mut cmds: Commands) {
-    let mut steps: Vec<Step<MidiCmd>> = (1..N_STEPS).map(|_| Step::default()).collect();
+    let mut steps: Vec<Step<MidiCmd>> = (0..N_STEPS).map(|_| Step::default()).collect();
 
     let note = [48, 52, 55, 59];
     for (i, step) in steps.iter_mut().step_by(8).enumerate() {
         step.note = Some(note[i % 4]);
     }
 
-    // let track = Track::Midi {
-    //     steps,
-    //     // dev: "TEST-DEV".into(),
-    //     dev: "".into(),
-    //     chan: Channel::Ch1,
-    // };
+    let track = Track::Midi {
+        steps,
+        dev: "TEST-DEV".into(),
+        // dev: "".into(),
+        chan: Channel::Ch1,
+    };
 
     cmds.spawn((
         TrackID {
             id: 0,
-            playing: false,
+            // playing: false,
+            playing: true,
         },
-        // track,
-        Track::default(),
+        track,
+        // Track::default(),
     ));
     cmds.spawn((
         TrackID {

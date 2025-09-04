@@ -1,10 +1,10 @@
 use crate::{
     COL_W, CellCursorMoved, ColumnId, CursorLocation, DisplayStart, MainState, N_STEPS, RowId,
-    Screen, Track, TrackID, TracksScrolled, down_pressed, left_pressed,
+    Screen, Track, TrackID, TracksScrolled, display_midi_note, down_pressed, left_pressed,
     midi_plugin::{BPQ, SyncPulse, get_step_num},
     playing, right_pressed, up_pressed,
 };
-use bevy::{color::palettes::css::*, prelude::*};
+use bevy::{color::palettes::css::*, platform::collections::HashMap, prelude::*};
 
 // mod shared;
 
@@ -60,6 +60,28 @@ use bevy::{color::palettes::css::*, prelude::*};
 //     }
 // }
 
+const TEXT_COLOR: TextColor = TextColor(Color::Srgba(Srgba::new(
+    17. / 255.,
+    17. / 255.,
+    17. / 255.,
+    1.0,
+)));
+
+const STEP_TEXT_COLOR: TextColor = TextColor(Color::Srgba(Srgba::new(
+    243. / 255.,
+    139. / 255.,
+    168. / 255.,
+    1.0,
+)));
+
+// rgb(166, 227, 161)
+const HEADER_TEXT_COLOR: TextColor = TextColor(Color::Srgba(Srgba::new(
+    166. / 255.,
+    227. / 255.,
+    161. / 255.,
+    1.0,
+)));
+
 #[derive(Component, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub struct TrackTargetMarker;
 
@@ -94,8 +116,8 @@ impl Plugin for MainDisplayPlugin {
             // .init_resource::<BackgroundColor>()
             .add_event::<CellCursorMoved>()
             .add_event::<TracksScrolled>()
-            .add_systems(OnEnter(MainState::Edit), setup)
-            .add_systems(OnEnter(MainState::Edit), redraw_display)
+            // .add_systems(OnEnter(MainState::Edit), setup)
+            .add_systems(OnEnter(MainState::Edit), (setup, redraw_notes).chain())
             .add_systems(
                 Update,
                 (
@@ -115,23 +137,21 @@ impl Plugin for MainDisplayPlugin {
                             .run_if(not(cursor_at_max_y))
                             .run_if(down_pressed),
                         (
-                            (
-                                redraw_display.run_if(on_event::<CellCursorMoved>),
-                                redraw_display.run_if(on_event::<TracksScrolled>),
-                                // when the step chagnes
-                                // redraw_display.run_if(on_event::<TracksScrolled>),
-                                // when a note is changed, added, deleated
-                                // redraw_display.run_if(on_event::<TracksScrolled>),
-                                // redraw_display.run_if(on_event::<TracksScrolled>),
-                                // redraw_display.run_if(on_event::<TracksScrolled>),
-                            ),
-                            display_step,
+                            redraw_notes.run_if(on_event::<CellCursorMoved>),
+                            redraw_notes.run_if(on_event::<TracksScrolled>),
+                            // when the step chagnes
+                            // redraw_display.run_if(on_event::<TracksScrolled>),
+                            // when a note is changed, added, deleated
+                            // redraw_display.run_if(on_event::<TracksScrolled>),
+                            // redraw_display.run_if(on_event::<TracksScrolled>),
+                            // redraw_display.run_if(on_event::<TracksScrolled>),
                         )
                             .run_if(playing),
                     )
                         .run_if(in_main_screen)
                         .run_if(not(mod_key_pressed)),
                     // ui_system,
+                    display_step,
                 ),
             );
     }
@@ -262,31 +282,79 @@ fn move_cursor_right(
     cursor_ev.write(CellCursorMoved::Right);
 }
 
-fn redraw_display(
-    // mut term: Single<&mut Terminal>,
+fn redraw_notes(
+    notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
     display_start: Res<DisplayStart>,
     tracks: Query<(&Track, &TrackID)>,
 ) {
     let mut tracks: Vec<(&Track, &TrackID)> = tracks.into_iter().collect();
+    // let mut tracks: FxHashMap<usize, &Track> = tracks
+    //     .into_iter()
+    //     .map(|(track, id)| (id.id, track))
+    //     .collect();
     tracks.sort_by_key(|(_track, id): &(&Track, &TrackID)| id.id);
+
+    let mut notes_text: HashMap<(usize, usize), Mut<'_, Text>> = notes
+        .into_iter()
+        .map(|(text, col, row)| ((col.0, row.0), text))
+        .collect();
 
     let start = display_start.0;
     let end = start + std::cmp::min(4, tracks.len());
 
-    for track_i in start..end {
+    // info!("displaying notes");
+    // warn!("notes_text {notes_text:?}");
+
+    for (i, track_i) in (start..end).enumerate() {
         let track = tracks[track_i];
+        match track.0 {
+            Track::Midi {
+                steps,
+                dev: _,
+                chan: _,
+            } => {
+                for (step_i, step) in steps.iter().enumerate() {
+                    // warn!("{:?}", (i, step_i));
+                    if let Some(text) = notes_text.get_mut(&(i, step_i)) {
+                        // text.0 = display_midi_note(step.note);
+                        if let Some(note_text) = step.note.map(display_midi_note) {
+                            text.0 = note_text;
+                        } else {
+                            text.0 = "---".into();
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        // if let Some(text) = notes_text.get(&(i,))
+
+        // for (text, col_id, row_id) in notes {
+        //     if i == col_id.0 {}
+        // }
     }
 }
 
 /// changes the color of the step lable that is being played
 fn display_step(
-    // mut line_num: Query<&mut , With<LineNumMarker>>,
+    line_num: Query<(&mut TextColor, &Text), With<LineNumMarker>>,
     pulse: Res<SyncPulse>,
     bpq: Res<BPQ>,
 ) {
     let step_i = get_step_num(&pulse, &bpq);
-    let target = format!("{: >2}", step_i);
+    let target = format!("{:0>2}: ", step_i + 1);
     // let alert_color = color::RED;
+    // info!("displaying step");
+
+    for (mut color, text) in line_num {
+        // if text.0.ends_with(format!("{}", step_i)) && color.clone() == TEXT_COLOR {
+        if text.0 == target && color.clone() == TEXT_COLOR {
+            // info!("displaying step");
+            *color = STEP_TEXT_COLOR;
+        } else if text.0 != target && color.clone() == STEP_TEXT_COLOR {
+            *color = TEXT_COLOR;
+        }
+    }
 
     // line_num.iter_mut().for_each(|ref mut text| {
     //     if text.text == target {
@@ -329,7 +397,8 @@ fn setup(mut commands: Commands) {
         ..default()
     };
     // let text_color = TextColor(Srgba::new(205. / 255., 214. / 255., 244. / 255., 1.0).into());
-    let text_color = TextColor(Srgba::new(17. / 255., 17. / 255., 17. / 255., 1.0).into());
+    // let text_color = TextColor(Srgba::new(17. / 255., 17. / 255., 17. / 255., 1.0).into());
+    let text_color = TEXT_COLOR.clone();
 
     commands
         .spawn((
@@ -370,7 +439,7 @@ fn setup(mut commands: Commands) {
                                 ColumnId(col_i),
                             ))
                             .with_children(|parent| {
-                                let cell_h = 100.0 / (N_STEPS + 5) as f32;
+                                let cell_h = 100.0 / (N_STEPS + 6) as f32;
                                 parent
                                     .spawn((
                                         Node {
@@ -410,6 +479,48 @@ fn setup(mut commands: Commands) {
                                             //     .into(),
                                             // ),
                                             text_color.clone(),
+                                        ));
+                                    });
+
+                                parent
+                                    .spawn((
+                                        Node {
+                                            width: Val::Percent(100.0),
+                                            height: Val::Percent(cell_h),
+                                            flex_direction: FlexDirection::Row,
+                                            justify_content: JustifyContent::SpaceAround,
+                                            ..default()
+                                        },
+                                        // RowId(i),
+                                    ))
+                                    .with_children(|parent| {
+                                        if col_i > 0 {
+                                            parent.spawn((
+                                                Text::new("|"),
+                                                text_font.clone(),
+                                                text_color.clone(),
+                                            ));
+                                        }
+
+                                        parent.spawn((
+                                            Text::new("Line"),
+                                            text_font.clone(),
+                                            HEADER_TEXT_COLOR.clone(),
+                                        ));
+                                        parent.spawn((
+                                            Text::new("Note"),
+                                            text_font.clone(),
+                                            HEADER_TEXT_COLOR.clone(),
+                                        ));
+                                        parent.spawn((
+                                            Text::new("Cmd-1"),
+                                            text_font.clone(),
+                                            HEADER_TEXT_COLOR.clone(),
+                                        ));
+                                        parent.spawn((
+                                            Text::new("Cmd-2"),
+                                            text_font.clone(),
+                                            HEADER_TEXT_COLOR.clone(),
                                         ));
                                     });
 
@@ -482,6 +593,8 @@ fn setup(mut commands: Commands) {
                                             // ),
                                             text_color.clone(),
                                             NoteDisplayMarker,
+                                            ColumnId(col_i),
+                                            RowId(i),
                                         ));
                                         parent.spawn((
                                             Text::new("----"),
@@ -498,6 +611,8 @@ fn setup(mut commands: Commands) {
                                             // ),
                                             text_color.clone(),
                                             Cmd1DisplayMarker,
+                                            ColumnId(col_i),
+                                            RowId(i),
                                         ));
                                         parent.spawn((
                                             Text::new("----"),
@@ -514,6 +629,8 @@ fn setup(mut commands: Commands) {
                                             // ),
                                             text_color.clone(),
                                             Cmd2DisplayMarker,
+                                            ColumnId(col_i),
+                                            RowId(i),
                                         ));
                                     });
                                 }
