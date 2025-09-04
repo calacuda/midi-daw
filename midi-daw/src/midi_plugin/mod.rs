@@ -211,7 +211,7 @@ pub fn get_step_num(pulse: &Res<SyncPulse>, bpq: &Res<BPQ>) -> usize {
 //     // buttons: Single<&Gamepad>,
 //     // mut playing_state: ResMut<NextState<PlayingState>>,
 //     // current_play_state: Res<State<PlayingState>>,
-//     // mut playing_sync: ResMut<PlayingSyncPulse>,
+//     // mut playing_sredraw_displayync: ResMut<PlayingSyncPulse>,
 //     playing: Query<(Entity, &PlayingPhrase)>,
 //     // screen: Res<Screen>,
 // ) {

@@ -1,19 +1,22 @@
-use std::fmt::Display;
-
+use crate::{button_tracker::ButtonPressTimers, helpers::less_then::UsizeLessThan};
 use bevy::prelude::*;
 use crossbeam::channel::Sender;
 use midi_daw::midi::MidiDev;
 use midi_daw_types::MidiDeviceName;
 use midi_msg::{Channel, MidiMsg};
+use std::{fmt::Display, time::Duration};
 use strum::EnumString;
 
-use crate::helpers::less_then::UsizeLessThan;
-
+pub mod button_tracker;
+pub mod display;
 pub mod helpers;
 pub mod midi_plugin;
+pub mod sphere;
 
 pub type MidiNote = u8;
+
 pub const N_STEPS: usize = 32;
+pub const COL_W: usize = 18;
 
 #[derive(Clone, DerefMut, Deref, Resource)]
 pub struct NewMidiDev(pub Sender<MidiDev>);
@@ -45,8 +48,38 @@ pub enum MainState {
     ShutDown,
 }
 
+#[derive(Clone, Default, Debug, PartialEq, Eq, Resource)]
+pub enum Screen {
+    #[default]
+    MainScreen,
+    EditCmd {
+        track_id: usize,
+        step: UsizeLessThan<{ N_STEPS }>,
+        cmd_n: UsizeLessThan<2>,
+    },
+    AddTrack,
+    EditTrackMidiDev {
+        track: usize,
+        dev: Option<MidiDeviceName>,
+        chan: Option<Channel>,
+    },
+    ChangeTempo {
+        old_tempo: u16,
+        new_tempo: u16,
+    },
+}
+
 #[derive(Resource, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Deref, DerefMut)]
 pub struct Playing(pub bool);
+
+#[derive(Resource, Clone, Eq, PartialEq, PartialOrd, Ord, Deref, DerefMut)]
+pub struct TrackFriendlyName(pub String);
+
+#[derive(Component, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Deref, DerefMut)]
+pub struct ColumnId(pub usize);
+
+#[derive(Component, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Deref, DerefMut)]
+pub struct RowId(pub usize);
 
 #[derive(Component, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub struct PlayingMarker;
@@ -220,6 +253,20 @@ pub struct TrackID {
 #[derive(Clone, Copy, Default, Debug, States, PartialEq, Eq, Hash, Resource, Deref, DerefMut)]
 pub struct FirstViewTrack(pub usize);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Event)]
+pub enum CellCursorMoved {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Event)]
+pub enum TracksScrolled {
+    Left,
+    Right,
+}
+
 pub fn display_midi_note(midi_note: MidiNote) -> String {
     let note_name_i = midi_note % 12;
     let octave = midi_note / 12;
@@ -234,6 +281,30 @@ pub fn display_midi_note(midi_note: MidiNote) -> String {
 
 pub fn playing(am_playing: Res<Playing>) -> bool {
     **am_playing
+}
+
+fn dpad_button_presed(button: GamepadButton, buttons: Res<ButtonPressTimers>) -> bool {
+    if let Some((inst, just_pressed)) = buttons.0.get(&button) {
+        return inst.elapsed() > Duration::from_secs_f64(0.25) || *just_pressed;
+    }
+
+    false
+}
+
+pub fn up_pressed(buttons: Res<ButtonPressTimers>) -> bool {
+    dpad_button_presed(GamepadButton::DPadUp, buttons)
+}
+
+pub fn down_pressed(buttons: Res<ButtonPressTimers>) -> bool {
+    dpad_button_presed(GamepadButton::DPadDown, buttons)
+}
+
+pub fn left_pressed(buttons: Res<ButtonPressTimers>) -> bool {
+    dpad_button_presed(GamepadButton::DPadLeft, buttons)
+}
+
+pub fn right_pressed(buttons: Res<ButtonPressTimers>) -> bool {
+    dpad_button_presed(GamepadButton::DPadRight, buttons)
 }
 
 // #[cfg(test)]
