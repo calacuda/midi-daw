@@ -1,6 +1,6 @@
 use crate::{
-    COL_W, CellCursorMoved, ColumnId, CursorLocation, DisplayStart, MainState, N_STEPS, RowId,
-    Screen, Track, TrackID, TracksScrolled, display_midi_note, down_pressed, left_pressed,
+    COL_W, CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, N_STEPS,
+    RowId, Screen, Track, TrackID, TracksScrolled, display_midi_note, down_pressed, left_pressed,
     midi_plugin::{BPQ, SyncPulse, get_step_num},
     playing, right_pressed, up_pressed,
 };
@@ -74,7 +74,6 @@ const STEP_TEXT_COLOR: TextColor = TextColor(Color::Srgba(Srgba::new(
     1.0,
 )));
 
-// rgb(166, 227, 161)
 const HEADER_TEXT_COLOR: TextColor = TextColor(Color::Srgba(Srgba::new(
     166. / 255.,
     227. / 255.,
@@ -122,8 +121,11 @@ impl Plugin for MainDisplayPlugin {
                 Update,
                 (
                     (
-                        scroll_left.run_if(cursor_at_min_x).run_if(left_pressed),
-                        scroll_right.run_if(cursor_at_max_x).run_if(right_pressed),
+                        (
+                            scroll_left.run_if(cursor_at_min_x).run_if(left_pressed),
+                            scroll_right.run_if(cursor_at_max_x).run_if(right_pressed),
+                        )
+                            .run_if(more_than_four_tracks),
                         move_cursor_left
                             .run_if(not(cursor_at_min_x))
                             .run_if(left_pressed),
@@ -152,6 +154,7 @@ impl Plugin for MainDisplayPlugin {
                         .run_if(not(mod_key_pressed)),
                     // ui_system,
                     display_step,
+                    display_cursor,
                 ),
             );
     }
@@ -212,20 +215,20 @@ pub fn mod_key_pressed(inputs: Query<&Gamepad>) -> bool {
 }
 
 fn cursor_at_min_y(cursor: Res<CursorLocation>) -> bool {
-    cursor.1 == 0
+    cursor.0 == 0
 }
 
 fn cursor_at_max_y(cursor: Res<CursorLocation>) -> bool {
-    cursor.1 == N_STEPS
+    cursor.0 == N_STEPS
 }
 
 fn cursor_at_min_x(cursor: Res<CursorLocation>) -> bool {
-    cursor.0 == 0
+    cursor.1 == 0
 }
 
 fn cursor_at_max_x(cursor: Res<CursorLocation>) -> bool {
     // n_tracks displayed at once * n_columns per track
-    cursor.0 == 3 * 3
+    cursor.1 == 3 * 4
 }
 
 fn scroll_left(
@@ -253,6 +256,12 @@ fn scroll_right(
     }
 }
 
+fn more_than_four_tracks(tracks: Query<&Track>) -> bool {
+    let n_tracks = tracks.iter().len();
+
+    n_tracks > 4
+}
+
 fn move_cursor_up(mut cursor: ResMut<CursorLocation>, mut cursor_ev: EventWriter<CellCursorMoved>) {
     cursor.0 -= 1;
     cursor_ev.write(CellCursorMoved::Up);
@@ -263,6 +272,7 @@ fn move_cursor_down(
     mut cursor_ev: EventWriter<CellCursorMoved>,
 ) {
     cursor.0 += 1;
+    cursor.0 %= N_STEPS;
     cursor_ev.write(CellCursorMoved::Down);
 }
 
@@ -279,6 +289,7 @@ fn move_cursor_right(
     mut cursor_ev: EventWriter<CellCursorMoved>,
 ) {
     cursor.1 += 1;
+    cursor.1 %= 3 * 4;
     cursor_ev.write(CellCursorMoved::Right);
 }
 
@@ -288,10 +299,6 @@ fn redraw_notes(
     tracks: Query<(&Track, &TrackID)>,
 ) {
     let mut tracks: Vec<(&Track, &TrackID)> = tracks.into_iter().collect();
-    // let mut tracks: FxHashMap<usize, &Track> = tracks
-    //     .into_iter()
-    //     .map(|(track, id)| (id.id, track))
-    //     .collect();
     tracks.sort_by_key(|(_track, id): &(&Track, &TrackID)| id.id);
 
     let mut notes_text: HashMap<(usize, usize), Mut<'_, Text>> = notes
@@ -302,9 +309,6 @@ fn redraw_notes(
     let start = display_start.0;
     let end = start + std::cmp::min(4, tracks.len());
 
-    // info!("displaying notes");
-    // warn!("notes_text {notes_text:?}");
-
     for (i, track_i) in (start..end).enumerate() {
         let track = tracks[track_i];
         match track.0 {
@@ -314,9 +318,7 @@ fn redraw_notes(
                 chan: _,
             } => {
                 for (step_i, step) in steps.iter().enumerate() {
-                    // warn!("{:?}", (i, step_i));
                     if let Some(text) = notes_text.get_mut(&(i, step_i)) {
-                        // text.0 = display_midi_note(step.note);
                         if let Some(note_text) = step.note.map(display_midi_note) {
                             text.0 = note_text;
                         } else {
@@ -327,11 +329,6 @@ fn redraw_notes(
             }
             _ => {}
         }
-        // if let Some(text) = notes_text.get(&(i,))
-
-        // for (text, col_id, row_id) in notes {
-        //     if i == col_id.0 {}
-        // }
     }
 }
 
@@ -343,8 +340,6 @@ fn display_step(
 ) {
     let step_i = get_step_num(&pulse, &bpq);
     let target = format!("{:0>2}: ", step_i + 1);
-    // let alert_color = color::RED;
-    // info!("displaying step");
 
     for (mut color, text) in line_num {
         // if text.0.ends_with(format!("{}", step_i)) && color.clone() == TEXT_COLOR {
@@ -355,33 +350,47 @@ fn display_step(
             *color = TEXT_COLOR;
         }
     }
-
-    // line_num.iter_mut().for_each(|ref mut text| {
-    //     if text.text == target {
-    //         // text.color = Some(Rgb565::YELLOW);
-    //         text.color = Some(alert_color);
-    //         // text.old = Some("_".into());
-    //     } else if text.color == Some(alert_color) {
-    //         text.color = Some(Rgb565::GREEN);
-    //     }
-    // })
 }
 
-// fn handle_scroll(
-//     button_inputs: Res<ButtonInput<GamepadButton>>,
-//     mut location: ResMut<CursorLocation>,
-//     mut display_start: ResMut<DisplayStart>,
-// ) {
-// }
+/// changes the color of the step lable that is being played
+fn display_cursor(
+    mut commands: Commands,
+    cells: Query<(Entity, &CellMarker)>,
+    cursor: Res<CursorLocation>,
+) {
+    let track = cursor.1 / 3;
+    let col = cursor.1 % 3;
+    let row = cursor.0;
 
-// fn draw_system(mut context: ResMut<RatatuiContext>) -> Result {
-//     context.draw(|frame| {
-//         let text = ratatui::text::Text::raw("hello world");
-//         frame.render_widget(text, frame.area());
-//     })?;
-//
-//     Ok(())
-// }
+    for (entity, cell_mark) in cells {
+        // info!("drawing at: {cursor:?} => ({track}, {col}, {row})");
+
+        if cell_mark.displayed_track_idx == track && cell_mark.column == col && cell_mark.row == row
+        {
+            // warn!("drawing at: {cursor:?} => ({track}, {col}, {row})");
+            // set boarder to cursor color
+            commands
+                .entity(entity)
+                // 116, 199, 236
+                .insert(Outline::new(
+                    Val::Px(10.),
+                    Val::Px(-5.),
+                    // Val::ZERO,
+                    Color::Srgba(Srgba {
+                        red: 116. / 255.,
+                        green: 199. / 255.,
+                        blue: 236. / 255.,
+                        alpha: 1.,
+                    }),
+                ));
+            // commands.entity(entity).remove::<BorderColor>();
+        } else {
+            // rm boarder from
+            commands.entity(entity).remove::<Outline>();
+            // commands.entity(entity).remove::<BorderColor>();
+        }
+    }
+}
 
 fn setup(mut commands: Commands) {
     commands.spawn((
@@ -401,28 +410,22 @@ fn setup(mut commands: Commands) {
     let text_color = TEXT_COLOR.clone();
 
     commands
-        .spawn((
-            Node {
-                width: Val::Px(1920.0),
-                height: Val::Px(1080.0),
-                position_type: PositionType::Absolute,
-                justify_content: JustifyContent::SpaceAround,
-                align_items: AlignItems::Center,
-                justify_items: JustifyItems::Center,
-                ..default()
-            },
-            // BackgroundColor(ANTIQUE_WHITE.into()),
-        ))
+        .spawn((Node {
+            width: Val::Px(1920.0),
+            height: Val::Px(1080.0),
+            position_type: PositionType::Absolute,
+            justify_content: JustifyContent::SpaceAround,
+            align_items: AlignItems::Center,
+            justify_items: JustifyItems::Center,
+            ..default()
+        },))
         .with_children(|parent| {
             parent
-                .spawn((
-                    Node {
-                        width: Val::Percent(80.0),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    // BackgroundColor(RED.into()),
-                ))
+                .spawn((Node {
+                    width: Val::Percent(80.0),
+                    height: Val::Percent(100.0),
+                    ..default()
+                },))
                 .with_children(|parent| {
                     for col_i in 0..4 {
                         parent
@@ -434,8 +437,6 @@ fn setup(mut commands: Commands) {
                                     justify_content: JustifyContent::SpaceAround,
                                     ..default()
                                 },
-                                // Outline::new(Val::Px(10.), Val::ZERO, BLUE_VIOLET.into()),
-                                // BackgroundColor(RED.into()),
                                 ColumnId(col_i),
                             ))
                             .with_children(|parent| {
@@ -468,16 +469,6 @@ fn setup(mut commands: Commands) {
                                         parent.spawn((
                                             Text::new("\n"),
                                             text_font.clone(),
-                                            // TextColor::BLACK,
-                                            // TextColor(
-                                            //     Srgba::new(
-                                            //         205. / 255.,
-                                            //         214. / 255.,
-                                            //         244. / 255.,
-                                            //         1.0,
-                                            //     )
-                                            //     .into(),
-                                            // ),
                                             text_color.clone(),
                                         ));
                                     });
@@ -558,80 +549,94 @@ fn setup(mut commands: Commands) {
                                                 Text::new("|"),
                                                 text_font.clone(),
                                                 text_color.clone(),
-                                                // LineNumMarker,
                                             ));
                                         }
 
                                         parent.spawn((
                                             Text::new(format!("{:0>2}: ", i + 1)),
                                             text_font.clone(),
-                                            // TextColor::BLACK,
-                                            // TextColor(
-                                            //     Srgba::new(
-                                            //         205. / 255.,
-                                            //         214. / 255.,
-                                            //         244. / 255.,
-                                            //         1.0,
-                                            //     )
-                                            //     .into(),
-                                            // ),
                                             text_color.clone(),
                                             LineNumMarker,
                                         ));
-                                        parent.spawn((
-                                            Text::new("---"),
-                                            text_font.clone(),
-                                            // TextColor::BLACK,
-                                            // TextColor(
-                                            //     Srgba::new(
-                                            //         205. / 255.,
-                                            //         214. / 255.,
-                                            //         244. / 255.,
-                                            //         1.0,
-                                            //     )
-                                            //     .into(),
-                                            // ),
-                                            text_color.clone(),
-                                            NoteDisplayMarker,
-                                            ColumnId(col_i),
-                                            RowId(i),
-                                        ));
-                                        parent.spawn((
-                                            Text::new("----"),
-                                            text_font.clone(),
-                                            // TextColor::BLACK,
-                                            // TextColor(
-                                            //     Srgba::new(
-                                            //         205. / 255.,
-                                            //         214. / 255.,
-                                            //         244. / 255.,
-                                            //         1.0,
-                                            //     )
-                                            //     .into(),
-                                            // ),
-                                            text_color.clone(),
-                                            Cmd1DisplayMarker,
-                                            ColumnId(col_i),
-                                            RowId(i),
-                                        ));
-                                        parent.spawn((
-                                            Text::new("----"),
-                                            text_font.clone(),
-                                            // TextColor::BLACK,
-                                            // TextColor(
-                                            //     Srgba::new(
-                                            //         205. / 255.,
-                                            //         214. / 255.,
-                                            //         244. / 255.,
-                                            //         1.0,
-                                            //     )
-                                            //     .into(),
-                                            // ),
-                                            text_color.clone(),
-                                            Cmd2DisplayMarker,
-                                            ColumnId(col_i),
-                                            RowId(i),
-                                        ));
+                                        parent
+                                            .spawn((
+                                                Node {
+                                                    width: Val::Percent(25.0),
+                                                    // height: Val::Percent(cell_h),
+                                                    ..default()
+                                                },
+                                                CellMarker {
+                                                    displayed_track_idx: col_i,
+                                                    column: 0,
+                                                    row: i,
+                                                },
+                                            ))
+                                            .with_children(|parent| {
+                                                parent.spawn((
+                                                    Text::new("---"),
+                                                    text_font.clone(),
+                                                    text_color.clone(),
+                                                    NoteDisplayMarker,
+                                                    ColumnId(col_i),
+                                                    RowId(i),
+                                                ));
+                                            });
+                                        parent
+                                            .spawn((
+                                                Node {
+                                                    width: Val::Percent(25.0),
+                                                    // height: Val::Percent(cell_h),
+                                                    ..default()
+                                                },
+                                                CellMarker {
+                                                    displayed_track_idx: col_i,
+                                                    column: 1,
+                                                    row: i,
+                                                },
+                                            ))
+                                            .with_children(|parent| {
+                                                parent.spawn((
+                                                    Text::new("----"),
+                                                    text_font.clone(),
+                                                    text_color.clone(),
+                                                    Cmd1DisplayMarker,
+                                                    ColumnId(col_i),
+                                                    RowId(i),
+                                                    // CellMarker {
+                                                    //     displayed_track_idx: col_i,
+                                                    //     column: 1,
+                                                    //     row: i,
+                                                    // },
+                                                ));
+                                            });
+                                        parent
+                                            .spawn((
+                                                Node {
+                                                    width: Val::Percent(25.0),
+                                                    // height: Val::Percent(cell_h),
+                                                    ..default()
+                                                },
+                                                CellMarker {
+                                                    displayed_track_idx: col_i,
+                                                    column: 2,
+                                                    row: i,
+                                                },
+                                            ))
+                                            .with_children(|parent| {
+                                                parent.spawn((
+                                                    Text::new("----"),
+                                                    text_font.clone(),
+                                                    text_color.clone(),
+                                                    Cmd2DisplayMarker,
+                                                    ColumnId(col_i),
+                                                    RowId(i),
+                                                    // CellMarker {
+                                                    //     displayed_track_idx: col_i,
+                                                    //     column: 2,
+                                                    //     row: i,
+                                                    // },
+                                                ));
+                                            });
                                     });
                                 }
                             });
@@ -647,7 +652,7 @@ fn setup(mut commands: Commands) {
             ));
         });
 }
-//
+
 // /// System that changes the scale of the ui when pressing up or down on the keyboard.
 // fn change_scaling(input: Res<ButtonInput<KeyCode>>, mut ui_scale: ResMut<TargetScale>) {
 //     if input.just_pressed(KeyCode::ArrowUp) {

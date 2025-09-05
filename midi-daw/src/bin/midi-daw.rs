@@ -191,6 +191,20 @@ fn setup_tracks(mut cmds: Commands) {
         },
         Track::default(),
     ));
+    cmds.spawn((
+        TrackID {
+            id: 2,
+            playing: false,
+        },
+        Track::default(),
+    ));
+    cmds.spawn((
+        TrackID {
+            id: 3,
+            playing: false,
+        },
+        Track::default(),
+    ));
     // cmds.spawn((TrackID(2), Track::default()));
     // cmds.spawn((TrackID(3), Track::default()));
 }

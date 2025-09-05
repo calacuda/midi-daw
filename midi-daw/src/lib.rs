@@ -89,9 +89,9 @@ pub struct DevDisplay;
 
 #[derive(Component, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub struct CellMarker {
-    track: u8,
-    column: u8,
-    row: u8,
+    displayed_track_idx: usize,
+    column: usize,
+    row: usize,
 }
 
 #[derive(Component, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
@@ -109,7 +109,7 @@ pub struct CursorText;
 #[derive(Component, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Deref, DerefMut)]
 pub struct CursorID(usize);
 
-#[derive(Resource, Default, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Resource, Default, Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub struct CursorLocation(pub usize, pub usize);
 
 #[derive(Resource, Default, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
