@@ -164,7 +164,7 @@ fn setup_tracks(mut cmds: Commands) {
     let mut steps: Vec<Step<MidiCmd>> = (0..N_STEPS).map(|_| Step::default()).collect();
 
     let note = [48, 52, 55, 59];
-    for (i, step) in steps.iter_mut().step_by(8).enumerate() {
+    for (i, step) in steps.iter_mut().step_by(N_STEPS / 4).enumerate() {
         step.note = Some(note[i % 4]);
     }
 

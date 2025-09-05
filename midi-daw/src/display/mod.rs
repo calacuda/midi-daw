@@ -1,6 +1,7 @@
 use crate::{
     COL_W, CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, N_STEPS,
-    RowId, Screen, Track, TrackID, TracksScrolled, display_midi_note, down_pressed, left_pressed,
+    NoteChanged, RowId, Screen, Track, TrackID, TracksScrolled, a_and_b_pressed, display_midi_note,
+    down_pressed, left_pressed,
     midi_plugin::{BPQ, SyncPulse, get_step_num},
     playing, right_pressed, up_pressed,
 };
@@ -115,7 +116,9 @@ impl Plugin for MainDisplayPlugin {
             // .init_resource::<BackgroundColor>()
             .add_event::<CellCursorMoved>()
             .add_event::<TracksScrolled>()
+            .add_event::<NoteChanged>()
             // .add_systems(OnEnter(MainState::Edit), setup)
+            .add_systems(Startup, apply_scaling)
             .add_systems(OnEnter(MainState::Edit), (setup, redraw_notes).chain())
             .add_systems(
                 Update,
@@ -138,24 +141,42 @@ impl Plugin for MainDisplayPlugin {
                         move_cursor_down
                             .run_if(not(cursor_at_max_y))
                             .run_if(down_pressed),
-                        (
-                            redraw_notes.run_if(on_event::<CellCursorMoved>),
-                            redraw_notes.run_if(on_event::<TracksScrolled>),
-                            // when the step chagnes
-                            // redraw_display.run_if(on_event::<TracksScrolled>),
-                            // when a note is changed, added, deleated
-                            // redraw_display.run_if(on_event::<TracksScrolled>),
-                            // redraw_display.run_if(on_event::<TracksScrolled>),
-                            // redraw_display.run_if(on_event::<TracksScrolled>),
-                        )
-                            .run_if(playing),
                     )
-                        .run_if(in_main_screen)
                         .run_if(not(mod_key_pressed)),
-                    // ui_system,
                     display_step,
                     display_cursor,
-                ),
+                    (
+                        redraw_notes.run_if(on_event::<CellCursorMoved>),
+                        redraw_notes.run_if(on_event::<TracksScrolled>),
+                        // when the step chagnes
+                        redraw_notes.run_if(on_event::<NoteChanged>),
+                        // when a note is changed, added, deleated
+                        // redraw_display.run_if(on_event::<TracksScrolled>),
+                        // redraw_display.run_if(on_event::<TracksScrolled>),
+                        // redraw_display.run_if(on_event::<TracksScrolled>),
+                    )
+                        .run_if(playing),
+                    (
+                        (
+                            small_increment_note.run_if(up_pressed),
+                            small_decrement_note.run_if(down_pressed),
+                            big_increment_note.run_if(right_pressed),
+                            big_decrement_note.run_if(left_pressed),
+                            delete_note.run_if(a_and_b_pressed),
+                        )
+                            .run_if(note_selected),
+                        // TODO: cmd editing
+                        // (
+                        //     small_increment_note.run_if(up_pressed),
+                        //     small_decrement_note.run_if(down_pressed),
+                        //     big_increment_note.run_if(right_pressed),
+                        //     big_decrement_note.run_if(left_pressed),
+                        // )
+                        //     .run_if(not(note_selected)),
+                    )
+                        .run_if(mod_key_pressed),
+                )
+                    .run_if(in_main_screen),
             );
     }
 }
@@ -214,6 +235,10 @@ pub fn mod_key_pressed(inputs: Query<&Gamepad>) -> bool {
     pressed
 }
 
+fn note_selected(cursor: Res<CursorLocation>) -> bool {
+    (cursor.1 % 3) == 0
+}
+
 fn cursor_at_min_y(cursor: Res<CursorLocation>) -> bool {
     cursor.0 == 0
 }
@@ -229,6 +254,173 @@ fn cursor_at_min_x(cursor: Res<CursorLocation>) -> bool {
 fn cursor_at_max_x(cursor: Res<CursorLocation>) -> bool {
     // n_tracks displayed at once * n_columns per track
     cursor.1 == 3 * 4
+}
+
+fn small_increment_note(
+    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
+    display_start: Res<DisplayStart>,
+    mut tracks: Query<(&mut Track, &TrackID)>,
+    cursor: Res<CursorLocation>,
+    mut evs: EventWriter<NoteChanged>,
+) {
+    let mut tracks: Vec<(_, &TrackID)> = tracks.iter_mut().collect();
+    tracks.sort_by_key(|(_track, id)| id.id);
+
+    let start = display_start.0;
+    let col = cursor.1 / 3;
+    let track_num = start + col;
+
+    // warn!("incrementing");
+
+    match tracks[track_num].0.as_mut() {
+        Track::Midi {
+            steps,
+            dev: _,
+            chan: _,
+        } => {
+            let new_note = steps[cursor.0]
+                .note
+                .map(|note| (note + 1) % 127)
+                .unwrap_or(0);
+            steps[cursor.0].note.replace(new_note);
+        }
+        _ => {}
+    };
+
+    evs.write(NoteChanged::SmallUp);
+}
+
+fn small_decrement_note(
+    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
+    display_start: Res<DisplayStart>,
+    mut tracks: Query<(&mut Track, &TrackID)>,
+    cursor: Res<CursorLocation>,
+    mut evs: EventWriter<NoteChanged>,
+) {
+    let mut tracks: Vec<(_, &TrackID)> = tracks.iter_mut().collect();
+    tracks.sort_by_key(|(_track, id)| id.id);
+
+    let start = display_start.0;
+    let col = cursor.1 / 3;
+    let track_num = start + col;
+
+    // warn!("incrementing");
+
+    match tracks[track_num].0.as_mut() {
+        Track::Midi {
+            steps,
+            dev: _,
+            chan: _,
+        } => {
+            let new_note = steps[cursor.0]
+                .note
+                .map(|note| if note > 0 { note - 1 } else { 126 })
+                .unwrap_or(0);
+            steps[cursor.0].note.replace(new_note);
+        }
+        _ => {}
+    };
+
+    evs.write(NoteChanged::SmallDown);
+}
+
+fn big_increment_note(
+    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
+    display_start: Res<DisplayStart>,
+    mut tracks: Query<(&mut Track, &TrackID)>,
+    cursor: Res<CursorLocation>,
+    mut evs: EventWriter<NoteChanged>,
+) {
+    let mut tracks: Vec<(_, &TrackID)> = tracks.iter_mut().collect();
+    tracks.sort_by_key(|(_track, id)| id.id);
+
+    let start = display_start.0;
+    let col = cursor.1 / 3;
+    let track_num = start + col;
+
+    // warn!("incrementing");
+
+    match tracks[track_num].0.as_mut() {
+        Track::Midi {
+            steps,
+            dev: _,
+            chan: _,
+        } => {
+            let new_note = steps[cursor.0]
+                .note
+                .map(|note| (note + 12) % 127)
+                .unwrap_or(0);
+            steps[cursor.0].note.replace(new_note);
+        }
+        _ => {}
+    };
+
+    evs.write(NoteChanged::BigUp);
+}
+
+fn big_decrement_note(
+    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
+    display_start: Res<DisplayStart>,
+    mut tracks: Query<(&mut Track, &TrackID)>,
+    cursor: Res<CursorLocation>,
+    mut evs: EventWriter<NoteChanged>,
+) {
+    let mut tracks: Vec<(_, &TrackID)> = tracks.iter_mut().collect();
+    tracks.sort_by_key(|(_track, id)| id.id);
+
+    let start = display_start.0;
+    let col = cursor.1 / 3;
+    let track_num = start + col;
+
+    // warn!("incrementing");
+
+    match tracks[track_num].0.as_mut() {
+        Track::Midi {
+            steps,
+            dev: _,
+            chan: _,
+        } => {
+            let new_note = steps[cursor.0]
+                .note
+                .map(|note| if note > 11 { note - 12 } else { 114 })
+                .unwrap_or(0);
+            steps[cursor.0].note.replace(new_note);
+        }
+        _ => {}
+    };
+
+    evs.write(NoteChanged::BigDown);
+}
+
+fn delete_note(
+    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
+    display_start: Res<DisplayStart>,
+    mut tracks: Query<(&mut Track, &TrackID)>,
+    cursor: Res<CursorLocation>,
+    mut evs: EventWriter<NoteChanged>,
+) {
+    let mut tracks: Vec<(_, &TrackID)> = tracks.iter_mut().collect();
+    tracks.sort_by_key(|(_track, id)| id.id);
+
+    let start = display_start.0;
+    let col = cursor.1 / 3;
+    let track_num = start + col;
+
+    // warn!("incrementing");
+
+    match tracks[track_num].0.as_mut() {
+        Track::Midi {
+            steps,
+            dev: _,
+            chan: _,
+        } => {
+            let new_note = None;
+            steps[cursor.0].note = new_note;
+        }
+        _ => {}
+    };
+
+    evs.write(NoteChanged::Deleted);
 }
 
 fn scroll_left(
@@ -402,7 +594,7 @@ fn setup(mut commands: Commands) {
     ));
 
     let text_font = TextFont {
-        font_size: 24.,
+        font_size: 36.,
         ..default()
     };
     // let text_color = TextColor(Srgba::new(205. / 255., 214. / 255., 244. / 255., 1.0).into());
@@ -414,7 +606,7 @@ fn setup(mut commands: Commands) {
             width: Val::Px(1920.0),
             height: Val::Px(1080.0),
             position_type: PositionType::Absolute,
-            justify_content: JustifyContent::SpaceAround,
+            // justify_content: JustifyContent::SpaceAround,
             align_items: AlignItems::Center,
             justify_items: JustifyItems::Center,
             ..default()
@@ -494,7 +686,7 @@ fn setup(mut commands: Commands) {
                                         }
 
                                         parent.spawn((
-                                            Text::new("Line"),
+                                            Text::new("Ln"),
                                             text_font.clone(),
                                             HEADER_TEXT_COLOR.clone(),
                                         ));
@@ -504,12 +696,12 @@ fn setup(mut commands: Commands) {
                                             HEADER_TEXT_COLOR.clone(),
                                         ));
                                         parent.spawn((
-                                            Text::new("Cmd-1"),
+                                            Text::new("Cmd"),
                                             text_font.clone(),
                                             HEADER_TEXT_COLOR.clone(),
                                         ));
                                         parent.spawn((
-                                            Text::new("Cmd-2"),
+                                            Text::new("Cmd"),
                                             text_font.clone(),
                                             HEADER_TEXT_COLOR.clone(),
                                         ));
@@ -532,14 +724,14 @@ fn setup(mut commands: Commands) {
                                             88. / 255.,
                                             91. / 255.,
                                             112. / 255.,
-                                            100. / 255.,
+                                            128. / 255.,
                                         ))));
                                     } else {
                                         entity.insert(BackgroundColor(Color::Srgba(Srgba::new(
                                             127. / 255.,
                                             132. / 255.,
                                             156. / 255.,
-                                            100. / 255.,
+                                            128. / 255.,
                                         ))));
                                     }
 
@@ -563,6 +755,7 @@ fn setup(mut commands: Commands) {
                                                 Node {
                                                     width: Val::Percent(25.0),
                                                     // height: Val::Percent(cell_h),
+                                                    justify_content: JustifyContent::SpaceAround,
                                                     ..default()
                                                 },
                                                 CellMarker {
@@ -586,6 +779,7 @@ fn setup(mut commands: Commands) {
                                                 Node {
                                                     width: Val::Percent(25.0),
                                                     // height: Val::Percent(cell_h),
+                                                    justify_content: JustifyContent::SpaceAround,
                                                     ..default()
                                                 },
                                                 CellMarker {
@@ -614,6 +808,7 @@ fn setup(mut commands: Commands) {
                                                 Node {
                                                     width: Val::Percent(25.0),
                                                     // height: Val::Percent(cell_h),
+                                                    justify_content: JustifyContent::SpaceAround,
                                                     ..default()
                                                 },
                                                 CellMarker {
@@ -630,11 +825,6 @@ fn setup(mut commands: Commands) {
                                                     Cmd2DisplayMarker,
                                                     ColumnId(col_i),
                                                     RowId(i),
-                                                    // CellMarker {
-                                                    //     displayed_track_idx: col_i,
-                                                    //     column: 2,
-                                                    //     row: i,
-                                                    // },
                                                 ));
                                             });
                                     });
@@ -666,18 +856,18 @@ fn setup(mut commands: Commands) {
 //         // info!("Scaling down! Scale: {}", ui_scale.target_scale);
 //     }
 // }
-//
-// fn apply_scaling(
-//     time: Res<Time>,
-//     mut target_scale: ResMut<TargetScale>,
-//     mut ui_scale: ResMut<UiScale>,
-// ) {
-//     if target_scale.tick(time.delta()).already_completed() {
-//         return;
-//     }
-//
-//     ui_scale.0 = target_scale.current_scale();
-// }
+
+fn apply_scaling(
+    // time: Res<Time>,
+    // mut target_scale: ResMut<TargetScale>,
+    mut ui_scale: ResMut<UiScale>,
+) {
+    // if target_scale.tick(time.delta()).already_completed() {
+    //     return;
+    // }
+
+    ui_scale.0 = 0.5;
+}
 
 fn ease_in_expo(x: f32) -> f32 {
     if x == 0. {

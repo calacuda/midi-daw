@@ -15,7 +15,7 @@ pub mod sphere;
 
 pub type MidiNote = u8;
 
-pub const N_STEPS: usize = 32;
+pub const N_STEPS: usize = 16;
 pub const COL_W: usize = 18;
 
 #[derive(Clone, DerefMut, Deref, Resource)]
@@ -267,6 +267,15 @@ pub enum TracksScrolled {
     Right,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Event)]
+pub enum NoteChanged {
+    SmallUp,
+    SmallDown,
+    BigUp,
+    BigDown,
+    Deleted,
+}
+
 pub fn display_midi_note(midi_note: MidiNote) -> String {
     let note_name_i = midi_note % 12;
     let octave = midi_note / 12;
@@ -305,6 +314,16 @@ pub fn left_pressed(buttons: Res<ButtonPressTimers>) -> bool {
 
 pub fn right_pressed(buttons: Res<ButtonPressTimers>) -> bool {
     dpad_button_presed(GamepadButton::DPadRight, buttons)
+}
+
+pub fn a_and_b_pressed(inputs: Query<&Gamepad>) -> bool {
+    for game_pad in inputs {
+        if game_pad.pressed(GamepadButton::South) && game_pad.pressed(GamepadButton::East) {
+            return true;
+        }
+    }
+
+    false
 }
 
 // #[cfg(test)]
