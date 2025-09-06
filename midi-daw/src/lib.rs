@@ -160,7 +160,7 @@ pub struct Tempo(pub u16);
 //     }
 // }
 
-#[derive(Clone, Debug, Component, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Component)]
 pub struct Track {
     pub steps: Vec<Step>,
     pub dev: MidiDeviceName,
