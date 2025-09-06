@@ -44,7 +44,7 @@ impl Plugin for SphereMode {
                 add_sphere,
                 camera_setup,
                 timer_setup,
-                tui_camera_setup,
+                // tui_camera_setup,
             ),
         )
         // .add_systems(OnExit(Mode::Sphere), camera_teardown)
@@ -64,14 +64,14 @@ fn timer_setup(mut commands: Commands) {
     )));
 }
 
-fn tui_camera_setup(tui_cams: Query<&mut Camera, With<Camera2d>>) {
-    for mut cam in tui_cams {
-        cam.clear_color = ClearColorConfig::Custom(Color::srgba(0., 0., 0., 0.));
-        cam.order += 1;
-        info!("setting");
-    }
-    // info!("done");
-}
+// fn tui_camera_setup(tui_cams: Query<&mut Camera, With<Camera2d>>) {
+//     for mut cam in tui_cams {
+//         cam.clear_color = ClearColorConfig::Custom(Color::srgba(0., 0., 0., 0.));
+//         cam.order += 1;
+//         info!("setting");
+//     }
+//     // info!("done");
+// }
 
 fn camera_setup(mut commands: Commands) {
     // for mut cam in tui_cams {

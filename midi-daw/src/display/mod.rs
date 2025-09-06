@@ -1,13 +1,15 @@
 use crate::{
     COL_W, CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, N_STEPS,
-    NoteChanged, RowId, Screen, Track, TrackID, TracksScrolled, a_and_b_pressed, display_midi_note,
-    down_pressed, left_pressed,
+    NoteChanged, RowId, Screen, ScreenState, Track, TrackID, TracksScrolled, a_and_b_pressed,
+    display::midi_assign::MidiAssignmentPlugin,
+    display_midi_note, down_pressed, left_pressed,
     midi_plugin::{BPQ, SyncPulse, get_step_num},
     playing, right_pressed, up_pressed,
 };
 use bevy::{color::palettes::css::*, platform::collections::HashMap, prelude::*};
 
 // mod shared;
+pub mod midi_assign;
 
 // const SCALE_TIME: u64 = 400;
 //
@@ -101,23 +103,10 @@ pub struct MainDisplayPlugin;
 
 impl Plugin for MainDisplayPlugin {
     fn build(&self, app: &mut App) {
-        app
-            // .insert_resource(TargetScale {
-            //     start_scale: 1.0,
-            //     target_scale: 1.0,
-            //     target_time: Timer::new(Duration::from_millis(SCALE_TIME), TimerMode::Once),
-            // })
-            // .add_systems(OnEnter(MainState::Edit), setup)
-            // .add_systems(Update, draw_system)
-            // .add_systems(
-            //     Update,
-            //     (change_scaling, apply_scaling.after(change_scaling)),
-            // );
-            // .init_resource::<BackgroundColor>()
+        app.add_plugins(MidiAssignmentPlugin)
             .add_event::<CellCursorMoved>()
             .add_event::<TracksScrolled>()
             .add_event::<NoteChanged>()
-            // .add_systems(OnEnter(MainState::Edit), setup)
             .add_systems(Startup, apply_scaling)
             .add_systems(OnEnter(MainState::Edit), (setup, redraw_notes).chain())
             .add_systems(
@@ -125,104 +114,65 @@ impl Plugin for MainDisplayPlugin {
                 (
                     (
                         (
-                            scroll_left.run_if(cursor_at_min_x).run_if(left_pressed),
-                            scroll_right.run_if(cursor_at_max_x).run_if(right_pressed),
+                            (
+                                scroll_left.run_if(cursor_at_min_x).run_if(left_pressed),
+                                scroll_right.run_if(cursor_at_max_x).run_if(right_pressed),
+                            )
+                                .run_if(more_than_four_tracks),
+                            move_cursor_left
+                                .run_if(not(cursor_at_min_x))
+                                .run_if(left_pressed),
+                            move_cursor_right
+                                .run_if(not(cursor_at_max_x))
+                                .run_if(right_pressed),
+                            move_cursor_up
+                                .run_if(not(cursor_at_min_y))
+                                .run_if(up_pressed),
+                            move_cursor_down
+                                .run_if(not(cursor_at_max_y))
+                                .run_if(down_pressed),
                         )
-                            .run_if(more_than_four_tracks),
-                        move_cursor_left
-                            .run_if(not(cursor_at_min_x))
-                            .run_if(left_pressed),
-                        move_cursor_right
-                            .run_if(not(cursor_at_max_x))
-                            .run_if(right_pressed),
-                        move_cursor_up
-                            .run_if(not(cursor_at_min_y))
-                            .run_if(up_pressed),
-                        move_cursor_down
-                            .run_if(not(cursor_at_max_y))
-                            .run_if(down_pressed),
-                    )
-                        .run_if(not(mod_key_pressed)),
-                    display_step,
-                    display_cursor,
-                    (
-                        redraw_notes.run_if(on_event::<CellCursorMoved>),
-                        redraw_notes.run_if(on_event::<TracksScrolled>),
-                        // when the step chagnes
-                        redraw_notes.run_if(on_event::<NoteChanged>),
-                        // when a note is changed, added, deleated
-                        // redraw_display.run_if(on_event::<TracksScrolled>),
-                        // redraw_display.run_if(on_event::<TracksScrolled>),
-                        // redraw_display.run_if(on_event::<TracksScrolled>),
-                    )
-                        .run_if(playing),
-                    (
+                            .run_if(not(mod_key_pressed)),
+                        display_cursor,
                         (
-                            small_increment_note.run_if(up_pressed),
-                            small_decrement_note.run_if(down_pressed),
-                            big_increment_note.run_if(right_pressed),
-                            big_decrement_note.run_if(left_pressed),
-                            delete_note.run_if(a_and_b_pressed),
+                            redraw_notes.run_if(on_event::<CellCursorMoved>),
+                            redraw_notes.run_if(on_event::<TracksScrolled>),
+                            // when the step chagnes
+                            redraw_notes.run_if(on_event::<NoteChanged>),
+                        ),
+                        // .run_if(playing),
+                        (
+                            (
+                                small_increment_note.run_if(up_pressed),
+                                small_decrement_note.run_if(down_pressed),
+                                big_increment_note.run_if(right_pressed),
+                                big_decrement_note.run_if(left_pressed),
+                                delete_note.run_if(a_and_b_pressed),
+                            )
+                                .run_if(note_selected),
+                            // TODO: cmd editing
+                            // (
+                            //     small_increment_note.run_if(up_pressed),
+                            //     small_decrement_note.run_if(down_pressed),
+                            //     big_increment_note.run_if(right_pressed),
+                            //     big_decrement_note.run_if(left_pressed),
+                            // )
+                            //     .run_if(not(note_selected)),
                         )
-                            .run_if(note_selected),
-                        // TODO: cmd editing
-                        // (
-                        //     small_increment_note.run_if(up_pressed),
-                        //     small_decrement_note.run_if(down_pressed),
-                        //     big_increment_note.run_if(right_pressed),
-                        //     big_decrement_note.run_if(left_pressed),
-                        // )
-                        //     .run_if(not(note_selected)),
+                            .run_if(mod_key_pressed),
                     )
-                        .run_if(mod_key_pressed),
-                )
-                    .run_if(in_main_screen),
+                        // .run_if(in_main_screen),
+                        .run_if(in_state(ScreenState::MainScreen)),
+                    display_step,
+                ),
             );
     }
 }
 
-// fn setup(mut commands: Commands) {
-//     commands.spawn(Camera2d);
+// /// checks if on the main screen.
+// pub fn in_main_screen(screen: Res<Screen>) -> bool {
+//     *screen == Screen::MainScreen
 // }
-
-// fn setup(mut evs: EventWriter<ResizeEvent>) {
-//     evs.write(ResizeEvent(Size {
-//         width: COL_W as u16 * 5 + 3,
-//         height: N_STEPS as u16 + 2 + 3,
-//     }));
-// }
-
-// fn ui_system(
-//     mut context: ResMut<RatatuiContext>,
-//     // frame_count: Res<FrameCount>,
-//     // counter: Res<Counter>,
-//     // app_state: Res<State<AppState>>,
-//     bg_color: Res<BackgroundColor>,
-//     // flags: Res<shared::Flags>,
-//     // diagnostics: Res<DiagnosticsStore>,
-//     // kitty_enabled: Option<Res<KittyEnabled>>,
-// ) {
-//     context
-//         .draw(|frame| {
-//             // let area = shared::debug_frame(frame, &flags, &diagnostics, kitty_enabled.as_deref());
-//             let area = frame.area();
-//
-//             // camera_widget.render(area, frame.buffer_mut());
-//             let frame_count = Line::from("hello world").right_aligned();
-//             frame.render_widget(bg_color.as_ref(), area);
-//             frame.render_widget(frame_count, area);
-//             // frame.render_widget(counter.as_ref(), area);
-//             // frame.render_widget(app_state.get(), area)
-//         })
-//         .unwrap();
-//
-//     // Ok(())
-// }
-
-/// checks if on the main screen.
-pub fn in_main_screen(screen: Res<Screen>) -> bool {
-    *screen == Screen::MainScreen
-}
 
 /// returns true if the mod key is pressed, indicating that the selected cell should be altered.
 pub fn mod_key_pressed(inputs: Query<&Gamepad>) -> bool {

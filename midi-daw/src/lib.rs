@@ -5,7 +5,7 @@ use midi_daw::midi::MidiDev;
 use midi_daw_types::MidiDeviceName;
 use midi_msg::{Channel, MidiMsg};
 use std::{fmt::Display, time::Duration};
-use strum::EnumString;
+use strum::{EnumDiscriminants, EnumString};
 
 pub mod button_tracker;
 pub mod display;
@@ -48,10 +48,19 @@ pub enum MainState {
     ShutDown,
 }
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, Resource)]
+// #[derive(Clone, Default, Debug, Hash, PartialEq, Eq, States)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, Resource, Event, EnumDiscriminants)]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(name(ScreenState))]
+#[strum_discriminants(derive(States, Default, Hash, PartialOrd, Ord))]
 pub enum Screen {
     #[default]
+    #[strum_discriminants(default)]
     MainScreen,
+    // ChangeMidiDev {
+    //     track_id: usize,
+    //     old_dev: String,
+    // },
     EditCmd {
         track_id: usize,
         step: UsizeLessThan<{ N_STEPS }>,
@@ -62,6 +71,7 @@ pub enum Screen {
         track: usize,
         dev: Option<MidiDeviceName>,
         chan: Option<Channel>,
+        // chan: UsizeLessThan<16>,
     },
     ChangeTempo {
         old_tempo: u16,
@@ -319,6 +329,16 @@ pub fn right_pressed(buttons: Res<ButtonPressTimers>) -> bool {
 pub fn a_and_b_pressed(inputs: Query<&Gamepad>) -> bool {
     for game_pad in inputs {
         if game_pad.pressed(GamepadButton::South) && game_pad.pressed(GamepadButton::East) {
+            return true;
+        }
+    }
+
+    false
+}
+
+pub fn north_button_pressed(inputs: Query<&Gamepad>) -> bool {
+    for game_pad in inputs {
+        if game_pad.just_pressed(GamepadButton::North) {
             return true;
         }
     }
