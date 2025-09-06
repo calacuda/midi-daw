@@ -4,7 +4,7 @@ use crossbeam::channel::Sender;
 use midi_daw::midi::MidiDev;
 use midi_daw_types::MidiDeviceName;
 use midi_msg::{Channel, MidiMsg};
-use std::{fmt::Display, time::Duration};
+use std::time::Duration;
 use strum::{EnumDiscriminants, EnumString};
 
 pub mod button_tracker;
@@ -134,23 +134,42 @@ pub struct EdittingCell(pub bool);
 #[derive(Clone, Copy, Default, Debug, States, PartialEq, Eq, Hash, Resource, Deref, DerefMut)]
 pub struct Tempo(pub u16);
 
+// #[derive(Clone, Debug, Component, PartialEq)]
+// pub enum Track {
+//     Midi {
+//         // steps: Vec<Step<MidiCmd>>,
+//         steps: Vec<Step>,
+//         dev: MidiDeviceName,
+//         chan: Channel,
+//     },
+//     SF2 {
+//         // steps: Vec<Step<Sf2Cmd>>,
+//         steps: Vec<Step>,
+//         dev: MidiDeviceName,
+//         chan: Channel,
+//     },
+// }
+//
+// impl Default for Track {
+//     fn default() -> Self {
+//         Self::Midi {
+//             steps: (0..N_STEPS).map(|_| Step::default()).collect(),
+//             dev: MidiDeviceName::default(),
+//             chan: Channel::Ch1,
+//         }
+//     }
+// }
+
 #[derive(Clone, Debug, Component, PartialEq)]
-pub enum Track {
-    Midi {
-        steps: Vec<Step<MidiCmd>>,
-        dev: MidiDeviceName,
-        chan: Channel,
-    },
-    SF2 {
-        steps: Vec<Step<Sf2Cmd>>,
-        dev: MidiDeviceName,
-        chan: Channel,
-    },
+pub struct Track {
+    pub steps: Vec<Step>,
+    pub dev: MidiDeviceName,
+    pub chan: Channel,
 }
 
 impl Default for Track {
     fn default() -> Self {
-        Self::Midi {
+        Self {
             steps: (0..N_STEPS).map(|_| Step::default()).collect(),
             dev: MidiDeviceName::default(),
             chan: Channel::Ch1,
@@ -159,13 +178,14 @@ impl Default for Track {
 }
 
 #[derive(Clone, Default, Debug, PartialEq, PartialOrd)]
-pub struct Step<Cmd>
-where
-    Cmd:
-        Clone + Default + PartialEq + PartialOrd + core::fmt::Display + ToString + core::fmt::Debug,
+pub struct Step
+// <Cmd>
+// where
+//     Cmd:
+//         Clone + Default + PartialEq + PartialOrd + core::fmt::Display + ToString + core::fmt::Debug,
 {
     pub note: Option<MidiNote>,
-    pub cmds: (TrackerCmd<Cmd>, TrackerCmd<Cmd>),
+    pub cmds: (TrackerCmd /* <Cmd> */, TrackerCmd /* <Cmd> */),
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, PartialOrd, Eq, Hash)]
@@ -182,12 +202,11 @@ pub enum Intervals {
     SharpSeventh,
 }
 
-#[derive(
-    Clone, Default, Debug, PartialEq, Eq, PartialOrd, Hash, EnumString, strum_macros::Display,
-)]
-pub enum TrackerCmd<Cmd>
-where
-    Cmd: Clone + Default + PartialEq + PartialOrd + ToString + Display,
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, EnumString, strum_macros::Display)]
+pub enum TrackerCmd
+// <Cmd>
+// where
+//     Cmd: Clone + Default + PartialEq + PartialOrd + ToString + Display,
 {
     #[default]
     #[strum(to_string = "----")]
@@ -215,24 +234,26 @@ where
     Panic,
     #[strum(to_string = "CC{cc_param:->2X}")]
     MidiCmd { cc_param: u8, arg_1: u8, arg_2: u8 },
+    // #[strum(transparent)]
+    // Custom(Cmd),
     #[strum(transparent)]
-    Custom(Cmd),
+    Custom(Sf2Cmd),
 }
 
 // TODO: impl Display for TrackerCmd
 
-#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Hash)]
-pub struct MidiCmd {
-    cc_param: u8,
-    arg_1: u8,
-    arg_2: u8,
-}
-
-impl Display for MidiCmd {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "CC{:->2X}", self.cc_param)
-    }
-}
+// #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Hash)]
+// pub struct MidiCmd {
+//     cc_param: u8,
+//     arg_1: u8,
+//     arg_2: u8,
+// }
+//
+// impl Display for MidiCmd {
+//     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+//         write!(f, "CC{:->2X}", self.cc_param)
+//     }
+// }
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, EnumString, strum_macros::Display)]
 pub enum Sf2Cmd {
@@ -353,80 +374,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn midi_cmd_display() {
-        // let result = add(2, 2);
-        // assert_eq!(result, 4);
-        // let midi
-        // let display =
-        for (cmd, should_be) in [
-            (
-                MidiCmd {
-                    cc_param: 0,
-                    arg_1: 0,
-                    arg_2: 0,
-                },
-                "CC-0",
-            ),
-            (
-                MidiCmd {
-                    cc_param: 10,
-                    arg_1: 0,
-                    arg_2: 0,
-                },
-                "CC-A",
-            ),
-            (
-                MidiCmd {
-                    cc_param: 15,
-                    arg_1: 0,
-                    arg_2: 0,
-                },
-                "CC-F",
-            ),
-            (
-                MidiCmd {
-                    cc_param: 16,
-                    arg_1: 0,
-                    arg_2: 0,
-                },
-                "CC10",
-            ),
-            (
-                MidiCmd {
-                    cc_param: 126,
-                    arg_1: 0,
-                    arg_2: 0,
-                },
-                "CC7E",
-            ),
-            (
-                MidiCmd {
-                    cc_param: 127,
-                    arg_1: 0,
-                    arg_2: 0,
-                },
-                "CC7F",
-            ),
-            (
-                MidiCmd {
-                    cc_param: 255,
-                    arg_1: 0,
-                    arg_2: 0,
-                },
-                "CCFF",
-            ),
-        ] {
-            let cmd = format!("{cmd}");
-            assert_eq!(
-                cmd, should_be,
-                "MidiCmd formating check failed. Cmd formatted to {cmd:?}, when it should should have formatted to {should_be:?}."
-            )
-        }
-    }
-
-    #[test]
     fn tracker_cmd_display() {
-        struct MidiCmd<'a>(TrackerCmd<super::MidiCmd>, &'a str);
+        struct MidiCmd<'a>(TrackerCmd, &'a str);
 
         for MidiCmd(cmd, should_be) in [
             MidiCmd(

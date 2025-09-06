@@ -7,8 +7,8 @@ use bevy::{
 use crossbeam::channel::unbounded;
 use midi_daw::midi::{MidiDev, dev::new_midi_dev, out::midi_out};
 use midi_daw_lib::{
-    CursorLocation, DisplayStart, MainState, MidiCmd, MidiOutput, N_STEPS, NewMidiDev, Screen,
-    ScreenState, Step, Track, TrackID, button_tracker::ButtonTrackerPlugin,
+    CursorLocation, DisplayStart, MainState, /* MidiCmd, */ MidiOutput, N_STEPS, NewMidiDev,
+    Screen, ScreenState, Step, Track, TrackID, button_tracker::ButtonTrackerPlugin,
     display::MainDisplayPlugin, midi_plugin::MidiOutPlugin, sphere::SphereMode,
 };
 use midi_msg::Channel;
@@ -174,7 +174,8 @@ fn main() {
 // }
 
 fn setup_tracks(mut cmds: Commands) {
-    let steps: Vec<Step<MidiCmd>> = (0..N_STEPS).map(|_| Step::default()).collect();
+    // let steps: Vec<Step<MidiCmd>> = (0..N_STEPS).map(|_| Step::default()).collect();
+    let steps: Vec<Step> = (0..N_STEPS).map(|_| Step::default()).collect();
 
     // let note = [48, 52, 55, 59];
     // for (i, step) in steps.iter_mut().step_by(N_STEPS / 4).enumerate() {
@@ -196,7 +197,7 @@ fn setup_tracks(mut cmds: Commands) {
         },
         // track,
         // Track::default(),
-        Track::Midi {
+        Track {
             steps: steps.clone(),
             dev: "Chan-1".into(),
             chan: Channel::Ch1,
@@ -208,7 +209,7 @@ fn setup_tracks(mut cmds: Commands) {
             playing: true,
         },
         // Track::default(),
-        Track::Midi {
+        Track {
             steps: steps.clone(),
             dev: "Chan-2".into(),
             chan: Channel::Ch1,
@@ -220,7 +221,7 @@ fn setup_tracks(mut cmds: Commands) {
             playing: true,
         },
         // Track::default(),
-        Track::Midi {
+        Track {
             steps: steps.clone(),
             dev: "Chan-3".into(),
             chan: Channel::Ch1,
@@ -232,7 +233,7 @@ fn setup_tracks(mut cmds: Commands) {
             playing: true,
         },
         // Track::default(),
-        Track::Midi {
+        Track {
             steps: steps.clone(),
             dev: "Chan-4".into(),
             chan: Channel::Ch1,

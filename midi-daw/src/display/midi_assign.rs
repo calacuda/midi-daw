@@ -269,20 +269,28 @@ fn set_midi_dev(mut tracks: Query<(&mut Track, &TrackID)>, new_dev_info: Res<Scr
         return;
     };
 
-    match tracks[track].0.as_mut() {
-        Track::Midi {
-            steps: _,
-            dev,
-            chan,
-        } => {
-            if let Some(new_dev) = midi_dev {
-                *dev = new_dev;
-            }
+    if let Some(new_dev) = midi_dev {
+        tracks[track].0.dev = new_dev;
+    }
 
-            if let Some(new_chan) = midi_chan {
-                *chan = new_chan;
-            }
-        }
-        _ => {}
-    };
+    if let Some(new_chan) = midi_chan {
+        tracks[track].0.chan = new_chan;
+    }
+
+    // match tracks[track].0.as_mut() {
+    //     Track::Midi {
+    //         steps: _,
+    //         dev,
+    //         chan,
+    //     } => {
+    //         if let Some(new_dev) = midi_dev {
+    //             *dev = new_dev;
+    //         }
+    //
+    //         if let Some(new_chan) = midi_chan {
+    //             *chan = new_chan;
+    //         }
+    //     }
+    //     _ => {}
+    // };
 }

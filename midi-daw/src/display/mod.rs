@@ -169,20 +169,26 @@ fn small_increment_note(
 
     // warn!("incrementing");
 
-    match tracks[track_num].0.as_mut() {
-        Track::Midi {
-            steps,
-            dev: _,
-            chan: _,
-        } => {
-            let new_note = steps[cursor.0]
-                .note
-                .map(|note| (note + 1) % 127)
-                .unwrap_or(0);
-            steps[cursor.0].note.replace(new_note);
-        }
-        _ => {}
-    };
+    // match tracks[track_num].0.as_mut() {
+    //     Track::Midi {
+    //         steps,
+    //         dev: _,
+    //         chan: _,
+    //     } => {
+    //         let new_note = steps[cursor.0]
+    //             .note
+    //             .map(|note| (note + 1) % 127)
+    //             .unwrap_or(0);
+    //         steps[cursor.0].note.replace(new_note);
+    //     }
+    //     _ => {}
+    // };
+
+    let new_note = tracks[track_num].0.steps[cursor.0]
+        .note
+        .map(|note| (note + 1) % 127)
+        .unwrap_or(0);
+    tracks[track_num].0.steps[cursor.0].note.replace(new_note);
 
     evs.write(NoteChanged::SmallUp);
 }
@@ -203,20 +209,26 @@ fn small_decrement_note(
 
     // warn!("incrementing");
 
-    match tracks[track_num].0.as_mut() {
-        Track::Midi {
-            steps,
-            dev: _,
-            chan: _,
-        } => {
-            let new_note = steps[cursor.0]
-                .note
-                .map(|note| if note > 0 { note - 1 } else { 126 })
-                .unwrap_or(0);
-            steps[cursor.0].note.replace(new_note);
-        }
-        _ => {}
-    };
+    // match tracks[track_num].0.as_mut() {
+    //     Track::Midi {
+    //         steps,
+    //         dev: _,
+    //         chan: _,
+    //     } => {
+    //         let new_note = steps[cursor.0]
+    //             .note
+    //             .map(|note| if note > 0 { note - 1 } else { 126 })
+    //             .unwrap_or(0);
+    //         steps[cursor.0].note.replace(new_note);
+    //     }
+    //     _ => {}
+    // };
+
+    let new_note = tracks[track_num].0.steps[cursor.0]
+        .note
+        .map(|note| if note > 0 { note - 1 } else { 126 })
+        .unwrap_or(0);
+    tracks[track_num].0.steps[cursor.0].note.replace(new_note);
 
     evs.write(NoteChanged::SmallDown);
 }
@@ -237,20 +249,26 @@ fn big_increment_note(
 
     // warn!("incrementing");
 
-    match tracks[track_num].0.as_mut() {
-        Track::Midi {
-            steps,
-            dev: _,
-            chan: _,
-        } => {
-            let new_note = steps[cursor.0]
-                .note
-                .map(|note| (note + 12) % 127)
-                .unwrap_or(0);
-            steps[cursor.0].note.replace(new_note);
-        }
-        _ => {}
-    };
+    // match tracks[track_num].0.as_mut() {
+    //     Track::Midi {
+    //         steps,
+    //         dev: _,
+    //         chan: _,
+    //     } => {
+    //         let new_note = steps[cursor.0]
+    //             .note
+    //             .map(|note| (note + 12) % 127)
+    //             .unwrap_or(0);
+    //         steps[cursor.0].note.replace(new_note);
+    //     }
+    //     _ => {}
+    // };
+
+    let new_note = tracks[track_num].0.steps[cursor.0]
+        .note
+        .map(|note| (note + 12) % 127)
+        .unwrap_or(0);
+    tracks[track_num].0.steps[cursor.0].note.replace(new_note);
 
     evs.write(NoteChanged::BigUp);
 }
@@ -271,20 +289,26 @@ fn big_decrement_note(
 
     // warn!("incrementing");
 
-    match tracks[track_num].0.as_mut() {
-        Track::Midi {
-            steps,
-            dev: _,
-            chan: _,
-        } => {
-            let new_note = steps[cursor.0]
-                .note
-                .map(|note| if note > 11 { note - 12 } else { 114 })
-                .unwrap_or(0);
-            steps[cursor.0].note.replace(new_note);
-        }
-        _ => {}
-    };
+    // match tracks[track_num].0.as_mut() {
+    //     Track::Midi {
+    //         steps,
+    //         dev: _,
+    //         chan: _,
+    //     } => {
+    //         let new_note = steps[cursor.0]
+    //             .note
+    //             .map(|note| if note > 11 { note - 12 } else { 114 })
+    //             .unwrap_or(0);
+    //         steps[cursor.0].note.replace(new_note);
+    //     }
+    //     _ => {}
+    // };
+
+    let new_note = tracks[track_num].0.steps[cursor.0]
+        .note
+        .map(|note| if note > 11 { note - 12 } else { 114 })
+        .unwrap_or(0);
+    tracks[track_num].0.steps[cursor.0].note.replace(new_note);
 
     evs.write(NoteChanged::BigDown);
 }
@@ -305,17 +329,19 @@ fn delete_note(
 
     // warn!("incrementing");
 
-    match tracks[track_num].0.as_mut() {
-        Track::Midi {
-            steps,
-            dev: _,
-            chan: _,
-        } => {
-            let new_note = None;
-            steps[cursor.0].note = new_note;
-        }
-        _ => {}
-    };
+    // match tracks[track_num].0.as_mut() {
+    //     Track::Midi {
+    //         steps,
+    //         dev: _,
+    //         chan: _,
+    //     } => {
+    //         let new_note = None;
+    //         steps[cursor.0].note = new_note;
+    //     }
+    //     _ => {}
+    // };
+
+    tracks[track_num].0.steps[cursor.0].note = None;
 
     evs.write(NoteChanged::Deleted);
 }
@@ -400,24 +426,35 @@ fn redraw_notes(
 
     for (i, track_i) in (start..end).enumerate() {
         let track = tracks[track_i];
-        match track.0 {
-            Track::Midi {
-                steps,
-                dev: _,
-                chan: _,
-            } => {
-                for (step_i, step) in steps.iter().enumerate() {
-                    if let Some(text) = notes_text.get_mut(&(i, step_i)) {
-                        if let Some(note_text) = step.note.map(display_midi_note) {
-                            text.0 = note_text;
-                        } else {
-                            text.0 = "---".into();
-                        }
-                    }
+
+        for (step_i, step) in track.0.steps.iter().enumerate() {
+            if let Some(text) = notes_text.get_mut(&(i, step_i)) {
+                if let Some(note_text) = step.note.map(display_midi_note) {
+                    text.0 = note_text;
+                } else {
+                    text.0 = "---".into();
                 }
             }
-            _ => {}
         }
+
+        // match track.0 {
+        //     Track::Midi {
+        //         steps,
+        //         dev: _,
+        //         chan: _,
+        //     } => {
+        //         for (step_i, step) in steps.iter().enumerate() {
+        //             if let Some(text) = notes_text.get_mut(&(i, step_i)) {
+        //                 if let Some(note_text) = step.note.map(display_midi_note) {
+        //                     text.0 = note_text;
+        //                 } else {
+        //                     text.0 = "---".into();
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     _ => {}
+        // }
     }
 }
 

@@ -10,7 +10,7 @@ a bevy gui tracker
 - [ ] write display for tempo and the note being played 
 - [ ] write settings menu
 - [ ] enable proper display for commands
-- [ ] MidiCmd struct is no Longer relevant, re-structuredata accordingly
+- [x] MidiCmd struct is no Longer relevant, re-structure data accordingly
 - [ ] enable universal commands
   - [ ] `HOLD` command
   - [ ] `CHRD` command
