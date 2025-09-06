@@ -34,6 +34,8 @@ impl Plugin for MidiAssignmentPlugin {
                 enter_dev_edit.run_if(in_state(ScreenState::MainScreen).and(north_button_pressed)),
                 leave_menu.run_if(in_state(ScreenState::EditTrackMidiDev).and(north_button_pressed)),
                 display_devs.run_if(in_state(ScreenState::EditTrackMidiDev)),
+                // TODO: add navigation
+                // TODO: add select
             )
         )
         .add_systems(
@@ -58,7 +60,7 @@ impl Plugin for MidiAssignmentPlugin {
 }
 
 fn display_devs(
-    mut dev_displays: Query<(&mut Text, &NewDevNameMarker)>,
+    dev_displays: Query<(&mut Text, &NewDevNameMarker)>,
     known_devs: Query<&DevName>,
     cursor: Res<CursorLocation>,
 ) {

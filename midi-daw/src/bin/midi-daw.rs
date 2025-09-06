@@ -7,8 +7,8 @@ use bevy::{
 use crossbeam::channel::unbounded;
 use midi_daw::midi::{MidiDev, dev::new_midi_dev, out::midi_out};
 use midi_daw_lib::{
-    COL_W, CursorLocation, DisplayStart, MainState, MidiCmd, MidiOutput, N_STEPS, NewMidiDev,
-    Screen, ScreenState, Step, Track, TrackID, button_tracker::ButtonTrackerPlugin,
+    CursorLocation, DisplayStart, MainState, MidiCmd, MidiOutput, N_STEPS, NewMidiDev, Screen,
+    ScreenState, Step, Track, TrackID, button_tracker::ButtonTrackerPlugin,
     display::MainDisplayPlugin, midi_plugin::MidiOutPlugin, sphere::SphereMode,
 };
 use midi_msg::Channel;
@@ -41,16 +41,16 @@ fn main() {
     };
 
     new_midi_dev_tx
-        .send(MidiDev::CreateVirtual("Channel-1".into()))
+        .send(MidiDev::CreateVirtual("Chan-1".into()))
         .unwrap();
     new_midi_dev_tx
-        .send(MidiDev::CreateVirtual("Channel-2".into()))
+        .send(MidiDev::CreateVirtual("Chan-2".into()))
         .unwrap();
     new_midi_dev_tx
-        .send(MidiDev::CreateVirtual("Channel-3".into()))
+        .send(MidiDev::CreateVirtual("Chan-3".into()))
         .unwrap();
     new_midi_dev_tx
-        .send(MidiDev::CreateVirtual("Channel-4".into()))
+        .send(MidiDev::CreateVirtual("Chan-4".into()))
         .unwrap();
     //
     // let frame_time = std::time::Duration::from_secs_f32(1. / 60.);
@@ -198,7 +198,7 @@ fn setup_tracks(mut cmds: Commands) {
         // Track::default(),
         Track::Midi {
             steps: steps.clone(),
-            dev: "Channel-1".into(),
+            dev: "Chan-1".into(),
             chan: Channel::Ch1,
         },
     ));
@@ -210,7 +210,7 @@ fn setup_tracks(mut cmds: Commands) {
         // Track::default(),
         Track::Midi {
             steps: steps.clone(),
-            dev: "Channel-2".into(),
+            dev: "Chan-2".into(),
             chan: Channel::Ch1,
         },
     ));
@@ -222,7 +222,7 @@ fn setup_tracks(mut cmds: Commands) {
         // Track::default(),
         Track::Midi {
             steps: steps.clone(),
-            dev: "Channel-3".into(),
+            dev: "Chan-3".into(),
             chan: Channel::Ch1,
         },
     ));
@@ -234,7 +234,7 @@ fn setup_tracks(mut cmds: Commands) {
         // Track::default(),
         Track::Midi {
             steps: steps.clone(),
-            dev: "Channel-4".into(),
+            dev: "Chan-4".into(),
             chan: Channel::Ch1,
         },
     ));

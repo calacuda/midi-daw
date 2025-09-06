@@ -1,10 +1,11 @@
 use crate::{
-    CmdPallet, EdittingCell, FirstViewTrack, MidiOutput, N_STEPS, Playing, Tempo, Track, TrackID,
-    playing,
+    CmdPallet, EdittingCell, FirstViewTrack, MidiNote, MidiOutput, N_STEPS, Playing, Tempo, Track,
+    TrackID, playing,
 };
 use bevy::prelude::*;
 use core::time::Duration;
-use midi_msg::{ChannelVoiceMsg, MidiMsg};
+use midi_daw_types::MidiDeviceName;
+use midi_msg::{Channel, ChannelVoiceMsg, MidiMsg};
 use std::time::Instant;
 
 #[derive(Resource, Clone, Debug, Copy, Eq, PartialEq)]
@@ -40,6 +41,16 @@ pub struct PlayingQueued;
 #[derive(Component, Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub struct QueueStopPlaying;
 
+#[derive(Component, Clone, Debug, Eq, PartialEq)]
+struct NoteOff {
+    note: MidiNote,
+    velocity: u8,
+    /// when to send note off command in pulses,
+    when: usize,
+    device: MidiDeviceName,
+    channel: Channel,
+}
+
 pub struct MidiOutPlugin;
 
 impl Plugin for MidiOutPlugin {
@@ -66,12 +77,15 @@ impl Plugin for MidiOutPlugin {
         .add_systems(
             Update,
             (
-                send_notes.run_if(playing).run_if(not_played_yet),
-                // note_notif.run_if(playing),
-                // update_front_end.run_if(sync_pulsing)
-            )
-                // .chain()
-                .run_if(on_thirtysecond_note),
+                (
+                    send_notes.run_if(playing.and(not_played_yet)),
+                    // note_notif.run_if(playing),
+                    // update_front_end.run_if(sync_pulsing)
+                )
+                    // .chain()
+                    .run_if(on_thirtysecond_note),
+                handle_note_off.run_if(notes_are_held),
+            ),
         );
     }
 }
@@ -87,6 +101,10 @@ fn setup(tempo: Res<Tempo>, mut sync_timer: ResMut<SyncTimer>, bpq: Res<BPQ>) {
 
 fn sync_pulsing(pulsing: Res<PlayingSyncPulse>) -> bool {
     **pulsing
+}
+
+fn notes_are_held(held_notes: Query<&NoteOff>) -> bool {
+    held_notes.iter().len() != 0
 }
 
 fn sync(
@@ -108,7 +126,7 @@ fn sync(
     }
 }
 
-fn on_thirtysecond_note(pulse: Res<SyncPulse>, bpq: Res<BPQ>) -> bool {
+pub fn on_thirtysecond_note(pulse: Res<SyncPulse>, bpq: Res<BPQ>) -> bool {
     // info!("n_pulses {}", pulse.n_pulses);
     // 6 because 24 beats is a quarter note.
     pulse.n_pulses % (bpq.0 / 8) == 0
@@ -133,57 +151,86 @@ fn not_played_yet(last_played: Res<LastPlayedPulse>, pulse: Res<SyncPulse>) -> b
 //     state_updated.write_default();
 // }
 
-fn note_notif() {
-    info!("note");
+// fn note_notif() {
+//     info!("note");
+// }
+
+fn handle_note_off(
+    mut commands: Commands,
+    held_notes: Query<(Entity, &NoteOff)>,
+    pulse: Res<SyncPulse>,
+    mut midi_out: ResMut<MidiOutput>,
+) {
+    held_notes.into_iter().for_each(|(entity, note_off)| {
+        if pulse.n_pulses == note_off.when {
+            midi_out.send(
+                note_off.device.clone(),
+                MidiMsg::ChannelVoice {
+                    channel: note_off.channel,
+                    msg: ChannelVoiceMsg::NoteOff {
+                        note: note_off.note,
+                        velocity: note_off.velocity,
+                    },
+                },
+            );
+            commands.entity(entity).despawn();
+        }
+    });
 }
 
 fn send_notes(
-    // output: Res<MidiOutput>,
-    // mut playing: Query<&mut PlayingTrack, Without<PlayingQueued>>,
-    // phrases: Res<AllPhrases>,
+    mut commands: Commands,
     tracks: Query<(&Track, &TrackID)>,
-    // mut state_updated: EventWriter<StateUpdated>,
-    // mut last_played: ResMut<LastPlayedPulse>,
     pulse: Res<SyncPulse>,
     bpq: Res<BPQ>,
-    // mut midi_out: EventWriter<MidiEnv>,
     mut midi_out: ResMut<MidiOutput>,
 ) {
     let step_i = get_step_num(&pulse, &bpq);
-    let last_step_i = if step_i > 0 { step_i - 1 } else { N_STEPS - 1 };
+    // let last_step_i = if step_i > 0 { step_i - 1 } else { N_STEPS - 1 };
 
     for (ref track, id) in tracks.iter() {
         if id.playing {
             match track {
                 Track::Midi { steps, dev, chan } => {
-                    // turn off old notes from last step
-                    if let Some(Some(note)) = steps.get(last_step_i).map(|step| step.note) {
-                        // midi_out.write(MidiEnv::Off { note });
-                        midi_out.send(
-                            dev.clone(),
-                            MidiMsg::ChannelVoice {
-                                channel: *chan,
-                                msg: ChannelVoiceMsg::NoteOff {
-                                    note,
-                                    velocity: 111,
-                                },
-                            },
-                        );
-                        // log.write(Log::error(format!("stopping: {note}")));
-                    }
+                    // // turn off old notes from last step
+                    // if let Some(Some(note)) = steps.get(last_step_i).map(|step| step.note) {
+                    //     // midi_out.write(MidiEnv::Off { note });
+                    //     midi_out.send(
+                    //         dev.clone(),
+                    //         MidiMsg::ChannelVoice {
+                    //             channel: *chan,
+                    //             msg: ChannelVoiceMsg::NoteOff {
+                    //                 note,
+                    //                 velocity: 111,
+                    //             },
+                    //         },
+                    //     );
+                    //     // log.write(Log::error(format!("stopping: {note}")));
+                    // }
 
                     if let Some(Some(note)) = steps.get(step_i).map(|step| step.note) {
-                        // midi_out.write(MidiEnv::On { note, vel: 111 });
+                        let velocity = 111;
+                        let thirty_second_note = bpq.0 / 8;
+                        let when_off = if usize::MAX - thirty_second_note >= pulse.n_pulses {
+                            pulse.n_pulses + thirty_second_note
+                        } else {
+                            thirty_second_note - (usize::MAX - pulse.n_pulses)
+                        } % usize::MAX;
+
                         midi_out.send(
                             dev.clone(),
                             MidiMsg::ChannelVoice {
                                 channel: *chan,
-                                msg: ChannelVoiceMsg::NoteOn {
-                                    note,
-                                    velocity: 111,
-                                },
+                                msg: ChannelVoiceMsg::NoteOn { note, velocity },
                             },
                         );
+                        commands.spawn(NoteOff {
+                            note,
+                            velocity,
+                            device: dev.clone(),
+                            channel: *chan,
+                            when: when_off,
+                        });
 
                         // log.write(Log::error(format!("playing: {note}")));
                     }

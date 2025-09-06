@@ -192,27 +192,29 @@ where
     #[default]
     #[strum(to_string = "----")]
     None,
-    #[strum(to_string = "Chrd")]
+    #[strum(to_string = "CHRD")]
     Chord { chord: Vec<Intervals> },
-    #[strum(to_string = "Roll")]
+    #[strum(to_string = "ROLL")]
     Roll {
         /// how many extra times to "roll" what ever is being played. a value of 1 would produce
         /// two 64th notes.
         times: usize,
     },
     // NOTE: maybe remove Swing
-    #[strum(to_string = "Swng")]
+    #[strum(to_string = "SWNG")]
     Swing {
         /// the amount of swing to put on the note
         amt: UsizeLessThan<128>,
     },
-    #[strum(to_string = "Hold")]
+    #[strum(to_string = "HOLD")]
     HoldFor {
         notes: UsizeLessThan<{ N_STEPS + 1 }>,
     },
     /// stop all notes on device
-    #[strum(to_string = "Stop")]
+    #[strum(to_string = "STOP")]
     Panic,
+    #[strum(to_string = "CC{cc_param:->2X}")]
+    MidiCmd { cc_param: u8, arg_1: u8, arg_2: u8 },
     #[strum(transparent)]
     Custom(Cmd),
 }
@@ -228,7 +230,7 @@ pub struct MidiCmd {
 
 impl Display for MidiCmd {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "CC--")
+        write!(f, "CC{:->2X}", self.cc_param)
     }
 }
 
@@ -346,13 +348,149 @@ pub fn north_button_pressed(inputs: Query<&Gamepad>) -> bool {
     false
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//
-//     #[test]
-//     fn it_works() {
-//         // let result = add(2, 2);
-//         // assert_eq!(result, 4);
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn midi_cmd_display() {
+        // let result = add(2, 2);
+        // assert_eq!(result, 4);
+        // let midi
+        // let display =
+        for (cmd, should_be) in [
+            (
+                MidiCmd {
+                    cc_param: 0,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC-0",
+            ),
+            (
+                MidiCmd {
+                    cc_param: 10,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC-A",
+            ),
+            (
+                MidiCmd {
+                    cc_param: 15,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC-F",
+            ),
+            (
+                MidiCmd {
+                    cc_param: 16,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC10",
+            ),
+            (
+                MidiCmd {
+                    cc_param: 126,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC7E",
+            ),
+            (
+                MidiCmd {
+                    cc_param: 127,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC7F",
+            ),
+            (
+                MidiCmd {
+                    cc_param: 255,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CCFF",
+            ),
+        ] {
+            let cmd = format!("{cmd}");
+            assert_eq!(
+                cmd, should_be,
+                "MidiCmd formating check failed. Cmd formatted to {cmd:?}, when it should should have formatted to {should_be:?}."
+            )
+        }
+    }
+
+    #[test]
+    fn tracker_cmd_display() {
+        struct MidiCmd<'a>(TrackerCmd<super::MidiCmd>, &'a str);
+
+        for MidiCmd(cmd, should_be) in [
+            MidiCmd(
+                TrackerCmd::MidiCmd {
+                    cc_param: 0,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC-0",
+            ),
+            MidiCmd(
+                TrackerCmd::MidiCmd {
+                    cc_param: 10,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC-A",
+            ),
+            MidiCmd(
+                TrackerCmd::MidiCmd {
+                    cc_param: 15,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC-F",
+            ),
+            MidiCmd(
+                TrackerCmd::MidiCmd {
+                    cc_param: 16,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC10",
+            ),
+            MidiCmd(
+                TrackerCmd::MidiCmd {
+                    cc_param: 126,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC7E",
+            ),
+            MidiCmd(
+                TrackerCmd::MidiCmd {
+                    cc_param: 127,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CC7F",
+            ),
+            MidiCmd(
+                TrackerCmd::MidiCmd {
+                    cc_param: 255,
+                    arg_1: 0,
+                    arg_2: 0,
+                },
+                "CCFF",
+            ),
+        ] {
+            let cmd = format!("{cmd}");
+            assert_eq!(
+                cmd, should_be,
+                "TrackerCmd formating check failed. Cmd formatted to {cmd:?}, when it should should have formatted to {should_be:?}."
+            )
+        }
+    }
+}

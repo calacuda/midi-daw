@@ -9,7 +9,7 @@ A python library that is desined to support live coding musical preformances. Th
 these are listen in no particular order.
 
 - [neovim](https://neovim.io/)
-- [emacs in no-window mode](https://www.gnu.org/software/emacs/manual/html_node/emacs/Initial-Options.html#index-_002d_002dno_002dwindow_002dsystem)
+- [emacs](https://www.gnu.org/software/emacs/download.html) in [no-window mode](https://www.gnu.org/software/emacs/manual/html_node/emacs/Initial-Options.html#index-_002d_002dno_002dwindow_002dsystem)
 - [helix](https://helix-editor.com/)
 - [micro](https://micro-editor.github.io/)
 - [Jupyter Notebook](https://jupyter.org/)

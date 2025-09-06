@@ -1,67 +1,14 @@
 use crate::{
-    COL_W, CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, N_STEPS,
-    NoteChanged, RowId, Screen, ScreenState, Track, TrackID, TracksScrolled, a_and_b_pressed,
+    CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, N_STEPS,
+    NoteChanged, RowId, ScreenState, Track, TrackID, TracksScrolled, a_and_b_pressed,
     display::midi_assign::MidiAssignmentPlugin,
     display_midi_note, down_pressed, left_pressed,
-    midi_plugin::{BPQ, SyncPulse, get_step_num},
+    midi_plugin::{BPQ, SyncPulse, get_step_num, on_thirtysecond_note},
     playing, right_pressed, up_pressed,
 };
 use bevy::{color::palettes::css::*, platform::collections::HashMap, prelude::*};
 
-// mod shared;
 pub mod midi_assign;
-
-// const SCALE_TIME: u64 = 400;
-//
-// #[derive(Resource)]
-// struct TargetScale {
-//     start_scale: f32,
-//     target_scale: f32,
-//     target_time: Timer,
-// }
-//
-// impl TargetScale {
-//     fn set_scale(&mut self, scale: f32) {
-//         self.start_scale = self.current_scale();
-//         self.target_scale = scale;
-//         self.target_time.reset();
-//     }
-//
-//     fn current_scale(&self) -> f32 {
-//         let completion = self.target_time.fraction();
-//         let t = ease_in_expo(completion);
-//         self.start_scale.lerp(self.target_scale, t)
-//     }
-//
-//     fn tick(&mut self, delta: Duration) -> &Self {
-//         self.target_time.tick(delta);
-//         self
-//     }
-//
-//     fn already_completed(&self) -> bool {
-//         self.target_time.finished() && !self.target_time.just_finished()
-//     }
-// }
-//
-
-// #[derive(Debug, Resource, Deref, DerefMut)]
-// struct BackgroundColor(Color);
-//
-// impl Default for BackgroundColor {
-//     fn default() -> Self {
-//         BackgroundColor(Color::Rgb(
-//             ((30. / 255.) * 256.) as u8,
-//             ((30. / 255.) * 256.) as u8,
-//             ((46. / 255.) * 256.) as u8,
-//         ))
-//     }
-// }
-//
-// impl WidgetRef for BackgroundColor {
-//     fn render_ref(&self, area: Rect, buf: &mut Buffer) {
-//         buf.set_style(area, Style::new().bg(self.0));
-//     }
-// }
 
 const TEXT_COLOR: TextColor = TextColor(Color::Srgba(Srgba::new(
     17. / 255.,
@@ -163,7 +110,7 @@ impl Plugin for MainDisplayPlugin {
                     )
                         // .run_if(in_main_screen),
                         .run_if(in_state(ScreenState::MainScreen)),
-                    display_step,
+                    display_step.run_if(playing.and(on_thirtysecond_note)),
                 ),
             );
     }
@@ -793,20 +740,6 @@ fn setup(mut commands: Commands) {
         });
 }
 
-// /// System that changes the scale of the ui when pressing up or down on the keyboard.
-// fn change_scaling(input: Res<ButtonInput<KeyCode>>, mut ui_scale: ResMut<TargetScale>) {
-//     if input.just_pressed(KeyCode::ArrowUp) {
-//         let scale = (ui_scale.target_scale * 2.0).min(8.);
-//         ui_scale.set_scale(scale);
-//         // info!("Scaling up! Scale: {}", ui_scale.target_scale);
-//     }
-//     if input.just_pressed(KeyCode::ArrowDown) {
-//         let scale = (ui_scale.target_scale / 2.0).max(1. / 8.);
-//         ui_scale.set_scale(scale);
-//         // info!("Scaling down! Scale: {}", ui_scale.target_scale);
-//     }
-// }
-
 fn apply_scaling(
     // time: Res<Time>,
     // mut target_scale: ResMut<TargetScale>,
@@ -817,12 +750,4 @@ fn apply_scaling(
     // }
 
     ui_scale.0 = 0.5;
-}
-
-fn ease_in_expo(x: f32) -> f32 {
-    if x == 0. {
-        0.
-    } else {
-        ops::powf(2.0f32, 5. * x - 5.)
-    }
 }
