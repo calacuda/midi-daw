@@ -55,7 +55,10 @@ impl Plugin for MainDisplayPlugin {
             .add_event::<TracksScrolled>()
             .add_event::<NoteChanged>()
             .add_systems(Startup, apply_scaling)
-            .add_systems(OnEnter(MainState::Edit), (setup, redraw_notes).chain())
+            .add_systems(
+                OnEnter(MainState::Edit),
+                (setup, (redraw_notes, redraw_cmd1s, redraw_cmd2s)).chain(),
+            )
             .add_systems(
                 Update,
                 (
@@ -82,10 +85,11 @@ impl Plugin for MainDisplayPlugin {
                             .run_if(not(mod_key_pressed)),
                         display_cursor,
                         (
-                            redraw_notes.run_if(on_event::<CellCursorMoved>),
+                            // redraw_notes.run_if(on_event::<CellCursorMoved>),
                             redraw_notes.run_if(on_event::<TracksScrolled>),
                             // when the step chagnes
                             redraw_notes.run_if(on_event::<NoteChanged>),
+                            (redraw_cmd1s, redraw_cmd2s),
                         ),
                         // .run_if(playing),
                         (
@@ -169,21 +173,6 @@ fn small_increment_note(
 
     // warn!("incrementing");
 
-    // match tracks[track_num].0.as_mut() {
-    //     Track::Midi {
-    //         steps,
-    //         dev: _,
-    //         chan: _,
-    //     } => {
-    //         let new_note = steps[cursor.0]
-    //             .note
-    //             .map(|note| (note + 1) % 127)
-    //             .unwrap_or(0);
-    //         steps[cursor.0].note.replace(new_note);
-    //     }
-    //     _ => {}
-    // };
-
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
         .map(|note| (note + 1) % 127)
@@ -194,7 +183,6 @@ fn small_increment_note(
 }
 
 fn small_decrement_note(
-    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
     display_start: Res<DisplayStart>,
     mut tracks: Query<(&mut Track, &TrackID)>,
     cursor: Res<CursorLocation>,
@@ -206,23 +194,6 @@ fn small_decrement_note(
     let start = display_start.0;
     let col = cursor.1 / 3;
     let track_num = start + col;
-
-    // warn!("incrementing");
-
-    // match tracks[track_num].0.as_mut() {
-    //     Track::Midi {
-    //         steps,
-    //         dev: _,
-    //         chan: _,
-    //     } => {
-    //         let new_note = steps[cursor.0]
-    //             .note
-    //             .map(|note| if note > 0 { note - 1 } else { 126 })
-    //             .unwrap_or(0);
-    //         steps[cursor.0].note.replace(new_note);
-    //     }
-    //     _ => {}
-    // };
 
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
@@ -234,7 +205,6 @@ fn small_decrement_note(
 }
 
 fn big_increment_note(
-    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
     display_start: Res<DisplayStart>,
     mut tracks: Query<(&mut Track, &TrackID)>,
     cursor: Res<CursorLocation>,
@@ -246,23 +216,6 @@ fn big_increment_note(
     let start = display_start.0;
     let col = cursor.1 / 3;
     let track_num = start + col;
-
-    // warn!("incrementing");
-
-    // match tracks[track_num].0.as_mut() {
-    //     Track::Midi {
-    //         steps,
-    //         dev: _,
-    //         chan: _,
-    //     } => {
-    //         let new_note = steps[cursor.0]
-    //             .note
-    //             .map(|note| (note + 12) % 127)
-    //             .unwrap_or(0);
-    //         steps[cursor.0].note.replace(new_note);
-    //     }
-    //     _ => {}
-    // };
 
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
@@ -274,7 +227,6 @@ fn big_increment_note(
 }
 
 fn big_decrement_note(
-    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
     display_start: Res<DisplayStart>,
     mut tracks: Query<(&mut Track, &TrackID)>,
     cursor: Res<CursorLocation>,
@@ -286,23 +238,6 @@ fn big_decrement_note(
     let start = display_start.0;
     let col = cursor.1 / 3;
     let track_num = start + col;
-
-    // warn!("incrementing");
-
-    // match tracks[track_num].0.as_mut() {
-    //     Track::Midi {
-    //         steps,
-    //         dev: _,
-    //         chan: _,
-    //     } => {
-    //         let new_note = steps[cursor.0]
-    //             .note
-    //             .map(|note| if note > 11 { note - 12 } else { 114 })
-    //             .unwrap_or(0);
-    //         steps[cursor.0].note.replace(new_note);
-    //     }
-    //     _ => {}
-    // };
 
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
@@ -314,7 +249,6 @@ fn big_decrement_note(
 }
 
 fn delete_note(
-    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
     display_start: Res<DisplayStart>,
     mut tracks: Query<(&mut Track, &TrackID)>,
     cursor: Res<CursorLocation>,
@@ -327,28 +261,12 @@ fn delete_note(
     let col = cursor.1 / 3;
     let track_num = start + col;
 
-    // warn!("incrementing");
-
-    // match tracks[track_num].0.as_mut() {
-    //     Track::Midi {
-    //         steps,
-    //         dev: _,
-    //         chan: _,
-    //     } => {
-    //         let new_note = None;
-    //         steps[cursor.0].note = new_note;
-    //     }
-    //     _ => {}
-    // };
-
     tracks[track_num].0.steps[cursor.0].note = None;
 
     evs.write(NoteChanged::Deleted);
 }
 
 fn scroll_left(
-    // button_inputs: Res<ButtonInput<GamepadButton>>,
-    // location: Res<CursorLocation>,
     mut display_start: ResMut<DisplayStart>,
     mut scroll_ev: EventWriter<TracksScrolled>,
 ) {
@@ -436,25 +354,65 @@ fn redraw_notes(
                 }
             }
         }
+    }
+}
 
-        // match track.0 {
-        //     Track::Midi {
-        //         steps,
-        //         dev: _,
-        //         chan: _,
-        //     } => {
-        //         for (step_i, step) in steps.iter().enumerate() {
-        //             if let Some(text) = notes_text.get_mut(&(i, step_i)) {
-        //                 if let Some(note_text) = step.note.map(display_midi_note) {
-        //                     text.0 = note_text;
-        //                 } else {
-        //                     text.0 = "---".into();
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     _ => {}
-        // }
+fn redraw_cmd1s(
+    notes: Query<(&mut Text, &ColumnId, &RowId), With<Cmd1DisplayMarker>>,
+    display_start: Res<DisplayStart>,
+    tracks: Query<(&Track, &TrackID)>,
+) {
+    let mut tracks: Vec<(&Track, &TrackID)> = tracks.into_iter().collect();
+    tracks.sort_by_key(|(_track, id): &(&Track, &TrackID)| id.id);
+
+    let mut cmds_text: HashMap<(usize, usize), Mut<'_, Text>> = notes
+        .into_iter()
+        .map(|(text, col, row)| ((col.0, row.0), text))
+        .collect();
+
+    let start = display_start.0;
+    let end = start + std::cmp::min(4, tracks.len());
+
+    for (i, track_i) in (start..end).enumerate() {
+        let track = tracks[track_i];
+
+        for (step_i, step) in track.0.steps.iter().enumerate() {
+            if let Some(text) = cmds_text.get_mut(&(i, step_i)) {
+                // if let Some(note_text) = step.cmds.0.map(display_midi_note) {
+                //     text.0 = note_text;
+                // } else {
+                //     text.0 = "----".into();
+                // }
+                text.0 = step.cmds.0.to_string();
+            }
+        }
+    }
+}
+
+fn redraw_cmd2s(
+    notes: Query<(&mut Text, &ColumnId, &RowId), With<Cmd2DisplayMarker>>,
+    display_start: Res<DisplayStart>,
+    tracks: Query<(&Track, &TrackID)>,
+) {
+    let mut tracks: Vec<(&Track, &TrackID)> = tracks.into_iter().collect();
+    tracks.sort_by_key(|(_track, id): &(&Track, &TrackID)| id.id);
+
+    let mut cmds_text: HashMap<(usize, usize), Mut<'_, Text>> = notes
+        .into_iter()
+        .map(|(text, col, row)| ((col.0, row.0), text))
+        .collect();
+
+    let start = display_start.0;
+    let end = start + std::cmp::min(4, tracks.len());
+
+    for (i, track_i) in (start..end).enumerate() {
+        let track = tracks[track_i];
+
+        for (step_i, step) in track.0.steps.iter().enumerate() {
+            if let Some(text) = cmds_text.get_mut(&(i, step_i)) {
+                text.0 = step.cmds.1.to_string();
+            }
+        }
     }
 }
 
@@ -465,7 +423,7 @@ fn display_step(
     bpq: Res<BPQ>,
 ) {
     let step_i = get_step_num(&pulse, &bpq);
-    let target = format!("{:0>2}: ", step_i + 1);
+    let target = format!("{:0>2}:", (step_i + 2) % N_STEPS);
 
     for (mut color, text) in line_num {
         // if text.0.ends_with(format!("{}", step_i)) && color.clone() == TEXT_COLOR {
@@ -489,11 +447,8 @@ fn display_cursor(
     let row = cursor.0;
 
     for (entity, cell_mark) in cells {
-        // info!("drawing at: {cursor:?} => ({track}, {col}, {row})");
-
         if cell_mark.displayed_track_idx == track && cell_mark.column == col && cell_mark.row == row
         {
-            // warn!("drawing at: {cursor:?} => ({track}, {col}, {row})");
             // set boarder to cursor color
             commands
                 .entity(entity)
@@ -509,11 +464,9 @@ fn display_cursor(
                         alpha: 1.,
                     }),
                 ));
-            // commands.entity(entity).remove::<BorderColor>();
         } else {
             // rm boarder from
             commands.entity(entity).remove::<Outline>();
-            // commands.entity(entity).remove::<BorderColor>();
         }
     }
 }
@@ -679,7 +632,7 @@ fn setup(mut commands: Commands) {
                                         }
 
                                         parent.spawn((
-                                            Text::new(format!("{:0>2}: ", i + 1)),
+                                            Text::new(format!("{:0>2}:", i + 1)),
                                             text_font.clone(),
                                             text_color.clone(),
                                             LineNumMarker,

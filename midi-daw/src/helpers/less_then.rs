@@ -3,7 +3,7 @@ use bevy::prelude::*;
 // TODO: Make a macro to build a "LessThan" type for any given numeric type
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deref)]
-pub struct UsizeLessThan<const LT: usize>(usize);
+pub struct UsizeLessThan<const LT: usize>(pub usize);
 
 impl<const LT: usize> TryFrom<usize> for UsizeLessThan<LT> {
     type Error = String;

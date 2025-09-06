@@ -1,6 +1,6 @@
 use crate::{
     CmdPallet, EdittingCell, FirstViewTrack, MidiNote, MidiOutput, N_STEPS, Playing, Tempo, Track,
-    TrackID, playing,
+    TrackID, TrackerCmd, playing,
 };
 use bevy::prelude::*;
 use core::time::Duration;
@@ -190,67 +190,46 @@ fn send_notes(
 
     for (ref track, id) in tracks.iter() {
         if id.playing {
-            // match track {
-            // Track::Midi { steps, dev, chan } => {
-            //     // // turn off old notes from last step
-            //     // if let Some(Some(note)) = steps.get(last_step_i).map(|step| step.note) {
-            //     //     // midi_out.write(MidiEnv::Off { note });
-            //     //     midi_out.send(
-            //     //         dev.clone(),
-            //     //         MidiMsg::ChannelVoice {
-            //     //             channel: *chan,
-            //     //             msg: ChannelVoiceMsg::NoteOff {
-            //     //                 note,
-            //     //                 velocity: 111,
-            //     //             },
-            //     //         },
-            //     //     );
-            //     //     // log.write(Log::error(format!("stopping: {note}")));
-            //     // }
-            //
-            //     if let Some(Some(note)) = steps.get(step_i).map(|step| step.note) {
-            //         let velocity = 111;
-            //         let thirty_second_note = bpq.0 / 8;
-            //         let when_off = if usize::MAX - thirty_second_note >= pulse.n_pulses {
-            //             pulse.n_pulses + thirty_second_note
-            //         } else {
-            //             thirty_second_note - (usize::MAX - pulse.n_pulses)
-            //         } % usize::MAX;
-            //
-            //         midi_out.send(
-            //             dev.clone(),
-            //             MidiMsg::ChannelVoice {
-            //                 channel: *chan,
-            //                 msg: ChannelVoiceMsg::NoteOn { note, velocity },
-            //             },
-            //         );
-            //         commands.spawn(NoteOff {
-            //             note,
-            //             velocity,
-            //             device: dev.clone(),
-            //             channel: *chan,
-            //             when: when_off,
-            //         });
-            //
-            //         // log.write(Log::error(format!("playing: {note}")));
-            //     }
-            // }
-            // Track::SF2 {
-            //     steps: _,
-            //     dev: _,
-            //     chan: _,
-            // } => {
-            //     // defmt::todo!("write SF2");
-            // }
-
-            if let Some(Some(note)) = track.steps.get(step_i).map(|step| step.note) {
+            if let Some((Some(note), cmds)) = track
+                .steps
+                .get(step_i)
+                .map(|step| (step.note, step.cmds.clone()))
+            {
                 let velocity = 111;
-                let thirty_second_note = bpq.0 / 8;
-                let when_off = if usize::MAX - thirty_second_note >= pulse.n_pulses {
-                    pulse.n_pulses + thirty_second_note
+                let sixteenth_note = bpq.0 / 8;
+                let mut when_off = if usize::MAX - sixteenth_note >= pulse.n_pulses {
+                    pulse.n_pulses + sixteenth_note
                 } else {
-                    thirty_second_note - (usize::MAX - pulse.n_pulses)
+                    sixteenth_note - (usize::MAX - pulse.n_pulses)
                 } % usize::MAX;
+
+                // for cmd in [cmds.0, cmds.1] {
+                // }
+
+                let hold_steps = match cmds {
+                    (TrackerCmd::HoldFor { notes: n1 }, TrackerCmd::HoldFor { notes: n2 }) => {
+                        Some(n1.max(n2))
+                    }
+                    (TrackerCmd::HoldFor { notes }, _) => Some(notes),
+                    (_, TrackerCmd::HoldFor { notes }) => Some(notes),
+                    _ => None,
+                };
+
+                if let Some(hold_for) = hold_steps {
+                    let amt = if hold_for.0 > 0 {
+                        sixteenth_note * hold_for.0
+                    } else {
+                        sixteenth_note + sixteenth_note / 2
+                    };
+
+                    if usize::MAX - amt >= pulse.n_pulses {
+                        when_off = amt + pulse.n_pulses;
+                    } else {
+                        when_off = amt - (usize::MAX - pulse.n_pulses);
+                    }
+
+                    // when_off %= usize::MAX;
+                }
 
                 midi_out.send(
                     track.dev.clone(),
@@ -269,12 +248,8 @@ fn send_notes(
 
                 // log.write(Log::error(format!("playing: {note}")));
             }
-
-            // }
         }
     }
-
-    // _ = last_played.0.insert(pulse.n_pulses);
 }
 
 pub fn get_step_num(pulse: &Res<SyncPulse>, bpq: &Res<BPQ>) -> usize {

@@ -226,14 +226,14 @@ pub enum TrackerCmd
         amt: UsizeLessThan<128>,
     },
     #[strum(to_string = "HOLD")]
-    HoldFor {
-        notes: UsizeLessThan<{ N_STEPS + 1 }>,
-    },
+    HoldFor { notes: UsizeLessThan<{ N_STEPS }> },
     /// stop all notes on device
     #[strum(to_string = "STOP")]
     Panic,
     #[strum(to_string = "CC{cc_param:->2X}")]
     MidiCmd { cc_param: u8, arg_1: u8, arg_2: u8 },
+    // TODO: add a command to switch avtive track on this channel
+
     // #[strum(transparent)]
     // Custom(Cmd),
     #[strum(transparent)]
