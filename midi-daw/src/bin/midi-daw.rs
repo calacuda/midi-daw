@@ -182,7 +182,7 @@ fn setup_tracks(mut cmds: Commands) {
     for (i, step) in steps.iter_mut().step_by(N_STEPS / 4).enumerate() {
         step.note = Some(note[i % 4]);
         step.cmds.0 = TrackerCmd::HoldFor {
-            notes: 1.try_into().unwrap(),
+            notes: 2.try_into().unwrap(),
         };
         // step.cmds.1 = TrackerCmd::Panic;
     }

@@ -423,7 +423,7 @@ fn display_step(
     bpq: Res<BPQ>,
 ) {
     let step_i = get_step_num(&pulse, &bpq);
-    let target = format!("{:0>2}:", (step_i + 2) % N_STEPS);
+    let target = format!("{:0>2}:", step_i + 1);
 
     for (mut color, text) in line_num {
         // if text.0.ends_with(format!("{}", step_i)) && color.clone() == TEXT_COLOR {

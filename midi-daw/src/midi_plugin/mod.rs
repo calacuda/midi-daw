@@ -129,7 +129,7 @@ fn sync(
 pub fn on_thirtysecond_note(pulse: Res<SyncPulse>, bpq: Res<BPQ>) -> bool {
     // info!("n_pulses {}", pulse.n_pulses);
     // 6 because 24 beats is a quarter note.
-    pulse.n_pulses % (bpq.0 / 8) == 0
+    pulse.n_pulses % (bpq.0 / 4) == 0
 }
 
 fn not_played_yet(last_played: Res<LastPlayedPulse>, pulse: Res<SyncPulse>) -> bool {
@@ -196,7 +196,7 @@ fn send_notes(
                 .map(|step| (step.note, step.cmds.clone()))
             {
                 let velocity = 111;
-                let sixteenth_note = bpq.0 / 8;
+                let sixteenth_note = bpq.0 / 4;
                 let mut when_off = if usize::MAX - sixteenth_note >= pulse.n_pulses {
                     pulse.n_pulses + sixteenth_note
                 } else {
@@ -217,7 +217,7 @@ fn send_notes(
 
                 if let Some(hold_for) = hold_steps {
                     let amt = if hold_for.0 > 0 {
-                        sixteenth_note * hold_for.0
+                        sixteenth_note * (hold_for.0 + 1)
                     } else {
                         sixteenth_note + sixteenth_note / 2
                     };
@@ -253,7 +253,7 @@ fn send_notes(
 }
 
 pub fn get_step_num(pulse: &Res<SyncPulse>, bpq: &Res<BPQ>) -> usize {
-    (pulse.n_pulses / (bpq.0 / 8)) % N_STEPS
+    (pulse.n_pulses / (bpq.0 / 4)) % N_STEPS
 }
 
 // fn toggle_playing(
