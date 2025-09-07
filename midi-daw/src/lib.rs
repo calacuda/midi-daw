@@ -212,7 +212,11 @@ pub enum TrackerCmd
     #[strum(to_string = "----")]
     None,
     #[strum(to_string = "CHRD")]
-    Chord { chord: Vec<Intervals> },
+    Chord {
+        // chord: Vec<Intervals>
+        /// the aditional intervals to play (in semi-tones relative to the root)
+        chord: Vec<i8>,
+    },
     #[strum(to_string = "ROLL")]
     Roll {
         /// how many extra times to "roll" what ever is being played. a value of 1 would produce

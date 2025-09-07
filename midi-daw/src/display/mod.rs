@@ -179,7 +179,7 @@ fn small_increment_note(
 
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
-        .map(|note| (note + 1) % 127)
+        .map(|note| (note + 1) % 128)
         .unwrap_or(last_note.0.unwrap_or(0));
     tracks[track_num].0.steps[cursor.0].note.replace(new_note);
     last_note.0.replace(new_note);
@@ -227,7 +227,7 @@ fn big_increment_note(
 
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
-        .map(|note| (note + 12) % 127)
+        .map(|note| (note + 12) % 128)
         .unwrap_or(last_note.0.unwrap_or(0));
     tracks[track_num].0.steps[cursor.0].note.replace(new_note);
     last_note.0.replace(new_note);

@@ -231,22 +231,59 @@ fn send_notes(
                     // when_off %= usize::MAX;
                 }
 
-                midi_out.send(
-                    track.dev.clone(),
-                    MidiMsg::ChannelVoice {
-                        channel: track.chan,
-                        msg: ChannelVoiceMsg::NoteOn { note, velocity },
-                    },
-                );
-                commands.spawn(NoteOff {
-                    note,
-                    velocity,
-                    device: track.dev.clone(),
-                    channel: track.chan,
-                    when: when_off,
-                });
+                let mut notes = vec![note];
 
-                // log.write(Log::error(format!("playing: {note}")));
+                let mut add_notes = |chord_notes: Vec<i8>| {
+                    notes.append(
+                        &mut chord_notes
+                            .clone()
+                            .into_iter()
+                            .map(|note_offset| {
+                                let new_note = if (note_offset < 0) && ((note_offset as u8) <= note)
+                                {
+                                    note - (note_offset as u8)
+                                } else if (note_offset > 0) && (127 - (note_offset as u8)) >= note {
+                                    note + (note_offset as u8)
+                                } else if (note_offset < 0) && ((note_offset as u8) > note) {
+                                    127 - ((note_offset as u8) - note)
+                                } else {
+                                    note + (note_offset as u8)
+                                };
+
+                                new_note % 128
+                            })
+                            .collect(),
+                    );
+                };
+
+                match cmds {
+                    (TrackerCmd::Chord { chord: c1 }, TrackerCmd::Chord { chord: c2 }) => {
+                        add_notes(c1);
+                        add_notes(c2);
+                    }
+                    (TrackerCmd::Chord { chord }, _) => add_notes(chord),
+                    (_, TrackerCmd::Chord { chord }) => add_notes(chord),
+                    _ => {}
+                };
+
+                for note in notes {
+                    midi_out.send(
+                        track.dev.clone(),
+                        MidiMsg::ChannelVoice {
+                            channel: track.chan,
+                            msg: ChannelVoiceMsg::NoteOn { note, velocity },
+                        },
+                    );
+                    commands.spawn(NoteOff {
+                        note,
+                        velocity,
+                        device: track.dev.clone(),
+                        channel: track.chan,
+                        when: when_off,
+                    });
+
+                    // log.write(Log::error(format!("playing: {note}")));
+                }
             }
         }
     }
@@ -352,3 +389,49 @@ fn should_play_queue(pulse: Res<SyncPulse>, bpq: Res<BPQ>) -> bool {
 //         info!("playing sync: {}", playing_sync.0);
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chord_logic_corce() {
+        for note in [0, 1, 2, 3, 127, 126, 125, 124] {
+            let mut notes = Vec::default();
+
+            let mut add_notes = |chord_notes: Vec<i8>| {
+                notes.append(
+                    &mut chord_notes
+                        .clone()
+                        .into_iter()
+                        .map(|note_offset| {
+                            let new_note = if (note_offset < 0) && ((note_offset as u8) <= note) {
+                                note - (note_offset as u8)
+                            } else if (note_offset > 0) && (127 - (note_offset as u8)) >= note {
+                                note + (note_offset as u8)
+                            } else if (note_offset < 0) && ((note_offset as u8) > note) {
+                                127 - ((note_offset as u8) - note)
+                            } else {
+                                note + (note_offset as u8)
+                            };
+
+                            new_note % 128
+                        })
+                        .collect(),
+                );
+            };
+
+            add_notes((i8::MIN..i8::MAX).collect());
+
+            for (i, chord_note) in notes.into_iter().enumerate() {
+                assert!(
+                    chord_note <= 127,
+                    "{chord_note} (ie. greater 127, the max note in midi). this happened when note was {note}, and offset was {}.",
+                    // i / n_nums,
+                    // i % n_nums,
+                    (i8::MIN..i8::MAX).collect::<Vec<i8>>()[i]
+                );
+            }
+        }
+    }
+}
