@@ -219,16 +219,16 @@ pub enum TrackerCmd
     },
     #[strum(to_string = "ROLL")]
     Roll {
-        /// how many extra times to "roll" what ever is being played. a value of 1 would produce
-        /// two 64th notes.
-        times: usize,
+        // /// how many extra times to "roll" what ever is being played. a value of 1 would produce
+        // /// two 64th notes.
+        // times: usize,
     },
-    // NOTE: maybe remove Swing
-    #[strum(to_string = "SWNG")]
-    Swing {
-        /// the amount of swing to put on the note
-        amt: UsizeLessThan<128>,
-    },
+    // // NOTE: maybe remove Swing
+    // #[strum(to_string = "SWNG")]
+    // Swing {
+    //     /// the amount of swing to put on the note
+    //     amt: UsizeLessThan<128>,
+    // },
     #[strum(to_string = "HOLD")]
     HoldFor { notes: UsizeLessThan<{ N_STEPS }> },
     /// stop all notes on device

@@ -13,9 +13,9 @@ a bevy gui tracker
 - [x] MidiCmd struct is no Longer relevant, re-structure data accordingly
 - [ ] enable universal commands
   - [x] `HOLD` command
-  - [ ] `CHRD` command
+  - [x] `CHRD` command
   - [ ] `ROLL` command
-  - [ ] `SWNG` command
+  <!-- - [ ] `SWNG` command -->
   - [ ] `STOP` command
   - [ ] `CC--` command
 - [ ] write command selection and edit menu 
