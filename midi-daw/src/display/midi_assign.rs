@@ -1,6 +1,6 @@
 use crate::{
-    CursorLocation, DisplayStart, Screen, ScreenState, Track, TrackID, display::HEADER_TEXT_COLOR,
-    north_button_pressed,
+    CursorLocation, DisplayStart, MidiNote, Screen, ScreenState, Track, TrackID,
+    display::HEADER_TEXT_COLOR, north_button_pressed,
 };
 use bevy::prelude::*;
 use midi_daw::midi::dev::fmt_dev_name;
@@ -86,6 +86,7 @@ fn tear_down_screen(mut commands: Commands, nodes: Query<Entity, With<MenuNodeMa
 // }
 
 fn setup_data(
+    mut commands: Commands,
     mut new_screen: ResMut<Screen>,
     display_start: Res<DisplayStart>,
     cursor: Res<CursorLocation>,
@@ -98,7 +99,7 @@ fn setup_data(
         track,
         dev: None,
         chan: None,
-    }
+    };
 }
 
 pub fn spawn_dev_names(mut commands: Commands, devs: Query<&DevName>) {

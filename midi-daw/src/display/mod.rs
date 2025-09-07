@@ -1,6 +1,6 @@
 use crate::{
-    CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, N_STEPS,
-    NoteChanged, RowId, ScreenState, Track, TrackID, TracksScrolled, a_and_b_pressed,
+    CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, MidiNote,
+    N_STEPS, NoteChanged, RowId, ScreenState, Track, TrackID, TracksScrolled, a_and_b_pressed,
     display::midi_assign::MidiAssignmentPlugin,
     display_midi_note, down_pressed, left_pressed,
     midi_plugin::{BPQ, SyncPulse, get_step_num, on_thirtysecond_note},
@@ -46,11 +46,15 @@ pub struct Cmd1DisplayMarker;
 #[derive(Component, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Cmd2DisplayMarker;
 
+#[derive(Resource, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+pub struct LastPlacedNote(Option<MidiNote>);
+
 pub struct MainDisplayPlugin;
 
 impl Plugin for MainDisplayPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MidiAssignmentPlugin)
+            .insert_resource(LastPlacedNote(None))
             .add_event::<CellCursorMoved>()
             .add_event::<TracksScrolled>()
             .add_event::<NoteChanged>()
@@ -158,7 +162,7 @@ fn cursor_at_max_x(cursor: Res<CursorLocation>) -> bool {
 }
 
 fn small_increment_note(
-    // notes: Query<(&mut Text, &ColumnId, &RowId), With<NoteDisplayMarker>>,
+    mut last_note: ResMut<LastPlacedNote>,
     display_start: Res<DisplayStart>,
     mut tracks: Query<(&mut Track, &TrackID)>,
     cursor: Res<CursorLocation>,
@@ -176,13 +180,15 @@ fn small_increment_note(
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
         .map(|note| (note + 1) % 127)
-        .unwrap_or(0);
+        .unwrap_or(last_note.0.unwrap_or(0));
     tracks[track_num].0.steps[cursor.0].note.replace(new_note);
+    last_note.0.replace(new_note);
 
     evs.write(NoteChanged::SmallUp);
 }
 
 fn small_decrement_note(
+    mut last_note: ResMut<LastPlacedNote>,
     display_start: Res<DisplayStart>,
     mut tracks: Query<(&mut Track, &TrackID)>,
     cursor: Res<CursorLocation>,
@@ -198,13 +204,15 @@ fn small_decrement_note(
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
         .map(|note| if note > 0 { note - 1 } else { 126 })
-        .unwrap_or(0);
+        .unwrap_or(last_note.0.unwrap_or(0));
     tracks[track_num].0.steps[cursor.0].note.replace(new_note);
+    last_note.0.replace(new_note);
 
     evs.write(NoteChanged::SmallDown);
 }
 
 fn big_increment_note(
+    mut last_note: ResMut<LastPlacedNote>,
     display_start: Res<DisplayStart>,
     mut tracks: Query<(&mut Track, &TrackID)>,
     cursor: Res<CursorLocation>,
@@ -220,13 +228,15 @@ fn big_increment_note(
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
         .map(|note| (note + 12) % 127)
-        .unwrap_or(0);
+        .unwrap_or(last_note.0.unwrap_or(0));
     tracks[track_num].0.steps[cursor.0].note.replace(new_note);
+    last_note.0.replace(new_note);
 
     evs.write(NoteChanged::BigUp);
 }
 
 fn big_decrement_note(
+    mut last_note: ResMut<LastPlacedNote>,
     display_start: Res<DisplayStart>,
     mut tracks: Query<(&mut Track, &TrackID)>,
     cursor: Res<CursorLocation>,
@@ -242,8 +252,9 @@ fn big_decrement_note(
     let new_note = tracks[track_num].0.steps[cursor.0]
         .note
         .map(|note| if note > 11 { note - 12 } else { 114 })
-        .unwrap_or(0);
+        .unwrap_or(last_note.0.unwrap_or(0));
     tracks[track_num].0.steps[cursor.0].note.replace(new_note);
+    last_note.0.replace(new_note);
 
     evs.write(NoteChanged::BigDown);
 }
