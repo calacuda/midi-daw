@@ -178,15 +178,22 @@ fn setup_tracks(mut cmds: Commands) {
     let mut steps: Vec<Step> = (0..N_STEPS).map(|_| Step::default()).collect();
     let plain_steps = steps.clone();
 
-    let note = [48, 52, 55, 59];
+    let notes = [48, 52, 55, 59];
     for (i, step) in steps.iter_mut().step_by(N_STEPS / 4).enumerate() {
-        step.note = Some(note[i % 4]);
+        step.note = Some(notes[i % 4]);
         step.cmds.0 = TrackerCmd::HoldFor {
             notes: 1.try_into().unwrap(),
         };
         // step.cmds.1 = TrackerCmd::Panic;
     }
-    //
+
+    steps[0].cmds.1 = TrackerCmd::Chord {
+        chord: vec![4, 7, 11],
+    };
+    steps[N_STEPS / 2].cmds.1 = TrackerCmd::Chord {
+        chord: vec![3, 7, 10],
+    };
+
     // let track = Track::Midi {
     //     steps,
     //     dev: "TEST-DEV".into(),
