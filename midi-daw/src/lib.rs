@@ -237,7 +237,7 @@ pub enum TrackerCmd
     #[strum(to_string = "CC{cc_param:->2X}")]
     MidiCmd {
         cc_param: u8,
-        arg_1: u8,
+        arg: u8,
         // arg_2: Option<u8>,
     },
     // TODO: add a command to switch avtive track on this channel
@@ -392,56 +392,62 @@ mod tests {
             MidiCmd(
                 TrackerCmd::MidiCmd {
                     cc_param: 0,
-                    arg_1: 0,
-                    arg_2: 0,
+                    arg: 0,
+                    // arg_2: 0,
                 },
                 "CC-0",
             ),
             MidiCmd(
                 TrackerCmd::MidiCmd {
                     cc_param: 10,
-                    arg_1: 0,
-                    arg_2: 0,
+                    arg: 0,
+                    // arg_1: 0,
+                    // arg_2: 0,
                 },
                 "CC-A",
             ),
             MidiCmd(
                 TrackerCmd::MidiCmd {
                     cc_param: 15,
-                    arg_1: 0,
-                    arg_2: 0,
+                    arg: 0,
+                    // arg_1: 0,
+                    // arg_2: 0,
                 },
                 "CC-F",
             ),
             MidiCmd(
                 TrackerCmd::MidiCmd {
                     cc_param: 16,
-                    arg_1: 0,
-                    arg_2: 0,
+                    arg: 0,
+                    //     arg_1: 0,
+                    //     arg_2: 0,
                 },
                 "CC10",
             ),
             MidiCmd(
                 TrackerCmd::MidiCmd {
                     cc_param: 126,
-                    arg_1: 0,
-                    arg_2: 0,
+                    arg: 0,
+                    // arg_1: 0,
+                    // arg_2: 0,
                 },
                 "CC7E",
             ),
             MidiCmd(
                 TrackerCmd::MidiCmd {
                     cc_param: 127,
-                    arg_1: 0,
-                    arg_2: 0,
+                    arg: 0,
+                    // arg_1: 0,
+                    // arg_2: 0,
                 },
                 "CC7F",
             ),
             MidiCmd(
                 TrackerCmd::MidiCmd {
                     cc_param: 255,
-                    arg_1: 0,
-                    arg_2: 0,
+                    arg: 0,
+                    // arg_1: 0,
+                    // arg_2: 0,
                 },
                 "CCFF",
             ),

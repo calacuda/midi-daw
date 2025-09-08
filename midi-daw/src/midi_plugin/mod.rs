@@ -361,13 +361,11 @@ fn send_notes(
                     (
                         TrackerCmd::MidiCmd {
                             cc_param: cc_1,
-                            arg_1: a_1,
-                            // arg_2: a2_1,
+                            arg: a_1,
                         },
                         TrackerCmd::MidiCmd {
                             cc_param: cc_2,
-                            arg_1: a_2,
-                            // arg_2: a2_2,
+                            arg: a_2,
                         },
                     ) => {
                         send_cmd(cc_1, a_1);
@@ -376,8 +374,7 @@ fn send_notes(
                     (
                         TrackerCmd::MidiCmd {
                             cc_param: cc_1,
-                            arg_1: a_1,
-                            // arg_2: a2_1,
+                            arg: a_1,
                         },
                         _,
                     ) => {
@@ -387,8 +384,7 @@ fn send_notes(
                         _,
                         TrackerCmd::MidiCmd {
                             cc_param: cc_1,
-                            arg_1: a_1,
-                            // arg_2: a2_1,
+                            arg: a_1,
                         },
                     ) => {
                         send_cmd(cc_1, a_1);
