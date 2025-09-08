@@ -3,7 +3,7 @@ use crate::{
     N_STEPS, NoteChanged, RowId, ScreenState, Track, TrackID, TracksScrolled, a_and_b_pressed,
     display::midi_assign::MidiAssignmentPlugin,
     display_midi_note, down_pressed, left_pressed,
-    midi_plugin::{BPQ, SyncPulse, get_step_num, on_thirtysecond_note},
+    midi_plugin::{BPQ, SyncPulse, get_step_num, on_step},
     playing, right_pressed, up_pressed,
 };
 use bevy::{color::palettes::css::*, platform::collections::HashMap, prelude::*};
@@ -118,7 +118,7 @@ impl Plugin for MainDisplayPlugin {
                     )
                         // .run_if(in_main_screen),
                         .run_if(in_state(ScreenState::MainScreen)),
-                    display_step.run_if(playing.and(on_thirtysecond_note)),
+                    display_step.run_if(playing.and(on_step)),
                 ),
             );
     }

@@ -16,10 +16,10 @@ a bevy gui tracker
   - [x] `CHRD` command
   - [ ] `ROLL` command
   <!-- - [ ] `SWNG` command -->
-  - [ ] `STOP` command
-  - [ ] `CC--` command
+  - [x] `STOP` command
+  - [x] `CC--` command
 - [ ] write command selection and edit menu 
 - [ ] add built in SF2 player
 - [ ] make midi/sf2/vst target specific to the playback channel NOT the track. The tracks can be played on an acrtive channel and can be switch out at anytime.
-<!-- - [ ]  -->
+- [ ] add panic button to send all-note-off on add devs.
 <!-- - [ ]  -->

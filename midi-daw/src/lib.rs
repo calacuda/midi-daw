@@ -219,9 +219,9 @@ pub enum TrackerCmd
     },
     #[strum(to_string = "ROLL")]
     Roll {
-        // /// how many extra times to "roll" what ever is being played. a value of 1 would produce
-        // /// two 64th notes.
-        // times: usize,
+        /// how many extra times to "roll" what ever is being played. a value of 1 would produce
+        /// two 64th notes.
+        times: UsizeLessThan<5>,
     },
     // // NOTE: maybe remove Swing
     // #[strum(to_string = "SWNG")]
@@ -235,7 +235,11 @@ pub enum TrackerCmd
     #[strum(to_string = "STOP")]
     Panic,
     #[strum(to_string = "CC{cc_param:->2X}")]
-    MidiCmd { cc_param: u8, arg_1: u8, arg_2: u8 },
+    MidiCmd {
+        cc_param: u8,
+        arg_1: u8,
+        // arg_2: Option<u8>,
+    },
     // TODO: add a command to switch avtive track on this channel
 
     // #[strum(transparent)]
@@ -312,6 +316,9 @@ pub enum NoteChanged {
     BigDown,
     Deleted,
 }
+
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Hash, Event)]
+pub struct StopHeldNotes;
 
 pub fn display_midi_note(midi_note: MidiNote) -> String {
     let note_name_i = midi_note % 12;
