@@ -270,6 +270,7 @@ fn handle_note_off(
 fn handle_all_notes_off(
     mut commands: Commands,
     held_notes: Query<(Entity, &NoteOff)>,
+    r_notes: Query<(Entity, &RNote), With<RCounter>>,
     // pulse: Res<SyncPulse>,
     mut midi_out: ResMut<MidiOutput>,
     mut evs: EventReader<StopHeldNotes>,
@@ -289,6 +290,19 @@ fn handle_all_notes_off(
     });
 
     // info!("stopping all");
+    r_notes.into_iter().for_each(|(entity, r_note)| {
+        midi_out.send(
+            r_note.device.clone(),
+            MidiMsg::ChannelVoice {
+                channel: r_note.channel,
+                msg: ChannelVoiceMsg::NoteOff {
+                    note: r_note.note,
+                    velocity: r_note.velocity,
+                },
+            },
+        );
+        commands.entity(entity).despawn();
+    });
 
     evs.clear();
 }
