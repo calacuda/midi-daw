@@ -9,9 +9,11 @@ a bevy gui tracker
 - [ ] finish implementing navigation of midi device selector menu
 - [ ] write display for tempo and the note being played 
 - [ ] write settings menu
-- [ ] enable proper display for commands
+  - [ ] set tempo
+  - [ ] ...
+- [x] enable proper display for commands
 - [x] MidiCmd struct is no Longer relevant, re-structure data accordingly
-- [ ] enable universal commands
+- [x] enable universal commands
   - [x] `HOLD` command
   - [x] `CHRD` command
   - [x] `ROLL` command
