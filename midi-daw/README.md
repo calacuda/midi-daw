@@ -10,6 +10,8 @@ a bevy gui tracker
 - [ ] write display for tempo and the note being played 
 - [ ] write settings menu
   - [ ] set tempo
+  - [ ] set default velocity
+  - [ ] 
   - [ ] ...
 - [x] enable proper display for commands
 - [x] MidiCmd struct is no Longer relevant, re-structure data accordingly
@@ -23,6 +25,8 @@ a bevy gui tracker
   - [x] `CC--` command
 - [ ] write command selection and edit menu 
 - [ ] add built in SF2 player
+- [ ] add a prog change cmd
+- [ ] add velocity cmd
 - [ ] make midi/sf2/vst target specific to the playback channel NOT the track. The tracks can be played on an acrtive channel and can be switch out at anytime.
 - [ ] add panic button to send all-note-off on add devs.
 - [ ] add saving and reloading state
