@@ -41,6 +41,25 @@ pub struct PlayingQueued;
 #[derive(Component, Clone, Debug, Copy, Eq, Hash, PartialEq)]
 pub struct QueueStopPlaying;
 
+#[derive(Component, Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub struct RollNote;
+
+#[derive(Component, Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub struct RepeatNote;
+
+#[derive(Component, Deref, DerefMut, Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct RCounter(pub usize);
+
+#[derive(Component, Clone, Debug, Eq, PartialEq)]
+pub struct RNote {
+    note: MidiNote,
+    velocity: u8,
+    /// when to send note off command in pulses,
+    when: usize,
+    device: MidiDeviceName,
+    channel: Channel,
+}
+
 #[derive(Component, Clone, Debug, Eq, PartialEq)]
 struct NoteOff {
     note: MidiNote,
@@ -80,13 +99,17 @@ impl Plugin for MidiOutPlugin {
                 (
                     (
                         send_notes.run_if(playing.and(not_played_yet)),
+                        // send_repeat_notes.run_if(playing.and(not_played_yet)),
+                        send_r_notes::<RepeatNote>().run_if(playing.and(not_played_yet)),
                         // note_notif.run_if(playing),
                         // update_front_end.run_if(sync_pulsing)
                     )
                         // .chain()
                         .run_if(on_step),
+                    send_r_notes::<RollNote>()
+                        .run_if(playing.and(not_played_yet).and(on_half_step)),
                     handle_all_notes_off.run_if(on_event::<StopHeldNotes>),
-                    handle_note_off.run_if(notes_are_held),
+                    handle_note_off.run_if(notes_are_held.and(on_step.or(on_half_step))),
                 ),
             );
     }
@@ -130,16 +153,20 @@ fn sync(
 
 pub fn on_step(pulse: Res<SyncPulse>, bpq: Res<BPQ>) -> bool {
     // on_thirtysecond_note(pulse, bpq)
-    on_sixteenth_note(pulse, bpq)
+    on_sixteenth_note(&pulse, &bpq)
 }
 
-pub fn on_sixteenth_note(pulse: Res<SyncPulse>, bpq: Res<BPQ>) -> bool {
-    // info!("n_pulses {}", pulse.n_pulses);
+pub fn on_half_step(pulse: Res<SyncPulse>, bpq: Res<BPQ>) -> bool {
+    on_sixteenth_note(&pulse, &bpq) || on_thirtysecond_note(&pulse, &bpq)
+}
+
+pub fn on_sixteenth_note(pulse: &SyncPulse, bpq: &BPQ) -> bool {
+    // info!("n_pulses {}", pulse.n);
     // 6 because 24 beats is a quarter note.
     pulse.n_pulses % (bpq.0 / 4) == 0
 }
 
-pub fn on_thirtysecond_note(pulse: Res<SyncPulse>, bpq: Res<BPQ>) -> bool {
+pub fn on_thirtysecond_note(pulse: &SyncPulse, bpq: &BPQ) -> bool {
     // info!("n_pulses {}", pulse.n_pulses);
     // 6 because 24 beats is a quarter note.
     pulse.n_pulses % (bpq.0 / 8) == 0
@@ -158,6 +185,55 @@ fn not_played_yet(last_played: Res<LastPlayedPulse>, pulse: Res<SyncPulse>) -> b
     } else {
         true
     }
+}
+
+fn send_r_notes<T>()
+-> impl Fn(Commands, Query<(Entity, &RNote, &mut RCounter), With<T>>, ResMut<MidiOutput>, Res<SyncPulse>)
+where
+    T: Component,
+{
+    fn do_send_r_notes<T>(
+        mut commands: Commands,
+        notes: Query<(Entity, &RNote, &mut RCounter), With<T>>,
+        mut midi_out: ResMut<MidiOutput>,
+        pulse: Res<SyncPulse>,
+    ) where
+        T: Component,
+    {
+        for (entity, note_conf, mut counter) in notes {
+            if counter.0 > 0 {
+                let RNote {
+                    note,
+                    velocity,
+                    when,
+                    device,
+                    channel,
+                } = note_conf.clone();
+
+                midi_out.send(
+                    device.clone(),
+                    MidiMsg::ChannelVoice {
+                        channel,
+                        msg: ChannelVoiceMsg::NoteOn { note, velocity },
+                    },
+                );
+
+                commands.spawn(NoteOff {
+                    note,
+                    velocity,
+                    device,
+                    channel,
+                    when: when + pulse.n_pulses,
+                });
+
+                counter.0 -= 1;
+            } else {
+                commands.entity(entity).despawn();
+            }
+        }
+    }
+
+    do_send_r_notes
 }
 
 // fn update_front_end(mut state_updated: EventWriter<StateUpdated>) {
@@ -305,6 +381,88 @@ fn send_notes(
                         }
                         (TrackerCmd::Chord { chord }, _) => add_notes(chord),
                         (_, TrackerCmd::Chord { chord }) => add_notes(chord),
+                        _ => {}
+                    };
+
+                    // handle roll/repeat
+                    match {
+                        match cmds.clone() {
+                            (TrackerCmd::Roll { times: t1 }, TrackerCmd::Roll { times: t2 }) => {
+                                Some((TrackerCmd::Roll { times: t1.max(t2) }, false))
+                            }
+                            (
+                                TrackerCmd::Repeat { times: t1 },
+                                TrackerCmd::Repeat { times: t2 },
+                            ) => Some((TrackerCmd::Repeat { times: t1.max(t2) }, false)),
+                            (TrackerCmd::Roll { times }, TrackerCmd::Repeat { times: _ })
+                            | (TrackerCmd::Repeat { times: _ }, TrackerCmd::Roll { times }) => {
+                                Some((TrackerCmd::Roll { times }, false))
+                            }
+
+                            (TrackerCmd::Roll { times }, TrackerCmd::HoldFor { notes: _ }) => {
+                                Some((TrackerCmd::Roll { times }, true))
+                            }
+                            (TrackerCmd::HoldFor { notes: _ }, TrackerCmd::Roll { times }) => {
+                                Some((TrackerCmd::Roll { times }, true))
+                            }
+                            (TrackerCmd::Repeat { times }, TrackerCmd::HoldFor { notes: _ }) => {
+                                Some((TrackerCmd::Repeat { times }, true))
+                            }
+                            (TrackerCmd::HoldFor { notes: _ }, TrackerCmd::Repeat { times }) => {
+                                Some((TrackerCmd::Repeat { times }, true))
+                            }
+
+                            (TrackerCmd::Roll { times }, _) => {
+                                Some((TrackerCmd::Roll { times }, false))
+                            }
+                            (_, TrackerCmd::Roll { times }) => {
+                                Some((TrackerCmd::Roll { times }, false))
+                            }
+                            (TrackerCmd::Repeat { times }, _) => {
+                                Some((TrackerCmd::Repeat { times }, false))
+                            }
+                            (_, TrackerCmd::Repeat { times }) => {
+                                Some((TrackerCmd::Repeat { times }, false))
+                            }
+                            _ => None,
+                        }
+                    } {
+                        Some((TrackerCmd::Roll { times }, holding)) => {
+                            commands.spawn((
+                                RNote {
+                                    note,
+                                    velocity,
+                                    when: when_off - pulse.n_pulses,
+                                    channel: track.chan,
+                                    device: track.dev.clone(),
+                                },
+                                RCounter(times.0),
+                                RollNote,
+                            ));
+
+                            if !holding {
+                                commands.spawn(NoteOff {
+                                    note,
+                                    velocity,
+                                    device: track.dev.clone(),
+                                    channel: track.chan,
+                                    when: sixteenth_note / 2,
+                                });
+                            }
+                        }
+                        Some((TrackerCmd::Repeat { times }, _)) => {
+                            commands.spawn((
+                                RNote {
+                                    note,
+                                    velocity,
+                                    when: when_off - pulse.n_pulses,
+                                    channel: track.chan,
+                                    device: track.dev.clone(),
+                                },
+                                RCounter(times.0),
+                                RepeatNote,
+                            ));
+                        }
                         _ => {}
                     };
 

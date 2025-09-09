@@ -203,6 +203,13 @@ pub enum Intervals {
 }
 
 #[derive(Clone, Default, Debug, PartialEq, PartialOrd, EnumString, strum_macros::Display)]
+pub enum RepeatConf {
+    #[default]
+    HalfStep,
+    Step,
+}
+
+#[derive(Clone, Default, Debug, PartialEq, PartialOrd, EnumString, strum_macros::Display)]
 pub enum TrackerCmd
 // <Cmd>
 // where
@@ -217,11 +224,19 @@ pub enum TrackerCmd
         /// the aditional intervals to play (in semi-tones relative to the root)
         chord: Vec<i8>,
     },
+    /// repeates every half step
     #[strum(to_string = "ROLL")]
     Roll {
         /// how many extra times to "roll" what ever is being played. a value of 1 would produce
-        /// two 64th notes.
-        times: UsizeLessThan<5>,
+        /// two 32th notes.
+        times: UsizeLessThan<{ N_STEPS * 2 - 1 }>,
+        // times: UsizeLessThan<5>,
+    },
+    /// Repeat every step.
+    #[strum(to_string = "RPET")]
+    Repeat {
+        /// how many times to "repeat" what ever is being played.
+        times: UsizeLessThan<{ N_STEPS - 1 }>,
     },
     // // NOTE: maybe remove Swing
     // #[strum(to_string = "SWNG")]

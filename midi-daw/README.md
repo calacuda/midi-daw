@@ -14,7 +14,8 @@ a bevy gui tracker
 - [ ] enable universal commands
   - [x] `HOLD` command
   - [x] `CHRD` command
-  - [ ] `ROLL` command
+  - [x] `ROLL` command
+  - [x] `RPET` command
   <!-- - [ ] `SWNG` command -->
   - [x] `STOP` command
   - [x] `CC--` command
@@ -22,4 +23,10 @@ a bevy gui tracker
 - [ ] add built in SF2 player
 - [ ] make midi/sf2/vst target specific to the playback channel NOT the track. The tracks can be played on an acrtive channel and can be switch out at anytime.
 - [ ] add panic button to send all-note-off on add devs.
+- [ ] add saving and reloading state
+ - [ ] saving
+ - [ ] reloading
+- [ ] add saving/loading to/from midi file
+ - [ ] saving
+ - [ ] reloading
 <!-- - [ ]  -->
