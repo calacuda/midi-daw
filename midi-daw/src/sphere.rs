@@ -257,13 +257,16 @@ fn undulate_sphere(
     // let scale_factor = 2.0;
     let mut new_positions: Vec<[f32; 3]> = Vec::with_capacity(positions.len());
     let td = time.delta().as_secs_f32();
-    zoom.0 += 0.5 * TAU * td;
+    zoom.0 += 0.15 * TAU * td;
 
     for pos in base_positions.iter() {
         let scale_factor = noise.0.get([
             (pos[0] * zoom.0) as f64,
             (pos[1] * zoom.0) as f64,
             (pos[2] * zoom.0) as f64,
+            // pos[0] as f64,
+            // pos[1] as f64,
+            // pos[2] as f64,
         ]) as f32
             * 0.25;
 
