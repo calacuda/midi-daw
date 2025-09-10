@@ -78,7 +78,7 @@ fn main() {
             MainDisplayPlugin,
             ButtonTrackerPlugin,
             WireframePlugin::default(),
-            SphereMode,
+            // SphereMode,
         ))
         .insert_resource(WireframeConfig {
             // The global wireframe config enables drawing of wireframes on every mesh,

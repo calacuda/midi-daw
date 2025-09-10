@@ -324,7 +324,7 @@ fn send_notes(
                 let cmds = step.cmds.clone();
 
                 if let Some(note) = step.note {
-                    let velocity = 111;
+                    let velocity = 87;
                     let sixteenth_note = bpq.0 / 4;
 
                     // handle note hold cmd
