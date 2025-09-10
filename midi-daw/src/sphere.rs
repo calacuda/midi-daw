@@ -216,10 +216,7 @@ fn undulate_sphere(
     noise: ResMut<PerlinWrapper>,
     time: Res<Time>,
     mut zoom: ResMut<Zoom>,
-    // mut timer: Single<&mut UndulateTimer>,
 ) {
-    // if timer.tick(time.delta()).just_finished() {
-    // for ref mut point in sphere.0.
     let Some(base_positions) = meshes.get(base_sphere.0.id()).map(|mesh| {
         mesh.attribute(Mesh::ATTRIBUTE_POSITION)
             .unwrap()
@@ -236,22 +233,11 @@ fn undulate_sphere(
 
     // Get the current mesh data.
     let positions: Vec<[f32; 3]> = mesh
-            .attribute_mut(Mesh::ATTRIBUTE_POSITION)
-            .unwrap()
-            .as_float3()
-            .unwrap()
-            .to_vec()
-            // .as_typed()
-            // .into()
-        ;
-    // let base_positions: Vec<[f32; 3]> = base_mesh
-    //     .attribute_mut(Mesh::ATTRIBUTE_POSITION)
-    //     .unwrap()
-    //     .as_float3()
-    //     .unwrap()
-    //     .to_vec()
-    // .as_typed()
-    // .into()
+        .attribute_mut(Mesh::ATTRIBUTE_POSITION)
+        .unwrap()
+        .as_float3()
+        .unwrap()
+        .to_vec();
 
     // Modify the positions. For example, scale the mesh:
     // let scale_factor = 2.0;
@@ -285,10 +271,6 @@ fn undulate_sphere(
     // Optionally, re-compute normals after modifying positions.
     // mesh.compute_flat_normals(); // Or mesh.compute_smooth_normals();
     mesh.compute_smooth_normals();
-    // mesh.verte
-
-    // You can also add or remove attributes, change indices, etc. as needed.
-    // }
 }
 
 // This system will rotate any entity in the scene with a Rotatable component around its y-axis.
