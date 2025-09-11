@@ -1,4 +1,5 @@
 use midi_msg::Channel;
+#[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -12,8 +13,8 @@ pub type MidiDeviceName = String;
 
 pub mod automation;
 
-#[pyclass]
-#[pyo3(get_all, set_all)]
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyo3(get_all, set_all))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct MidiTarget {
     pub name: MidiDeviceName,
@@ -29,8 +30,10 @@ impl Default for MidiTarget {
     }
 }
 
+#[cfg(feature = "pyo3")]
 #[pymethods]
 impl MidiTarget {
+    #[cfg(feature = "pyo3")]
     #[new]
     fn new() -> Self {
         Self::default()
@@ -59,7 +62,8 @@ pub enum MidiChannel {
     Ch16,
 }
 
-#[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
+// #[pymethods]
 impl MidiChannel {
     #[new]
     pub fn new() -> Self {
