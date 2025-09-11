@@ -1,11 +1,13 @@
 // use super::AutomationTrait;
 use enum_dispatch::enum_dispatch;
+#[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub mod wavetable;
 
-#[pyclass]
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Clone, Debug)]
 pub enum LfoConfig {
     /// wave-table lfo
@@ -61,7 +63,8 @@ pub enum LfoConfig {
     // },
 }
 
-#[pyclass]
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 #[enum_dispatch(AutomationTrait)]
 pub enum Lfo {

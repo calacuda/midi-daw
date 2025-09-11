@@ -1,7 +1,8 @@
 use enum_dispatch::enum_dispatch;
 use hound::{SampleFormat, WavReader};
-use lfo::{wavetable, Lfo};
-use pyo3::{exceptions::PyValueError, prelude::*, PyClass};
+use lfo::{Lfo, wavetable};
+#[cfg(feature = "pyo3")]
+use pyo3::{exceptions::PyValueError, prelude::*};
 use serde::{Deserialize, Serialize};
 
 use crate::automation::lfo::wavetable::WaveTable;
@@ -10,7 +11,7 @@ use crate::automation::lfo::wavetable::WaveTable;
 pub mod lfo;
 
 #[enum_dispatch]
-pub trait AutomationTrait: PyClass {
+pub trait AutomationTrait /*: PyClass */ {
     // fn automation_type(&self) -> impl Into<String>;
     fn sub_type(&self) -> impl Into<String>;
     /// used to update the state of the automation
@@ -23,7 +24,8 @@ pub trait AutomationTrait: PyClass {
     }
 }
 
-#[pyclass]
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 #[enum_dispatch(AutomationTrait)]
 pub enum AutomationTypes {
@@ -31,7 +33,8 @@ pub enum AutomationTypes {
     // EnvelopeGen(envelope::Envelope),
 }
 
-#[pyclass]
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Clone, Debug)]
 pub enum AutomationConf {
     Lfo(lfo::LfoConfig),
@@ -88,14 +91,17 @@ impl TryFrom<AutomationConf> for AutomationTypes {
     }
 }
 
-#[pyclass]
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 pub struct Automation {
     automation: AutomationTypes,
 }
 
-#[pymethods]
+// #[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
 impl Automation {
+    #[cfg(feature = "pyo3")]
     #[new]
     fn new(conf: AutomationConf) -> PyResult<Self> {
         let automation = match AutomationTypes::try_from(conf) {
@@ -109,11 +115,24 @@ impl Automation {
         Ok(Self { automation })
     }
 
-    fn step(&mut self) -> f64 {
+    #[cfg(not(feature = "pyo3"))]
+    pub fn new(conf: AutomationConf) -> Result<Self, String> {
+        let automation = match AutomationTypes::try_from(conf) {
+            Ok(automation) => automation,
+            Err(e) => {
+                // eprintln!("making automation failed with error: {e}");
+                return Err(e.to_string());
+            }
+        };
+
+        Ok(Self { automation })
+    }
+
+    pub fn step(&mut self) -> f64 {
         self.automation.step()
     }
 
-    fn get_repr(&self) -> String {
+    pub fn get_repr(&self) -> String {
         match self.automation.clone() {
             AutomationTypes::Lfo(lfo) => format!("lfo:{}", lfo.sub_type().into()),
             // AutomationTypes::EnvelopeGen(env) => format!("env:{}", env.sub_type().into()),
@@ -124,7 +143,7 @@ impl Automation {
     // self.automation_step().into()
     // }
 
-    fn sub_type(&self) -> String {
+    pub fn sub_type(&self) -> String {
         self.automation.sub_type().into()
     }
 }

@@ -1,11 +1,9 @@
+#[cfg(feature = "pyo3")]
+use crate::automation::{Automation, AutomationConf, AutomationTypes, lfo::LfoConfig};
 use midi_msg::Channel;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-
-use crate::automation::{lfo::LfoConfig, Automation, AutomationConf, AutomationTypes};
-
-// use crate::automation::{lfo::LfoConfig, Automation, AutomationConf, AutomationTypes};
 
 pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
 
@@ -30,17 +28,25 @@ impl Default for MidiTarget {
     }
 }
 
-#[cfg(feature = "pyo3")]
-#[pymethods]
+// #[cfg(feature = "pyo3")]
+// #[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
 impl MidiTarget {
     #[cfg(feature = "pyo3")]
     #[new]
-    fn new() -> Self {
+    fn new_py() -> Self {
+        Self::new()
+    }
+}
+
+impl MidiTarget {
+    pub fn new() -> Self {
         Self::default()
     }
 }
 
-#[pyclass]
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default, Clone, Copy, Debug)]
 pub enum MidiChannel {
     #[default]
@@ -62,12 +68,78 @@ pub enum MidiChannel {
     Ch16,
 }
 
-#[cfg_attr(feature = "pyo3", pymethods)]
-// #[pymethods]
 impl MidiChannel {
-    #[new]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    // #[staticmethod]
+    pub fn do_from_hex(hex: String) -> Self {
+        let hex = hex.to_lowercase();
+        let hex = if hex.starts_with("0x") {
+            hex.replace("0x", "")
+        } else {
+            hex
+        };
+
+        match hex.as_str() {
+            "0" => Self::Ch1,
+            "1" => Self::Ch2,
+            "2" => Self::Ch3,
+            "3" => Self::Ch4,
+            "4" => Self::Ch5,
+            "5" => Self::Ch6,
+            "6" => Self::Ch7,
+            "7" => Self::Ch8,
+            "8" => Self::Ch9,
+            "9" => Self::Ch10,
+            "a" => Self::Ch11,
+            "b" => Self::Ch12,
+            "c" => Self::Ch13,
+            "d" => Self::Ch14,
+            "e" => Self::Ch15,
+            "f" => Self::Ch16,
+            // _ => Err(format!("{hex} is ether not valid hex, or not between 0x0 & 0xF").into()),
+            _ => Self::Ch1,
+        }
+    }
+
+    pub fn do_from_int(n: isize) -> Self {
+        if !(1..=16).contains(&n) {
+            return Self::Ch1;
+        }
+
+        let channels = [
+            Self::Ch1,
+            Self::Ch2,
+            Self::Ch3,
+            Self::Ch4,
+            Self::Ch5,
+            Self::Ch6,
+            Self::Ch7,
+            Self::Ch8,
+            Self::Ch9,
+            Self::Ch10,
+            Self::Ch11,
+            Self::Ch12,
+            Self::Ch13,
+            Self::Ch14,
+            Self::Ch15,
+            Self::Ch16,
+        ];
+
+        channels[(n - 1) as usize]
+    }
+}
+
+// #[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl MidiChannel {
+    #[cfg(feature = "pyo3")]
+    #[new]
+    fn new_py() -> Self {
+        Self::new()
     }
 
     pub fn __str__(&self) -> String {
@@ -92,6 +164,7 @@ impl MidiChannel {
     }
 
     #[staticmethod]
+    // #[cfg_attr(feature = "pyo3", staticmethod)]
     pub fn from_hex(hex: String) -> Self {
         let hex = hex.to_lowercase();
         let hex = if hex.starts_with("0x") {
@@ -123,6 +196,7 @@ impl MidiChannel {
     }
 
     #[staticmethod]
+    // #[cfg_attr(feature = "pyo3", staticmethod)]
     pub fn from_int(n: isize) -> Self {
         if !(1..=16).contains(&n) {
             return Self::Ch1;
@@ -170,10 +244,10 @@ impl MidiChannel {
 //     LFO {
 //         freq: f64,
 //
-//     }        
+//     }
 // }
 
-#[pyclass(name = "NoteLen")]
+#[cfg_attr(feature = "pyo3", pyclass(name = "NoteLen"))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub enum NoteDuration {
     // how_many: u8
@@ -192,11 +266,27 @@ impl Default for NoteDuration {
     }
 }
 
-#[pymethods]
 impl NoteDuration {
-    #[new]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl NoteDuration {
+    #[cfg(feature = "pyo3")]
+    #[new]
+    fn new_py() -> Self {
+        Self::new()
     }
 
     // pub fn __str__(&self) -> String {
@@ -211,16 +301,13 @@ impl NoteDuration {
     //
     // }
 
-    fn json(&self) -> String {
-        let Ok(res) = serde_json::to_string(self) else {
-            return String::new();
-        };
-
-        res
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum MidiMsg {
     PlayNote {
@@ -247,7 +334,8 @@ pub enum MidiMsg {
     // Volume { amt: u16 },
 }
 
-#[pymethods]
+// #[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
 impl MidiMsg {
     fn __repr__(&self) -> String {
         format!("{self:?}")
@@ -261,14 +349,14 @@ impl MidiMsg {
 // }
 
 /// gets midi note as a u8 from a string name.
-#[pyfunction]
-fn note_from_str(name: String) -> Option<u8> {
+#[cfg_attr(feature = "pyo3", pyfunction)]
+pub fn note_from_str(name: String) -> Option<u8> {
     let mut name = name.to_lowercase().replace(" ", "");
     // let mut octave = 24;
 
     let scale_offset: u8 = if name.starts_with("b#") || name.starts_with("cb") {
         print!("[Error] Sorry but \"{name}\" is not a real note");
-        return None
+        return None;
     } else if name.starts_with("c#") || name.starts_with("db") {
         name = name.replace("c#", "").replace("db", "");
         1
@@ -277,7 +365,7 @@ fn note_from_str(name: String) -> Option<u8> {
         3
     } else if name.starts_with("e#") || name.starts_with("fb") {
         print!("[Error] Sorry but \"{name}\" is not a real note");
-        return None
+        return None;
     } else if name.starts_with("f#") || name.starts_with("gb") {
         name = name.replace("f#", "").replace("gb", "");
         6
@@ -313,36 +401,36 @@ fn note_from_str(name: String) -> Option<u8> {
         return None;
     };
 
-    let octave: u8 = if let Ok(octave) = name.parse() && !name.is_empty() {
+    let octave: u8 = if let Ok(octave) = name.parse()
+        && !name.is_empty()
+    {
         octave
-    } else { 
+    } else {
         1
     };
 
     Some(12 * octave + scale_offset + 12)
 }
 
-#[pyclass]
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct MidiReqBody {
     pub midi_dev: String,
     pub channel: MidiChannel,
-    pub msg: MidiMsg
+    pub msg: MidiMsg,
 }
 
-#[pymethods]
 impl MidiReqBody {
-    #[new]
-    fn new(midi_dev: String, channel: MidiChannel, msg: MidiMsg) -> Self {
+    pub fn new(midi_dev: String, channel: MidiChannel, msg: MidiMsg) -> Self {
         Self {
             midi_dev,
             channel,
-            msg
+            msg,
         }
-
     }
 
-    fn json(&self) -> String {
+    pub fn json(&self) -> String {
         let Ok(res) = serde_json::to_string(self) else {
             return String::new();
         };
@@ -351,14 +439,30 @@ impl MidiReqBody {
     }
 }
 
-#[pyclass]
+#[cfg(feature = "pyo3")]
+#[pymethods]
+// #[cfg_attr(feature = "pyo3", pymethods)]
+impl MidiReqBody {
+    #[new]
+    fn new_py(midi_dev: String, channel: MidiChannel, msg: MidiMsg) -> Self {
+        Self::new(midi_dev, channel, msg)
+    }
+
+    // #[cfg_attr(feature = "pyo3", new)]
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct RestReqBody {
     pub tempo: String,
     // pub channel: MidiChannel,
     // pub msg: MidiMsg
 }
-
 
 // impl Into<Channel> for MidiChannel {
 //     fn into(self) -> Channel {
@@ -406,6 +510,7 @@ impl From<MidiChannel> for Channel {
     }
 }
 
+#[cfg(feature = "pyo3")]
 /// A Python module implemented in Rust.
 #[pymodule]
 fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {

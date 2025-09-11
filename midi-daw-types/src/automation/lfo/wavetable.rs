@@ -1,8 +1,10 @@
 use crate::automation::AutomationTrait;
+#[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use std::sync::Arc;
 
-#[pyclass]
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 pub struct WaveTable {
     sample_rate: f64,
