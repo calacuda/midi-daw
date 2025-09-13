@@ -1,12 +1,13 @@
 use crate::{
     CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, MidiNote,
-    N_STEPS, NoteChanged, RowId, ScreenState, Track, TrackID, TracksScrolled, a_and_b_pressed,
+    N_STEPS, NoteChanged, RowId, ScreenState, Tempo, Track, TrackID, TracksScrolled,
+    a_and_b_pressed,
     display::midi_assign::MidiAssignmentPlugin,
     display_midi_note, down_pressed, left_pressed,
     midi_plugin::{BPQ, SyncPulse, get_step_num, on_step},
     playing, right_pressed, up_pressed,
 };
-use bevy::{color::palettes::css::*, platform::collections::HashMap, prelude::*};
+use bevy::{platform::collections::HashMap, prelude::*};
 
 pub mod midi_assign;
 
@@ -482,7 +483,7 @@ fn display_cursor(
     }
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, tempo: Res<Tempo>) {
     commands.spawn((
         Camera2d,
         Camera {
@@ -730,14 +731,30 @@ fn setup(mut commands: Commands) {
                             });
                     }
                 });
-            parent.spawn((
-                Node {
-                    width: Val::Percent(15.0),
-                    height: Val::Percent(50.0),
-                    ..default()
-                },
-                BackgroundColor(BLUE.into()),
-            ));
+            parent
+                .spawn((
+                    Node {
+                        width: Val::Percent(20.0),
+                        height: Val::Percent(50.0),
+                        justify_content: JustifyContent::SpaceAround,
+                        ..default()
+                    },
+                    // BackgroundColor(BLUE.into()),
+                    BackgroundColor(Color::Srgba(Srgba::new(
+                        88. / 255.,
+                        91. / 255.,
+                        112. / 255.,
+                        128. / 255.,
+                    ))),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Text::new(format!("Tempo: {}", tempo.0)),
+                        text_font.clone(),
+                        text_color.clone(),
+                        LineNumMarker,
+                    ));
+                });
         });
 }
 
