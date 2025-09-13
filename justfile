@@ -40,7 +40,8 @@ play-note:
 get-devs:
   http http://127.0.0.1:8888/midi
 
-# term-test:
-#   tmux has-session -t midi-daw-test || just _new-tmux-session midi-daw-test
-#   tmux a -t midi-daw-test
-
+backup:
+  git status
+  git add .
+  git commit -am "backup commit"
+  git push

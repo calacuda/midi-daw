@@ -483,7 +483,7 @@ fn display_cursor(
     }
 }
 
-fn setup(mut commands: Commands, tempo: Res<Tempo>) {
+fn setup(mut commands: Commands, tempo: Res<Tempo>, bpq: Res<BPQ>) {
     commands.spawn((
         Camera2d,
         Camera {
@@ -737,6 +737,7 @@ fn setup(mut commands: Commands, tempo: Res<Tempo>) {
                         width: Val::Percent(20.0),
                         height: Val::Percent(50.0),
                         justify_content: JustifyContent::SpaceAround,
+                        flex_direction: FlexDirection::Column,
                         ..default()
                     },
                     // BackgroundColor(BLUE.into()),
@@ -750,6 +751,12 @@ fn setup(mut commands: Commands, tempo: Res<Tempo>) {
                 .with_children(|parent| {
                     parent.spawn((
                         Text::new(format!("Tempo: {}", tempo.0)),
+                        text_font.clone(),
+                        text_color.clone(),
+                        LineNumMarker,
+                    ));
+                    parent.spawn((
+                        Text::new(format!("BPQ: {}", bpq.0)),
                         text_font.clone(),
                         text_color.clone(),
                         LineNumMarker,
