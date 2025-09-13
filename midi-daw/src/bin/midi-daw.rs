@@ -3,12 +3,13 @@ use bevy::{
     prelude::*,
     window::WindowMode,
 };
+use cpvc::get_default_output_dev;
 // use bevy_ratatui::RatatuiPlugins;
 use crossbeam::channel::unbounded;
 use midi_daw::midi::{MidiDev, dev::new_midi_dev, out::midi_out};
 use midi_daw_lib::{
-    CursorLocation, DisplayStart, MainState, MidiOutput, N_STEPS, NewMidiDev, Screen, ScreenState,
-    Step, Track, TrackID, TrackerCmd, button_tracker::ButtonTrackerPlugin,
+    BatterySensor, CursorLocation, DisplayStart, MainState, MidiOutput, N_STEPS, NewMidiDev,
+    Screen, ScreenState, Step, Track, TrackID, TrackerCmd, button_tracker::ButtonTrackerPlugin,
     display::MainDisplayPlugin, midi_plugin::MidiOutPlugin, sphere::SphereMode,
 };
 use midi_msg::Channel;
@@ -54,6 +55,9 @@ fn main() {
         .unwrap();
     //
     // let frame_time = std::time::Duration::from_secs_f32(1. / 60.);
+    //
+
+    println!("{}", get_default_output_dev());
 
     App::new()
         .add_plugins((
@@ -112,6 +116,7 @@ fn main() {
         .init_resource::<CursorLocation>()
         .init_resource::<DisplayStart>()
         .init_resource::<Screen>()
+        .init_resource::<BatterySensor>()
         .add_event::<Screen>()
         .add_systems(PreUpdate, keyboard_input_system_windowed)
         .add_systems(Startup, (/* setup, */ setup_tracks, enter_edit_state))

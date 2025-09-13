@@ -1,4 +1,5 @@
 use crate::{button_tracker::ButtonPressTimers, helpers::less_then::UsizeLessThan};
+use battery::Manager;
 use bevy::prelude::*;
 use crossbeam::channel::Sender;
 use midi_daw::midi::MidiDev;
@@ -308,6 +309,60 @@ pub struct TrackID {
 
 #[derive(Clone, Copy, Default, Debug, States, PartialEq, Eq, Hash, Resource, Deref, DerefMut)]
 pub struct FirstViewTrack(pub usize);
+
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Hash, Component)]
+pub struct BatteryDisplayMarker;
+
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Hash, Component)]
+pub struct VolumeDisplayMarker;
+
+#[derive(Debug, Resource)]
+pub struct BatterySensor(Option<Manager>);
+
+impl Default for BatterySensor {
+    fn default() -> Self {
+        Self(Manager::new().ok())
+    }
+}
+
+impl std::fmt::Display for BatterySensor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.get_displayable())
+    }
+}
+
+impl BatterySensor {
+    pub fn get_charge(&self) -> f32 {
+        if let Some(Some(batteries)) = self.0.as_ref().map(|manager| manager.batteries().ok()) {
+            let charges: Vec<f32> = batteries
+                .filter_map(|bat| bat.ok().map(|bat| bat.state_of_charge().value))
+                .collect();
+            let sum: f32 = charges.iter().sum();
+
+            if charges.len() > 0 {
+                sum / charges.len() as f32
+            } else {
+                -1.0
+            }
+        } else {
+            -1.0
+        }
+    }
+
+    pub fn get_charge_percent(&self) -> f32 {
+        self.get_charge() * 100.0
+    }
+
+    pub fn get_displayable(&self) -> String {
+        let percent = self.get_charge_percent();
+
+        if percent >= 0.0 {
+            format!("{percent: >3}")
+        } else {
+            "???".into()
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Event)]
 pub enum CellCursorMoved {

@@ -1,13 +1,16 @@
+use std::time::Duration;
+
 use crate::{
-    CellCursorMoved, CellMarker, ColumnId, CursorLocation, DisplayStart, MainState, MidiNote,
-    N_STEPS, NoteChanged, RowId, ScreenState, Tempo, Track, TrackID, TracksScrolled,
-    a_and_b_pressed,
+    BatteryDisplayMarker, BatterySensor, CellCursorMoved, CellMarker, ColumnId, CursorLocation,
+    DisplayStart, MainState, MidiNote, N_STEPS, NoteChanged, RowId, ScreenState, Tempo, Track,
+    TrackID, TracksScrolled, VolumeDisplayMarker, a_and_b_pressed,
     display::midi_assign::MidiAssignmentPlugin,
     display_midi_note, down_pressed, left_pressed,
     midi_plugin::{BPQ, SyncPulse, get_step_num, on_step},
     playing, right_pressed, up_pressed,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
+use cpvc::get_system_volume;
 
 pub mod midi_assign;
 
@@ -50,6 +53,12 @@ pub struct Cmd2DisplayMarker;
 #[derive(Resource, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub struct LastPlacedNote(Option<MidiNote>);
 
+#[derive(Resource, Clone, Eq, PartialEq)]
+pub struct VolumeTimer(pub Timer);
+
+#[derive(Resource, Clone, Eq, PartialEq)]
+pub struct BatteryTimer(pub Timer);
+
 pub struct MainDisplayPlugin;
 
 impl Plugin for MainDisplayPlugin {
@@ -62,7 +71,19 @@ impl Plugin for MainDisplayPlugin {
             .add_systems(Startup, apply_scaling)
             .add_systems(
                 OnEnter(MainState::Edit),
-                (setup, (redraw_notes, redraw_cmd1s, redraw_cmd2s)).chain(),
+                (
+                    setup,
+                    (redraw_notes, redraw_cmd1s, redraw_cmd2s, setup_timers),
+                )
+                    .chain(),
+            )
+            .add_systems(
+                Update,
+                (
+                    update_volume_display.run_if(resource_exists::<VolumeTimer>),
+                    update_battery_display.run_if(resource_exists::<BatteryTimer>),
+                )
+                    .run_if(in_state(ScreenState::MainScreen)),
             )
             .add_systems(
                 Update,
@@ -483,7 +504,43 @@ fn display_cursor(
     }
 }
 
-fn setup(mut commands: Commands, tempo: Res<Tempo>, bpq: Res<BPQ>) {
+fn update_volume_display(
+    mut display: Single<&mut Text, With<VolumeDisplayMarker>>,
+    mut timer: ResMut<VolumeTimer>,
+    time: Res<Time>,
+) {
+    timer.0.tick(time.delta());
+
+    if timer.0.just_finished() {
+        display.0 = format!("Volume: {}", get_system_volume());
+    }
+}
+
+fn update_battery_display(
+    mut display: Single<&mut Text, With<BatteryDisplayMarker>>,
+    mut timer: ResMut<BatteryTimer>,
+    time: Res<Time>,
+    bat: Res<BatterySensor>,
+) {
+    timer.0.tick(time.delta());
+
+    if timer.0.just_finished() {
+        display.0 = format!("Battery: {}", *bat);
+    }
+}
+
+fn setup_timers(mut commands: Commands) {
+    commands.insert_resource(VolumeTimer(Timer::new(
+        Duration::from_secs_f32(0.125),
+        TimerMode::Repeating,
+    )));
+    commands.insert_resource(BatteryTimer(Timer::new(
+        Duration::from_secs_f32(10.0),
+        TimerMode::Repeating,
+    )));
+}
+
+fn setup(mut commands: Commands, tempo: Res<Tempo>, bpq: Res<BPQ>, bat: Res<BatterySensor>) {
     commands.spawn((
         Camera2d,
         Camera {
@@ -749,6 +806,24 @@ fn setup(mut commands: Commands, tempo: Res<Tempo>, bpq: Res<BPQ>) {
                     ))),
                 ))
                 .with_children(|parent| {
+                    // battery display.
+                    parent.spawn((
+                        Text::new(format!("Battery: {}", *bat)),
+                        text_font.clone(),
+                        text_color.clone(),
+                        LineNumMarker,
+                        BatteryDisplayMarker,
+                    ));
+
+                    // system volume.
+                    parent.spawn((
+                        Text::new(format!("Volume: {}", get_system_volume())),
+                        text_font.clone(),
+                        text_color.clone(),
+                        LineNumMarker,
+                        VolumeDisplayMarker,
+                    ));
+
                     parent.spawn((
                         Text::new(format!("Tempo: {}", tempo.0)),
                         text_font.clone(),
