@@ -16,9 +16,6 @@ use std::thread::spawn;
 // use bevy_ascii_terminal::{render::TerminalMeshTileScaling, *};
 
 fn main() {
-    // TODO: start thread to handle midi output and dev creation.
-    // also store the crossbeam rx & tx channel in a Resource
-
     // prepare mpsc.
     let (midi_msg_out_tx, midi_msg_out_rx) = unbounded();
     let (new_midi_dev_tx, new_midi_dev_rx) = unbounded();
