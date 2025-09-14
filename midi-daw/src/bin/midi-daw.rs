@@ -3,8 +3,6 @@ use bevy::{
     prelude::*,
     window::WindowMode,
 };
-use cpvc::get_default_output_dev;
-// use bevy_ratatui::RatatuiPlugins;
 use crossbeam::channel::unbounded;
 use midi_daw::midi::{MidiDev, dev::new_midi_dev, out::midi_out};
 use midi_daw_lib::{
@@ -57,7 +55,7 @@ fn main() {
     // let frame_time = std::time::Duration::from_secs_f32(1. / 60.);
     //
 
-    println!("{}", get_default_output_dev());
+    // println!("{}", get_default_output_dev());
 
     App::new()
         .add_plugins((
