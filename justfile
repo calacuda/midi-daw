@@ -45,3 +45,6 @@ backup:
   git add .
   git commit -am "backup commit"
   git push
+
+jupyter:
+  bash -c "source ./.venv/bin/activate && jupyter-lab"

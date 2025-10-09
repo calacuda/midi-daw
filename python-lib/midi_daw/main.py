@@ -209,7 +209,9 @@ def note(
     midi_cmd = None
 
     if duration:
-        midi_cmd = MidiMsg.PlayNote
+        # midi_cmd = MidiMsg.PlayNote
+        def midi_cmd(note):
+            return MidiMsg.PlayNote(note, vel, duration)
     else:
         midi_cmd = MidiMsg.StopNote
 
@@ -220,14 +222,16 @@ def note(
     match notes:
         case str():
             midi_note = note_from_str(notes)
-            midi_cmd = midi_cmd(midi_note, vel, duration)
+            midi_cmd = midi_cmd(midi_note)
             send_midi_cmd(midi_cmd)
         case int():
-            midi_cmd = midi_cmd(notes, vel, duration)
+            midi_cmd = midi_cmd(notes)
             send_midi_cmd(midi_cmd)
         case list():
-            for n in notes:
-                note(n, duration, vel, block, midi_out)
+            for n in notes[:-1]:
+                note(n, duration, vel, False, midi_out)
+                
+            note(notes[-1], duration, vel, block, midi_out)
 
 
 def pitch_bend(amt, block: bool = True, midi_out=midi_out):
