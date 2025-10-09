@@ -90,6 +90,9 @@ class AutomationWrapper:
         return self.name
 
 
+def set_log_level(level):
+    log.set_level(level)
+
 def mk_channel(channel):
     ch = None
 
@@ -270,6 +273,12 @@ def set_tempo(tempo: float):
 def get_tempo() -> float:
     return get("tempo")
 
+def tempo(new_tempo: float = None) -> float:
+    if new_tempo is not None:
+        set_tempo(new_tempo)
+        
+    return get_tempo()
+
 
 def get_devs() -> list[str]:
     return get("midi")
@@ -286,21 +295,34 @@ def find_dev(dev_name) -> str:
         return one[0]
 
 
-def wait_for(event: str):
+def wait_for(event):
     """used to wait or block on event"""
     unix_socket_path = UDS_SERVER_PATH
     socket = unix_socket_path.replace("/", "%2F")
     uri = f"ws://{socket}/message-bus"
 
+    def check_one(mb_event):
+        return mb_event == event
+
+    def check_many(mb_event):
+        return mb_event in event
+
+    check = None
+    
+    if hasattr(event, "__contains__") and not isinstance(event, str):
+        check = check_many
+    else:
+        check = check_one
+        
     with unix_connect(path=unix_socket_path, uri=uri) as ws:
         recv = ws.recv()
         recv = recv.replace('"', "")
 
-        while recv != event:
+        while not check(recv):
             recv = ws.recv()
             recv = recv.replace('"', "")
 
-        log.info("event recved")
+        log.debug("event recved")
 
 
 def trigger(event: str):
@@ -541,6 +563,11 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
                 stop_notes(self.playing_notes, midi_out=self.new_midi_out)
 
             log.info(f"stopped function {self.name}")
+
+        def loop(self, num):
+            """sets the number of loops to preform"""
+            self.should_loop = loop != 0
+            self.loop_number = -1 if isinstance(loop, bool) and loop else loop
 
         def loop_f(self, *args, **kwargs):
             if self.setup_f is not None:

@@ -18,7 +18,7 @@ pub async fn rest(tempo: f64, dur: NoteDuration) {
     };
     let mul = mul as f64;
 
-    sleep(Duration::from_secs_f64((tempo / 60.0) * 2.0 * mul / denom)).await;
+    sleep(Duration::from_secs_f64(((60.0 / tempo) * 2.0 / denom) * mul)).await;
 }
 
 pub async fn play_note(
