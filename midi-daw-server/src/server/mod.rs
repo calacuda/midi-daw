@@ -1,5 +1,5 @@
 use crate::{
-    midi::{dev::fmt_dev_name, MidiDev},
+    midi::{MidiDev, dev::fmt_dev_name},
     server::{
         message_bus::{MbServer, MbServerHandle},
         note::{pitch_bend, play_note, send_cc, stop_note},
@@ -7,9 +7,8 @@ use crate::{
 };
 use actix::{clock::sleep, spawn};
 use actix_web::{
-    get, post,
+    App, HttpResponse, HttpServer, Responder, get, post,
     web::{self, Json},
-    App, HttpResponse, HttpServer, Responder,
 };
 use async_std::sync::RwLock;
 use crossbeam::channel::Sender;
@@ -191,7 +190,7 @@ pub async fn run(
     })
     .worker_max_blocking_threads(1)
     .workers(12)
-    .bind(("127.0.0.1", 8888))?
+    .bind(("127.0.0.1", 8080))?
     .bind_uds(UDS_SERVER_PATH)?
     .run()
     .await
