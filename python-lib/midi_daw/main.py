@@ -262,9 +262,9 @@ def cc(cc: int, value: float, midi_out=midi_out):
     midi_out(midi_cmd)
 
 
-def set_tempo(tempo: int):
+def set_tempo(tempo: float):
     """sets the tempo on the server"""
-    post(float(tempo), "tempo")
+    post(str(float(tempo)), "tempo")
 
 
 def get_tempo() -> float:

@@ -48,3 +48,6 @@ backup:
 
 jupyter:
   bash -c "source ./.venv/bin/activate && jupyter-lab"
+
+adb:
+  adb reverse tcp:8888 tcp:8888
