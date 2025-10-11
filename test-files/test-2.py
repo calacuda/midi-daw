@@ -8,8 +8,9 @@ def start_event():
     wait_for("1")
 
 
-@play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
+@play_on("TD-3-MO:0", channel=Ch1, block=False, loop=-1)
 def lead():
+    panic(lead.new_midi_out)
     note("b2", qn(), vel=80)
     note("a#2", sn(), vel=80)
     note("f#2", en(), vel=80)
@@ -20,7 +21,7 @@ def lead():
 
 
 @play_on("TD-3-MO:0", channel=Ch4, block=False, loop=-1)
-@lfo("test-wavetable.wav", 10.5)
+# @lfo("test-wavetable.wav", 10.5)
 def pitch_wobble(lfo):
     # print(lfo)
     bend_amt = lfo * 0.75
