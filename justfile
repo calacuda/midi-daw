@@ -51,3 +51,9 @@ jupyter:
 
 adb:
   adb reverse tcp:8888 tcp:8888
+
+test-env:
+  bash -c "tmux has-session -t \"=midi-daw-test-run\" && bash -c \"tmux a -t \"midi-daw-test-run\"; exit 1\" || true "
+  @just adb
+  tmux new -ds "midi-daw-test-run" -n "jupyter" "just jupyter"
+  tmux new-window -t "midi-daw-test-run" -n "midi-daw-server" "cd ./midi-daw-server && cargo run -r"
