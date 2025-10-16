@@ -1,10 +1,10 @@
-use actix_web::{get, web, Error, HttpRequest, HttpResponse};
+use actix_web::{Error, HttpRequest, HttpResponse, get, web};
 use actix_ws::AggregatedMessage;
 use async_std::stream::StreamExt;
 use fx_hash::FxHashMap;
 use tokio::{
     select,
-    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     task::spawn_local,
 };
 use tracing::*;
@@ -12,101 +12,6 @@ use uuid::Uuid;
 
 pub type MbMsgType = String;
 pub type ConnId = Uuid;
-
-// #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct MbMessageEvent;
-//
-// #[derive(Clone, Debug, Message)]
-// #[rtype(result = "()")]
-// pub struct MbMessageWrapper {
-//     pub id: Uuid,
-//     pub message: MbMsgType,
-// }
-//
-// impl Actor for MbMessageEvent {
-//     type Context = Context<Self>;
-// }
-//
-// impl Handler<MbMessageWrapper> for MbMessageEvent {
-//     type Result = ();
-//
-//     fn handle(&mut self, msg: MbMessageWrapper, _ctx: &mut Self::Context) -> Self::Result {
-//         // log::trace!("SherlockMessageEvent recv message => {:?}", msg);
-//         self.issue_async::<SystemBroker, _>(msg);
-//     }
-// }
-//
-// /// Define HTTP actor
-// #[derive(Clone)]
-// struct MessageBus {
-//     event: web::Data<Addr<MbMessageEvent>>,
-//     id: Uuid,
-// }
-//
-// impl Actor for MessageBus {
-//     type Context = ws::WebsocketContext<Self>;
-//
-//     fn started(&mut self, ctx: &mut Self::Context) {
-//         self.subscribe_async::<SystemBroker, MbMessageWrapper>(ctx);
-//     }
-// }
-//
-// impl Handler<MbMessageWrapper> for MessageBus {
-//     type Result = ();
-//
-//     fn handle(&mut self, item: MbMessageWrapper, ctx: &mut Self::Context) {
-//         if item.id != self.id {
-//             debug!("connection {} recv'ed a message", self.id);
-//             if let Ok(json) = serde_json::to_string(&item.message) {
-//                 ctx.text(json);
-//             } else {
-//                 warn!("could not serialize message to json string.");
-//             }
-//         }
-//     }
-// }
-//
-// /// Handler for ws::Message message
-// impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MessageBus {
-//     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-//         match msg {
-//             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-//             Ok(ws::Message::Text(text)) => {
-//                 // ctx.text(text.clone());
-//                 let message = text.to_string();
-//                 debug!("connection {} sent a message", self.id);
-//                 self.event.do_send(MbMessageWrapper {
-//                     id: self.id,
-//                     message,
-//                 })
-//             }
-//             Ok(ws::Message::Binary(_bin)) => {
-//                 ctx.text("{\"response\":\"binary messages/responces are not yet implemented\"}")
-//             } // ctx.binary(bin),
-//             Ok(ws::Message::Close(_)) => {
-//                 // ctx.close(NoneNone);
-//                 ctx.&mut(None);
-//                 ctx.close(None);
-//
-//             }
-//             _ => (),
-//         }
-//     }
-// }
-
-// #[get("message-bus")]
-// pub async fn message_bug(
-//     data: web::Data<Addr<MbMessageEvent>>,
-//     req: HttpRequest,
-//     stream: web::Payload,
-// ) -> Result<HttpResponse, Error> {
-//     let id = Uuid::new_v4();
-//     let resp = ws::start(MessageBus { event: data, id }, &req, stream);
-//     // info!("{:?}", resp);
-//     info!("ID => {id}");
-//
-//     resp
-// }
 
 /// A command received by the [`ChatServer`].
 #[derive(Debug)]
@@ -195,7 +100,9 @@ impl MbServer {
 
     async fn send_message(&mut self, conn: ConnId, mesg: impl Into<MbMsgType> + Clone) {
         for (id, channel) in self.sessions.clone().into_iter() {
-            if let Err(_e) = channel.send(mesg.clone().into()) && id != conn {
+            if let Err(_e) = channel.send(mesg.clone().into())
+                && id != conn
+            {
                 _ = self.sessions.remove(&id);
             }
         }
@@ -221,12 +128,7 @@ impl MbServer {
     }
 }
 
-// #[get("message-bus")]
-// async fn message_bus(
 async fn do_message_bus(
-    // data: web::Data<Addr<MbMessageEvent>>,
-    // req: HttpRequest,
-    // stream: web::Payload,
     chat_server: MbServerHandle,
     mut session: actix_ws::Session,
     msg_stream: actix_ws::MessageStream,

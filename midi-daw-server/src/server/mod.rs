@@ -10,25 +10,27 @@ use actix_web::{
     App, HttpResponse, HttpServer, Responder, get, post,
     web::{self, Json},
 };
-use async_std::sync::RwLock;
 use crossbeam::channel::Sender;
 use fx_hash::FxHashSet;
 use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
 use midir::MidiOutput;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tracing::log::*;
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+// use async_std::sync::RwLock;
 
 mod message_bus;
 mod note;
 
 pub type MidiOut = Sender<(String, midi_msg::MidiMsg)>;
+pub type Tempo = Arc<std::sync::RwLock<f64>>;
+pub type BPQ = Arc<std::sync::RwLock<f64>>;
 
 #[post("/midi")]
 async fn midi(
-    tempo: web::Data<RwLock<f64>>,
+    tempo: web::Data<Tempo>,
     midi_out: web::Data<MidiOut>,
     req_body: Json<MidiReqBody>,
 ) -> impl Responder {
@@ -41,8 +43,9 @@ async fn midi(
             velocity,
             duration,
         } => {
-            let tempo = tempo.read().await;
-            play_note(*tempo, midi_out, dev, channel, note, velocity, duration).await;
+            if let Ok(tempo) = tempo.read() {
+                play_note(*tempo, midi_out, dev, channel, note, velocity, duration).await;
+            }
         }
         MidiMsg::StopNote { note } => stop_note(midi_out, dev, channel, note).await,
         MidiMsg::CC { control, value } => send_cc(midi_out, dev, channel, control, value).await,
@@ -53,27 +56,36 @@ async fn midi(
 }
 
 #[post("/rest")]
-async fn rest(tempo: web::Data<RwLock<f64>>, durration: Json<NoteDuration>) -> impl Responder {
-    let tempo = tempo.read().await;
-
-    // serde_json::to_string(&*tempo).map(|tempo| HttpResponse::Ok().body(tempo))
-    note::rest(*tempo, *durration).await;
+async fn rest(tempo: web::Data<Tempo>, durration: Json<NoteDuration>) -> impl Responder {
+    // let tempo = tempo.read().await;
+    if let Ok(tempo) = tempo.read() {
+        // serde_json::to_string(&*tempo).map(|tempo| HttpResponse::Ok().body(tempo))
+        note::rest(*tempo, *durration).await;
+    }
 
     HttpResponse::Ok()
 }
 
 #[post("/tempo")]
-async fn set_tempo(tempo: web::Data<RwLock<f64>>, req_body: Json<f64>) -> impl Responder {
-    let mut tempo = tempo.write().await;
-    *tempo = *req_body;
+async fn set_tempo(tempo: web::Data<Tempo>, req_body: Json<f64>) -> impl Responder {
+    // let mut tempo = tempo.write().await;
+    if let Ok(mut tempo) = tempo.write() {
+        *tempo = *req_body;
+    }
 
     HttpResponse::Ok()
 }
 
 #[get("/tempo")]
-async fn get_tempo(tempo: web::Data<RwLock<f64>>) -> impl Responder {
-    let tempo = tempo.read().await;
-    serde_json::to_string(&*tempo).map(|tempo| HttpResponse::Ok().body(tempo))
+async fn get_tempo(tempo: web::Data<Tempo>) -> impl Responder {
+    // let tempo = tempo.read().await;
+    if let Ok(tempo) = tempo.read() {
+        if let Ok(tempo_json) = serde_json::to_string(&*tempo) {
+            return HttpResponse::Ok().body(tempo_json);
+        }
+    }
+
+    HttpResponse::InternalServerError().finish()
 }
 
 #[get("/midi")]
@@ -90,7 +102,7 @@ async fn get_devs(virtual_devs: web::Data<Mutex<FxHashSet<String>>>) -> impl Res
     serde_json::to_string(&midi_devs_names).map(|tempo| HttpResponse::Ok().body(tempo))
 }
 
-// TODO: make an end point to make new virtual midi-out
+// make an end point to make new virtual midi-out
 #[post("/new-dev")]
 async fn new_dev(
     req_body: Json<String>,
@@ -114,7 +126,7 @@ async fn new_dev(
 }
 
 /// sends a message to the message bus every note
-pub async fn clock_notif(data: MbServerHandle, tempo: web::Data<RwLock<f64>>) -> ! {
+pub async fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
     let mut sn = 0;
     let id = uuid::Uuid::new_v4();
     let msgs: Vec<String> = vec![
@@ -135,13 +147,15 @@ pub async fn clock_notif(data: MbServerHandle, tempo: web::Data<RwLock<f64>>) ->
         sn += 1;
         sn %= 16;
 
-        let sleep_time = (*tempo.read().await / 60.0) * 2.0 / 16.0;
-        sleep(Duration::from_secs_f64(sleep_time)).await
+        if let Ok(tempo) = tempo.read() {
+            let sleep_time = (*tempo / 60.0) * 2.0 / 16.0;
+            sleep(Duration::from_secs_f64(sleep_time)).await
+        }
     }
 }
 
 pub async fn run(
-    tempo: RwLock<f64>,
+    tempo: Tempo,
     midi_out: MidiOut,
     new_dev_tx: Sender<MidiDev>,
 ) -> std::io::Result<()> {

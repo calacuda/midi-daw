@@ -1,7 +1,9 @@
 use crate::midi::{dev::new_midi_dev, out::midi_out};
-use async_std::sync::RwLock;
 use crossbeam::channel::unbounded;
-use std::thread::spawn;
+use std::{
+    sync::{Arc, RwLock},
+    thread::spawn,
+};
 
 pub mod midi;
 pub mod server;
@@ -11,7 +13,9 @@ pub mod server;
 #[actix::main]
 async fn main() -> std::io::Result<()> {
     // tempo
-    let tempo = RwLock::new(99.0);
+    let tempo = Arc::new(RwLock::new(99.0));
+    let bpq = Arc::new(RwLock::new(48.0));
+    let pulse_counter = Arc::new(RwLock::new(0));
 
     // prepare mpsc.
     let (midi_msg_out_tx, midi_msg_out_rx) = unbounded();
@@ -19,8 +23,11 @@ async fn main() -> std::io::Result<()> {
 
     let (_jh_1, _jh_2 /* _jh_3 */) = {
         // start midi output thread.
+        let midi_out_jh = spawn({
+            let tempo = tempo.clone();
 
-        let midi_out_jh = spawn(move || midi_out(midi_msg_out_rx, new_midi_dev_rx));
+            move || midi_out(midi_msg_out_rx, new_midi_dev_rx, tempo, bpq, pulse_counter)
+        });
 
         // start a thread for midi device discovery.
         let new_midi_dev_tx = new_midi_dev_tx.clone();
