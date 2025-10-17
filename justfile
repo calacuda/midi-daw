@@ -64,8 +64,10 @@ _do_commit:
 
 commit message: _do_commit
     git commit -m "{{message}}"
+    git push
 
 commit-all message: _do_commit
     git commit -am "{{message}}"
+    git push
   
 
