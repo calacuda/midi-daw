@@ -1,0 +1,8 @@
+[project]
+name = "midi-daw-frontend"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dynamic = ["version"]
