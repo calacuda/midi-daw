@@ -1,3 +1,5 @@
+esper
 midi-daw
 midi-daw-types
+py_bevy
 pygame
