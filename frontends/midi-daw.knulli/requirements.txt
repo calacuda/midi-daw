@@ -1,3 +1,3 @@
--e git+ssh://git@github.com/calacuda/midi-daw.git@bf941e4b6a927ad888cdf61efe3f348e4953321e#egg=midi_daw&subdirectory=python-lib
--e git+ssh://git@github.com/calacuda/midi-daw.git@bf941e4b6a927ad888cdf61efe3f348e4953321e#egg=midi_daw_types&subdirectory=midi-daw-types
+-e git+ssh://git@github.com/calacuda/midi-daw.git@f09809623e6a966253503b3ce7b28f26a2ea40ab#egg=midi_daw&subdirectory=python-lib
+-e git+ssh://git@github.com/calacuda/midi-daw.git@f09809623e6a966253503b3ce7b28f26a2ea40ab#egg=midi_daw_types&subdirectory=midi-daw-types
 pygame==2.6.1
