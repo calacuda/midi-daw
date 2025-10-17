@@ -43,7 +43,7 @@ get-devs:
 backup:
   git status
   git add .
-  git commit -am "backup commit"
+  @just commit "backup commit"
   git push
 
 jupyter:
@@ -57,3 +57,15 @@ test-env:
   @just adb
   tmux new -ds "midi-daw-test-run" -n "jupyter" "just jupyter"
   tmux new-window -t "midi-daw-test-run" -n "midi-daw-server" "cd ./midi-daw-server && cargo run -r"
+
+_do_commit:
+  ./frontends/midi-daw.knulli/.venv/bin/pip list --format=freeze -l | cut -d "=" -f 1 | rg -v pip > ./frontends/midi-daw.knulli/requirements.txt
+  git add frontends/midi-daw.knulli/requirements.txt
+
+commit message: _do_commit
+    git commit -m "{{message}}"
+
+commit-all message: _do_commit
+    git commit -am "{{message}}"
+  
+
