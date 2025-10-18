@@ -2,7 +2,7 @@ import pygame
 from pathlib import Path
 from py_bevy import App, Schedule
 from enum import Enum
-from logging import DEBUG, INFO
+from logging import DEBUG
 
 
 # _FRAME = 0
@@ -145,8 +145,6 @@ def log_exit_setup(app: App):
 
 
 def controls_step(app: App):
-    # events = app.resources[ResourceID.PG_EVENTS]
-
     for event in app.resources[ResourceID.PG_EVENTS]:
         if event.type == pygame.JOYHATMOTION and event.value == (0, 1):
             app.resources[ResourceID.KEY_SCAN].append(Buttons.UP)
@@ -227,10 +225,10 @@ def render_stepper_col(seq_name, target, left, line_h, font, text_color, font_w)
 
 @app.register(States.PLAYING, Schedule.UPDATE)
 def draw_gui(app: App):
-    px_width, px_height = SCREEN_SIZE
+    _, px_height = SCREEN_SIZE
     line_h = px_height / 20
     font = app.resources[ResourceID.FONT]
-    font_w, font_h = font.size("M")
+    font_w, _ = font.size("M")
     line_n_col_w = font_w * 6
     reg_line_w = font_w * 19
     text_color = app.resources[ResourceID.TEXT_COLOR]
