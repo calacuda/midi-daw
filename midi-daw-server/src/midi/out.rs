@@ -2,7 +2,7 @@ use crate::{
     midi::MidiDev,
     server::{BPQ, Tempo},
 };
-use crossbeam::channel::{Receiver, Sender};
+use crossbeam::channel::Receiver;
 use fx_hash::FxHashMap;
 use midi_msg::MidiMsg;
 use midir::{MidiOutput, os::unix::VirtualOutput};

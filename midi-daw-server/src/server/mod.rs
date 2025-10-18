@@ -1,11 +1,11 @@
 use crate::{
-    midi::{MidiDev, dev::fmt_dev_name},
+    midi::{MidiDev, dev::fmt_dev_name, out::unwrap_rw_lock},
     server::{
         message_bus::{MbServer, MbServerHandle},
         note::{pitch_bend, play_note, send_cc, stop_note},
     },
 };
-use actix::{clock::sleep, spawn};
+use actix::spawn;
 use actix_web::{
     App, HttpResponse, HttpServer, Responder, get, post,
     web::{self, Json},
@@ -19,7 +19,6 @@ use tokio::sync::Mutex;
 use tracing::log::*;
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-// use async_std::sync::RwLock;
 
 mod message_bus;
 mod note;
@@ -126,7 +125,8 @@ async fn new_dev(
 }
 
 /// sends a message to the message bus every note
-pub async fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
+pub fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
+    // TODO: make this a client running in a syncronouse std::thread
     let mut sn = 0;
     let id = uuid::Uuid::new_v4();
     let msgs: Vec<String> = vec![
@@ -137,29 +137,72 @@ pub async fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
     .collect();
 
     loop {
+        // start a sleep thread to sleep for sleep_time.
+        let sleep_thread = std::thread::spawn({
+            // calculate sleep_time based on BPQ & tempo.
+            let tempo = unwrap_rw_lock(&tempo, 99.);
+            let sleep_time = Duration::from_secs_f64((60.0 / tempo) / 4.);
+
+            move || {
+                std::thread::sleep(sleep_time);
+            }
+        });
+
         let message: String = msgs[sn].clone();
 
-        // let msg = MbMessageWrapper { id, message };
-
-        // data.do_send(msg);
-        data.send_message(id, message).await;
+        data.send_message(id, message);
 
         sn += 1;
         sn %= 16;
 
-        if let Ok(tempo) = tempo.read() {
-            let sleep_time = (*tempo / 60.0) * 2.0 / 16.0;
-            sleep(Duration::from_secs_f64(sleep_time)).await
+        // if let Ok(tempo) = tempo.read() {
+        // let sleep_time = (*tempo / 60.0) * 2.0 / 16.0;
+        // sleep(Duration::from_secs_f64(sleep_time)).await
+        // }
+        // time sync
+        if let Err(e) = sleep_thread.join() {
+            error!(
+                "joinning sleep thread in midi_out thread resultd in error; {e:?}. this likely means that the sending of sync pulses took longer then the sync step duration"
+            );
+        }
+    }
+}
+
+/// sends a message to the message bus every step
+pub fn sync_step_notif(data: MbServerHandle, tempo: web::Data<Tempo>, bpq: web::Data<BPQ>) -> ! {
+    let conn = uuid::Uuid::new_v4();
+
+    loop {
+        // start a sleep thread to sleep for sleep_time.
+        let sleep_thread = std::thread::spawn({
+            // calculate sleep_time based on BPQ & tempo.
+            let (tempo, beats) = (unwrap_rw_lock(&tempo, 99.), unwrap_rw_lock(&bpq, 48.));
+            let sleep_time = Duration::from_secs_f64((60.0 / tempo) / beats);
+
+            move || {
+                std::thread::sleep(sleep_time);
+            }
+        });
+
+        data.send_binary(conn, Vec::new().into());
+
+        // time sync
+        if let Err(e) = sleep_thread.join() {
+            error!(
+                "joinning sleep thread in midi_out thread resultd in error; {e:?}. this likely means that the sending of sync pulses took longer then the sync step duration"
+            );
         }
     }
 }
 
 pub async fn run(
     tempo: Tempo,
+    bpq: BPQ,
     midi_out: MidiOut,
     new_dev_tx: Sender<MidiDev>,
 ) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
+    let bpq = web::Data::new(bpq);
     let midi_out = web::Data::new(midi_out);
     let new_dev_tx = web::Data::new(new_dev_tx);
     let virtual_devs = web::Data::new(Mutex::new(FxHashSet::<String>::default()));
@@ -181,7 +224,19 @@ pub async fn run(
         .without_time()
         .init();
 
-    let _jh = spawn(clock_notif(server_tx.clone(), tempo.clone()));
+    let _clock_notif_jh = std::thread::spawn({
+        let tempo = tempo.clone();
+        let server_tx = server_tx.clone();
+
+        move || clock_notif(server_tx, tempo)
+    });
+    let _sync_step_jh = std::thread::spawn({
+        let tempo = tempo.clone();
+        let bpq = bpq.clone();
+        let server_tx = server_tx.clone();
+
+        move || sync_step_notif(server_tx, tempo, bpq)
+    });
 
     HttpServer::new({
         let server_tx = web::Data::new(server_tx);

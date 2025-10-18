@@ -25,6 +25,7 @@ async fn main() -> std::io::Result<()> {
         // start midi output thread.
         let midi_out_jh = spawn({
             let tempo = tempo.clone();
+            let bpq = bpq.clone();
 
             move || midi_out(midi_msg_out_rx, new_midi_dev_rx, tempo, bpq, pulse_counter)
         });
@@ -42,5 +43,5 @@ async fn main() -> std::io::Result<()> {
     };
 
     // run webserver.
-    server::run(tempo, midi_msg_out_tx, new_midi_dev_tx).await
+    server::run(tempo, bpq, midi_msg_out_tx, new_midi_dev_tx).await
 }

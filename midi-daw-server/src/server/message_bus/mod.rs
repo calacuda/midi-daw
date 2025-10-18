@@ -1,4 +1,7 @@
-use actix_web::{Error, HttpRequest, HttpResponse, get, web};
+use actix_web::{
+    Error, HttpRequest, HttpResponse, get,
+    web::{self, Bytes},
+};
 use actix_ws::AggregatedMessage;
 use async_std::stream::StreamExt;
 use fx_hash::FxHashMap;
@@ -10,8 +13,32 @@ use tokio::{
 use tracing::*;
 use uuid::Uuid;
 
-pub type MbMsgType = String;
+// pub type MbMsgType = String;
 pub type ConnId = Uuid;
+
+#[derive(Debug, Clone)]
+pub enum MbMsgType {
+    Text(String),
+    Bin(Bytes),
+}
+
+impl From<Bytes> for MbMsgType {
+    fn from(value: Bytes) -> Self {
+        Self::Bin(value)
+    }
+}
+
+impl From<Vec<u8>> for MbMsgType {
+    fn from(value: Vec<u8>) -> Self {
+        Self::Bin(value.into())
+    }
+}
+
+impl From<String> for MbMsgType {
+    fn from(value: String) -> Self {
+        Self::Text(value)
+    }
+}
 
 /// A command received by the [`ChatServer`].
 #[derive(Debug)]
@@ -19,7 +46,6 @@ pub enum Command {
     Connect {
         conn: ConnId,
         conn_tx: UnboundedSender<MbMsgType>,
-        // res_tx: oneshot::Sender<ConnId>,
     },
     Disconnect {
         conn: ConnId,
@@ -27,6 +53,10 @@ pub enum Command {
     Message {
         conn: ConnId,
         mesg: MbMsgType,
+    },
+    Binary {
+        conn: ConnId,
+        mesg: Vec<u8>,
     },
 }
 
@@ -49,10 +79,21 @@ impl MbServerHandle {
     }
 
     /// Broadcast message to all except sender
-    pub async fn send_message(&self, conn: ConnId, msg: impl Into<MbMsgType>) {
+    pub fn send_message(&self, conn: ConnId, msg: impl ToString) {
         // unwrap: chat server should not have been dropped
         self.cmd_tx
             .send(Command::Message {
+                mesg: msg.to_string().into(),
+                conn,
+            })
+            .unwrap();
+    }
+
+    /// Broadcast binary data to all except sender
+    pub fn send_binary(&self, conn: ConnId, msg: Bytes) {
+        // unwrap: chat server should not have been dropped
+        self.cmd_tx
+            .send(Command::Binary {
                 mesg: msg.into(),
                 conn,
             })
@@ -108,6 +149,16 @@ impl MbServer {
         }
     }
 
+    async fn send_binary(&mut self, conn: ConnId, mesg: Bytes) {
+        for (id, channel) in self.sessions.clone().into_iter() {
+            if let Err(_e) = channel.send(mesg.clone().into())
+                && id != conn
+            {
+                _ = self.sessions.remove(&id);
+            }
+        }
+    }
+
     pub async fn run(mut self) -> std::io::Result<()> {
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
@@ -120,6 +171,9 @@ impl MbServer {
                 }
                 Command::Message { conn, mesg } => {
                     self.send_message(conn, mesg).await;
+                }
+                Command::Binary { conn, mesg } => {
+                    self.send_binary(conn, mesg.into()).await;
                 }
             }
         }
@@ -153,14 +207,15 @@ async fn do_message_bus(
                 Some(Ok(msg)) = msg_stream.next() => {
                     match msg {
                         AggregatedMessage::Text(text) => {
-                            // echo text message
+                            // text message
                             // session.text(text).await.unwrap();
-                            chat_server.send_message(id, text).await;
+                            chat_server.send_message(id, text);
                         }
 
-                        AggregatedMessage::Binary(_bin) => {
-                            // echo binary message
-                                            }
+                        AggregatedMessage::Binary(bin) => {
+                            // binary message
+                            chat_server.send_binary(id, bin);
+                        }
                         AggregatedMessage::Ping(_msg) => {
                             // respond to PING frame with PONG frame
                             // session.pong(&msg).await.unwrap();
@@ -170,11 +225,19 @@ async fn do_message_bus(
                         _ => {}
                     }
                 }
+                // send to connected clients
                 Some(chat_msg) = conn_rx.recv() => {
-                    if let Err(e) = session.text(chat_msg).await {
-                        chat_server.disconnect(id);
-                        error!("failed to send message to client because: {e}");
-                        break None;
+                    match chat_msg {
+                        MbMsgType::Text(chat_msg) => if let Err(e) = session.text(chat_msg).await {
+                            chat_server.disconnect(id);
+                            error!("failed to send message to client because: {e}");
+                            break None;
+                        }
+                        MbMsgType::Bin(chat_msg) => if let Err(e) = session.binary(chat_msg).await {
+                            chat_server.disconnect(id);
+                            error!("failed to send message to client because: {e}");
+                            break None;
+                        }
                     }
                 }
                 else => {
