@@ -5,8 +5,8 @@ from enum import Enum
 from logging import DEBUG, INFO
 
 
-_FRAME = 0
-_FPS = 0.0
+# _FRAME = 0
+# _FPS = 0.0
 THIS_DIR = Path(__file__)
 THIS_DIR = THIS_DIR.parent.absolute()
 SCREEN_WIDTH = 1280
@@ -117,14 +117,10 @@ def init(app):
 
 def render(app):
     if app.resources.get(ResourceID.TO_RENDER) and app.resources[ResourceID.SCREEN]:
-        screen = app.resources[ResourceID.SCREEN]
-
-        # for blit_args in app.resources[ResourceID.TO_RENDER]:
-        #     screen.blit(*blit_args)
-
         renders = app.resources.get(ResourceID.TO_RENDER)
 
         if renders:
+            screen = app.resources[ResourceID.SCREEN]
             # print(renders)
             [screen.blit(*blit_args) for blit_args in renders]
 
@@ -197,14 +193,21 @@ def controls_step(app: App):
             app.resources[ResourceID.KEY_SCAN].append(Buttons.B)
 
 
-def render_stepper_col(left, line_h, font, text_color, font_w):
-    for i in range(2):
-        top_y = line_h * (i + 1)
-        text = font.render("TITLE-LINE", True, text_color)
-        app.resources[ResourceID.TO_RENDER].append((text, (left, top_y)))
+def render_stepper_col(seq_name, target, left, line_h, font, text_color, font_w):
+    # for i in range(2):
+    top_y = line_h
+    text = font.render(seq_name[0:18], True, text_color)
+    app.resources[ResourceID.TO_RENDER].append((text, (left, top_y)))
+    top_y = line_h * 2
+    text = font.render(target[0:18], True, text_color)
+    app.resources[ResourceID.TO_RENDER].append((text, (left, top_y)))
 
     for i in range(2, 18):
         top = line_h * (i + 1)
+
+        # TODO: write rust backend.
+        # TODO: get step data from rust backend.
+
         left_offset = left
         text = font.render("---", True, text_color)
         app.resources[ResourceID.TO_RENDER].append((text, (left_offset, top)))
@@ -235,12 +238,14 @@ def draw_gui(app: App):
     for i in range(2, 18):
         top = line_h * (i + 1)
         text = font.render(f"{i - 1:>2}", True, text_color)
-        app.resources[ResourceID.TO_RENDER].append((text, (font_w * 2, top)))
+        app.resources[ResourceID.TO_RENDER].append(
+            (text, (font_w * 2.25, top)))
 
     for i in range(3):
         left = line_n_col_w + reg_line_w * i
 
-        render_stepper_col(left, line_h, font, text_color, font_w)
+        render_stepper_col(
+            f"sequence-{i}", f"target-{i}", left, line_h, font, text_color, font_w)
 
 
 def run_app():
