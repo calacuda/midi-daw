@@ -259,9 +259,6 @@ def run_app():
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                # print(event)
-                # should_loop = False
-                # continue
                 app.exit()
             elif event.type == pygame.JOYDEVICEADDED:
                 joy = pygame.joystick.Joystick(event.device_index)
