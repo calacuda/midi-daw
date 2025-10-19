@@ -439,6 +439,18 @@ impl MidiReqBody {
     }
 }
 
+pub fn display_midi_note(midi_note: u8) -> String {
+    let note_name_i = midi_note % 12;
+    let octave = midi_note / 12;
+
+    let note_names = [
+        "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
+    ];
+    let note_name = note_names[note_name_i as usize];
+
+    format!("{note_name}{octave:X}")
+}
+
 #[cfg(feature = "pyo3")]
 #[pymethods]
 // #[cfg_attr(feature = "pyo3", pymethods)]
