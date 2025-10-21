@@ -258,7 +258,13 @@ def run_app():
     joy = None
     app.resources[ResourceID.PG_EVENTS] = []
     app.resources[ResourceID.CONTROLLER] = joy
-    app.resources[ResourceID.MIDI_OUTPUT] = midi_daw_back.MidiOut()
+    midi = midi_daw_back.MidiOut()
+    midi.set_note("Example-2", 3, 69, 90)
+    midi.set_note("Example-2", 7, 69, 90)
+    midi.set_note("Example-2", 11, 69, 90)
+    midi.set_note("Example-2", 15, 69, 90)
+    midi.play_seq("Example-2")
+    app.resources[ResourceID.MIDI_OUTPUT] = midi
 
     while app.should_loop():
         app.resources[ResourceID.PG_EVENTS].clear()

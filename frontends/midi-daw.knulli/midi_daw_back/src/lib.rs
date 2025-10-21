@@ -127,7 +127,7 @@ impl MidiOut {
             base_url: base_url.clone(),
         }));
 
-        let mut res = Self {
+        Self {
             _jh: spawn({
                 let sequences = sequences.clone();
                 let playing = playing.clone();
@@ -143,11 +143,7 @@ impl MidiOut {
             midi_handler,
             sequences,
             playing,
-        };
-
-        res.set_note("Example-2".into(), 7, Some(69), Some(90));
-
-        res
+        }
     }
 
     fn change_midi_out_handler(&mut self, handler: MidiOutHandlerTarget) {
@@ -327,6 +323,23 @@ impl MidiOut {
         }
     }
 
+    fn play_seq(&mut self, seq_name: String) {
+        if let Ok(mut seqs) = self.playing.write()
+            && self
+                .sequences
+                .read()
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>()
+                .contains(&&seq_name)
+        {
+            // println!("Playing sequence {seq_name}");
+            seqs.push(seq_name);
+        } else {
+            println!("could not play");
+        }
+    }
+
     // fn panic(&self, dev_name: &str) {
     //     // TODO: write this
     // }
@@ -340,10 +353,15 @@ fn sequence_thread(
 ) -> ! {
     loop {
         let base_url = server_url.clone();
+        let ws_url = format!("{}/message-bus", base_url.replace("http://", "ws://"));
         // connect to websocket
+        let conn = connect(ws_url.clone());
+        // println!("conn {conn:?}");
+
         // Establish a connection to the WebSocket server
-        if let Ok((mut socket, response)) = connect(format!("{base_url}/message-bus"))
-            && response.status().is_success()
+        if let Ok((mut socket, response)) = conn
+            && !response.status().is_server_error()
+            && !response.status().is_client_error()
         {
             let mut sync_pulses: usize = 0;
             let mut note_threads = Vec::new();
@@ -351,6 +369,8 @@ fn sequence_thread(
             // while connected to websocket ...
             while let Ok(msg) = socket.read() {
                 if msg.is_binary() {
+                    // println!("bin message");
+
                     if let (Ok(sequences), Ok(playing)) = (sequences.read(), playing.read())
                         && sync_pulses % 12 == 0
                     {
@@ -403,6 +423,7 @@ fn sequence_thread(
                 }
             }
         } else {
+            println!("failed to connect to {ws_url}");
             // delay
         }
     }
