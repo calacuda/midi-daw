@@ -3,6 +3,7 @@ from pathlib import Path
 from py_bevy import App, Schedule
 from enum import Enum
 from logging import DEBUG
+import midi_daw_back
 
 
 # _FRAME = 0
@@ -54,6 +55,7 @@ class ResourceID(Enum):
     SCRIPT_DOCS_BOX = 22
     EXEC = 23
     EXEC_THREAD = 24
+    MIDI_OUTPUT = 25
 
 
 class Buttons(Enum):
@@ -253,6 +255,7 @@ def run_app():
     joy = None
     app.resources[ResourceID.PG_EVENTS] = []
     app.resources[ResourceID.CONTROLLER] = joy
+    app.resources[ResourceID.MIDI_OUTPUT] = midi_daw_back.MidiOut()
 
     while app.should_loop():
         app.resources[ResourceID.PG_EVENTS].clear()
