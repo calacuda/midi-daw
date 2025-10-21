@@ -93,6 +93,7 @@ class AutomationWrapper:
 def set_log_level(level):
     log.set_level(level)
 
+
 def mk_channel(channel):
     ch = None
 
@@ -233,7 +234,7 @@ def note(
         case list():
             for n in notes[:-1]:
                 note(n, duration, vel, False, midi_out)
-                
+
             note(notes[-1], duration, vel, block, midi_out)
 
 
@@ -273,10 +274,11 @@ def set_tempo(tempo: float):
 def get_tempo() -> float:
     return get("tempo")
 
+
 def tempo(new_tempo: float = None) -> float:
     if new_tempo is not None:
         set_tempo(new_tempo)
-        
+
     return get_tempo()
 
 
@@ -308,12 +310,12 @@ def wait_for(event):
         return mb_event in event
 
     check = None
-    
+
     if hasattr(event, "__contains__") and not isinstance(event, str):
         check = check_many
     else:
         check = check_one
-        
+
     with unix_connect(path=unix_socket_path, uri=uri) as ws:
         recv = ws.recv()
         recv = recv.replace('"', "")

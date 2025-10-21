@@ -328,6 +328,7 @@ pub enum MidiMsg {
         control: u8,
         value: u8,
     },
+    // TODO: add a Panic message.
     // TODO: consider adding the bellow messages
     //
     // ModWheel { amt: u16 },
