@@ -193,7 +193,7 @@ def controls_step(app: App):
             app.resources[ResourceID.KEY_SCAN].append(Buttons.B)
 
 
-def render_stepper_col(seq_name, target, left, line_h, font, text_color, font_w):
+def render_stepper_col(midi, seq_name, target, left, line_h, font, text_color, font_w):
     # for i in range(2):
     top_y = line_h
     text = font.render(seq_name[0:18], True, text_color)
@@ -205,23 +205,23 @@ def render_stepper_col(seq_name, target, left, line_h, font, text_color, font_w)
     for i in range(2, 18):
         top = line_h * (i + 1)
 
-        # TODO: write rust backend.
-        # TODO: get step data from rust backend.
+        # get step data from rust backend.
+        row = midi.get_seq_row(seq_name, i - 2)
 
         left_offset = left
-        text = font.render("---", True, text_color)
+        text = font.render(row[0], True, text_color)
         app.resources[ResourceID.TO_RENDER].append((text, (left_offset, top)))
 
         left_offset += (font_w * 4)
-        text = font.render("---", True, text_color)
+        text = font.render(row[1], True, text_color)
         app.resources[ResourceID.TO_RENDER].append((text, (left_offset, top)))
 
         left_offset += (font_w * 4)
-        text = font.render("----", True, text_color)
+        text = font.render(row[2], True, text_color)
         app.resources[ResourceID.TO_RENDER].append((text, (left_offset, top)))
 
         left_offset += (font_w * 5)
-        text = font.render("----", True, text_color)
+        text = font.render(row[3], True, text_color)
         app.resources[ResourceID.TO_RENDER].append((text, (left_offset, top)))
 
 
@@ -234,6 +234,8 @@ def draw_gui(app: App):
     line_n_col_w = font_w * 6
     reg_line_w = font_w * 19
     text_color = app.resources[ResourceID.TEXT_COLOR]
+    midi = app.resources[ResourceID.MIDI_OUTPUT]
+    sequence_names = midi.get_seq_names()[:3]
 
     for i in range(2, 18):
         top = line_h * (i + 1)
@@ -243,9 +245,10 @@ def draw_gui(app: App):
 
     for i in range(3):
         left = line_n_col_w + reg_line_w * i
+        (name, dev) = sequence_names[i]
 
         render_stepper_col(
-            f"sequence-{i}", f"target-{i}", left, line_h, font, text_color, font_w)
+            midi, name, dev, left, line_h, font, text_color, font_w)
 
 
 def run_app():

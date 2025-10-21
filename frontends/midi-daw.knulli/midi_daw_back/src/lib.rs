@@ -127,7 +127,7 @@ impl MidiOut {
             base_url: base_url.clone(),
         }));
 
-        Self {
+        let mut res = Self {
             _jh: spawn({
                 let sequences = sequences.clone();
                 let playing = playing.clone();
@@ -143,7 +143,11 @@ impl MidiOut {
             midi_handler,
             sequences,
             playing,
-        }
+        };
+
+        res.set_note("Example-2".into(), 7, Some(69), Some(90));
+
+        res
     }
 
     fn change_midi_out_handler(&mut self, handler: MidiOutHandlerTarget) {
@@ -278,6 +282,27 @@ impl MidiOut {
             .map(|ref mut map| map.insert(seq_name, Sequence::new(&dev_name, channel)));
     }
 
+    fn get_seq_names(&self) -> Vec<(String, String)> {
+        if let Ok(seqs) = self.sequences.read() {
+            let mut names: Vec<String> = seqs.keys().map(|name| name.to_owned()).collect();
+            names.sort();
+
+            names
+                .iter()
+                .map(|name| {
+                    (
+                        name.clone(),
+                        seqs.get(name)
+                            .map(|seq| seq.dev.clone())
+                            .unwrap_or("UNKNOWN".into()),
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     fn get_seq_row(&self, seq_name: String, step_num: usize) -> Option<[String; 4]> {
         if let Ok(seqs) = self.sequences.read()
             && step_num < N_STEPS
@@ -294,6 +319,7 @@ impl MidiOut {
                 // Some([n, vel, cmd_1, cmd_2])
                 Some([n, vel, "----".into(), "----".into()])
             } else {
+                println!("{seq_name}, is not one of; {:?}", seqs.keys());
                 None
             }
         } else {
