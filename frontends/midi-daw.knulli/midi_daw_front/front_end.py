@@ -110,6 +110,7 @@ def init(app):
     app.resources[ResourceID.TEXT_COLOR] = (50, 255, 100)
     app.resources[ResourceID.HIGHLIGHT_COLOR] = (5, 50, 25)
     app.resources[ResourceID.TO_RENDER] = []
+    # TODO: consider making this a HashSet
     app.resources[ResourceID.KEY_SCAN] = []
     app.resources[ResourceID.LAST_KEY_SCAN] = []
     app.resources[ResourceID.MAIN_CURSOR_POS] = [0, 2]
