@@ -9,6 +9,7 @@ name = "midi_daw_back"
 crate-type = ["cdylib"]
 
 [dependencies]
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel", "nightly"] }
 midi-daw = { version = "0.1.0", path = "../../../midi-daw-server" }
 midi-daw-types = { version = "0.1.0", path = "../../../midi-daw-types" }
 pyo3 = "0.26"

@@ -1,4 +1,5 @@
 #![feature(lock_value_accessors)]
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use midi_daw::server::{BPQ, Tempo};
 use midi_daw_types::{MidiChannel, MidiMsg, MidiReqBody, NoteDuration};
 use pyo3::prelude::*;
@@ -78,6 +79,8 @@ pub struct MidiOut {
     pub midi_handler: Arc<RwLock<MidiOutHandlerTarget>>,
     pub sequences: Sequences, // Arc<RwLock<FxHashMap<String, Sequence>>>,
     pub playing: PlayingSequences,
+    memo_step_n: usize,
+    step_num_ev: Receiver<usize>,
 }
 
 // impl MidiOut {
@@ -126,6 +129,7 @@ impl MidiOut {
         let midi_handler = Arc::new(RwLock::new(MidiOutHandlerTarget::Remote {
             base_url: base_url.clone(),
         }));
+        let (tx, rx) = unbounded();
 
         Self {
             _jh: spawn({
@@ -136,13 +140,15 @@ impl MidiOut {
                 move || {
                     sequence_thread(
                         sequences, playing, // midi_handler,
-                        base_url,
+                        base_url, tx,
                     )
                 }
             }),
             midi_handler,
             sequences,
             playing,
+            memo_step_n: 0,
+            step_num_ev: rx,
         }
     }
 
@@ -340,6 +346,17 @@ impl MidiOut {
         }
     }
 
+    fn get_step_n(&mut self) -> usize {
+        let step_num = self
+            .step_num_ev
+            .try_iter()
+            .last()
+            .unwrap_or(self.memo_step_n);
+        self.memo_step_n = step_num;
+
+        step_num
+    }
+
     // fn panic(&self, dev_name: &str) {
     //     // TODO: write this
     // }
@@ -350,13 +367,13 @@ fn sequence_thread(
     playing: PlayingSequences,
     // midi_handler: Arc<RwLock<MidiOutHandlerTarget>>,
     server_url: String,
+    step_ev: Sender<usize>,
 ) -> ! {
     loop {
         let base_url = server_url.clone();
         let ws_url = format!("{}/message-bus", base_url.replace("http://", "ws://"));
         // connect to websocket
         let conn = connect(ws_url.clone());
-        // println!("conn {conn:?}");
 
         // Establish a connection to the WebSocket server
         if let Ok((mut socket, response)) = conn
@@ -375,6 +392,10 @@ fn sequence_thread(
                         && sync_pulses % 12 == 0
                     {
                         let step_num = (sync_pulses / 12) % N_STEPS;
+
+                        if let Err(e) = step_ev.send(step_num) {
+                            println!("sending step_num resulted in error: {e}");
+                        }
 
                         note_threads.clear();
                         // play notes
