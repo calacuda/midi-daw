@@ -1,0 +1,16 @@
+_:
+  @just -l 
+
+flash-hardware: build-release flash-adb
+
+build-release:
+  cd ./midi_daw_back/ && maturin build --out dist -i python3.12 --target aarch64-unknown-linux-gnu --zig --release
+
+flash-adb:
+  adb shell "mkdir /userdata/roms/ports/midi-daw/"
+  adb push ./{midi-daw.pygame,midi_daw_front/,./midi_daw_back/dist/midi_daw_back-0.1.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl} /userdata/roms/ports/midi-daw/
+  adb shell "cd /userdata/roms/ports/midi-daw/; .venv/bin/python -m pip install --force-reinstall --no-index ./midi_daw_*-*aarch64.whl"
+
+kill:
+  adb shell "PID=\$(ps aux | grep midi-daw.pygame | grep -v \"grep\" | awk -F ' ' '{ print \$2}'); echo \"killing PID: \$PID\"; kill \$PID"
+

@@ -4,6 +4,7 @@ from py_bevy import App, Schedule
 from enum import Enum
 from logging import DEBUG
 from midi_daw_back import MidiOut
+from midi_daw_types import note_from_str
 from copy import deepcopy
 
 
@@ -58,7 +59,8 @@ class ResourceID(Enum):
     EXEC_THREAD = 24
     MIDI_OUTPUT = 25
     MAIN_CURSOR_POS = 26
-    MEMO_MOVE_TIMER = 27
+    MOVE_TIMER = 27
+    NOTE_TIMER = 27
 
 
 class Buttons(Enum):
@@ -114,7 +116,7 @@ def init(app):
     app.resources[ResourceID.KEY_SCAN] = []
     app.resources[ResourceID.LAST_KEY_SCAN] = []
     app.resources[ResourceID.MAIN_CURSOR_POS] = [0, 2]
-    app.resources[ResourceID.MEMO_MOVE_TIMER] = pygame.time.get_ticks()
+    app.resources[ResourceID.MOVE_TIMER] = pygame.time.get_ticks()
 
     init_screen(app)
     init_font(app)
@@ -128,7 +130,6 @@ def render(app):
         renders = app.resources.get(ResourceID.TO_RENDER)
 
         def blit(screen, *args):
-            # print(*args)
             try:
                 screen.blit(*args)
             except Exception as e:
@@ -137,7 +138,6 @@ def render(app):
 
         if renders:
             screen = app.resources[ResourceID.SCREEN]
-            # print(renders)
             # [screen.blit(*blit_args) for blit_args in renders]
             [blit(screen, *blit_args) for blit_args in renders]
 
@@ -163,14 +163,6 @@ def log_exit_setup(app: App):
 
 def controls_step(app: App):
     for event in app.resources[ResourceID.PG_EVENTS]:
-        # if event.type == pygame.JOYHATMOTION and event.value == (0, 1):
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.UP)
-        # elif event.type == pygame.JOYHATMOTION and event.value == (0, -1):
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.DOWN)
-        # elif event.type == pygame.JOYHATMOTION and event.value == (-1, 0):
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.LEFT)
-        # elif event.type == pygame.JOYHATMOTION and event.value == (1, 0):
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.RIGHT)
         if event.type == pygame.JOYHATMOTION and event.value[1] == 1:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.UP)
         elif event.type == pygame.JOYHATMOTION and event.value[1] == -1:
@@ -179,116 +171,115 @@ def controls_step(app: App):
             app.resources[ResourceID.KEY_SCAN].append(Buttons.LEFT)
         elif event.type == pygame.JOYHATMOTION and event.value[0] == 1:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.RIGHT)
-
-        elif event.type == pygame.JOYBUTTONUP and event.button == 1:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 1:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.A)
-        elif event.type == pygame.JOYBUTTONUP and event.button == 0:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 0:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.B)
-        elif event.type == pygame.JOYBUTTONUP and event.button == 3:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 3:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.X)
-        elif event.type == pygame.JOYBUTTONUP and event.button == 4:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.Y)
-        elif event.type == pygame.JOYBUTTONUP and event.button == 7:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 7:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.START)
         elif event.type == pygame.JOYBUTTONDOWN and event.button == 6:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.SELECT)
-        elif event.type == pygame.JOYBUTTONUP and event.button == 6:
-            app.resources[ResourceID.KEY_SCAN] = [
-                button for button in app.resources[ResourceID.KEY_SCAN] if button != Buttons.SELECT]
-        elif event.type == pygame.JOYBUTTONUP and event.button == 4:
+        # elif event.type == pygame.JOYBUTTONUP and event.button == 6:
+        #     app.resources[ResourceID.KEY_SCAN] = [
+        #         button for button in app.resources[ResourceID.KEY_SCAN] if button != Buttons.SELECT]
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.L_BUMP)
-        elif event.type == pygame.JOYBUTTONUP and event.button == 4:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.R_BUMP)
         elif event.type == pygame.JOYAXISMOTION and event.axis == 4 and event.value < 0.5:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.L_TRIG)
         elif event.type == pygame.JOYAXISMOTION and event.axis == 5 and event.value < 0.5:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.R_TRIG)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_UP:
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.UP)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_DOWN:
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.DOWN)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_LEFT:
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.LEFT)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_RIGHT:
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.RIGHT)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_x:
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.A)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_z:
-        #     app.resources[ResourceID.KEY_SCAN].append(Buttons.B)
-        
         elif event.type == pygame.JOYHATMOTION and event.value == (0, 0):
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.UP and button is not Buttons.DOWN and button is not Buttons.LEFT and button is not Buttons.RIGHT]
+            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN]
+                                                  if button is not Buttons.UP and button is not Buttons.DOWN and button is not Buttons.LEFT and button is not Buttons.RIGHT]
         elif event.type == pygame.JOYHATMOTION and event.value[1] == 0:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.UP)
             # print("rm'ing up and down presses")
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.UP and button is not Buttons.DOWN]
+            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN]
+                                                  if button is not Buttons.UP and button is not Buttons.DOWN]
         # elif event.type == pygame.JOYHATMOTION and event.value[0] == 0:
         #     app.resources[ResourceID.KEY_SCAN].append(Buttons.DOWN)
         elif event.type == pygame.JOYHATMOTION and event.value[0] == 0:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.LEFT)
             # print("rm'ing left and right presses")
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.LEFT and button is not Buttons.RIGHT]
+            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN]
+                                                  if button is not Buttons.LEFT and button is not Buttons.RIGHT]
         # elif event.type == pygame.JOYHATMOTION and event.value[0] == 0:
         #     app.resources[ResourceID.KEY_SCAN].append(Buttons.RIGHT)
 
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 1:
+        elif event.type == pygame.JOYBUTTONUP and event.button == 1:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.A)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.A]
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 0:
+            # print("rm'ing button A")
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.A]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 0:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.B)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.B]
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 3:
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.B]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 3:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.X)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.X]
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.X]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 4:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.Y)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.Y]
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 7:
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.Y]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 7:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.START)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.START]
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 6:
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.START]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 6:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.SELECT)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.SELECT]
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.SELECT]
         # elif event.type == pygame.JOYBUTTONDOWN and event.button == 6:
         #     # app.resources[ResourceID.KEY_SCAN] = [
         #     #     button for button in app.resources[ResourceID.KEY_SCAN] if button != Buttons.SELECT]
         #
         #     app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.A]
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
+        elif event.type == pygame.JOYBUTTONUP and event.button == 4:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.L_BUMP)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.L_BUMP]
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.L_BUMP]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 4:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.R_BUMP)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.R_BUMP]
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.R_BUMP]
         elif event.type == pygame.JOYAXISMOTION and event.axis == 4 and event.value > 0.5:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.L_TRIG)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.L_TRIG]
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.L_TRIG]
         elif event.type == pygame.JOYAXISMOTION and event.axis == 5 and event.value > 0.5:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.R_TRIG)
-            app.resources[ResourceID.KEY_SCAN] = [button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.R_TRIG]
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_UP:
-        #     # app.resources[ResourceID.KEY_SCAN].append(Buttons.UP)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_DOWN:
-        #     # app.resources[ResourceID.KEY_SCAN].append(Buttons.DOWN)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_LEFT:
-        #     # app.resources[ResourceID.KEY_SCAN].append(Buttons.LEFT)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_RIGHT:
-        #     # app.resources[ResourceID.KEY_SCAN].append(Buttons.RIGHT)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_x:
-        #     # app.resources[ResourceID.KEY_SCAN].append(Buttons.A)
-        # elif event.type == pygame.KEYDOWN and event.key == pygame.K_z:
-        #     # app.resources[ResourceID.KEY_SCAN].append(Buttons.B)
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.R_TRIG]
 
 
 def render_stepper_col(app, midi, seq_name, target, left, line_h, font, text_color, accent_color, font_w, col_number):
     top_y = line_h
+    screen = app.resources[ResourceID.SCREEN]
+    (cursor_x, cursor_y) = app.resources[ResourceID.MAIN_CURSOR_POS]
+
     text = font.render(seq_name[0:18], True, text_color)
+
+    if cursor_y == 0 and (cursor_x // 4) == col_number:
+        rect = text.get_rect(topleft=(left - 2.5, top_y))
+        pygame.draw.rect(screen, accent_color, rect.inflate(15, 15), 5)
+
     app.resources[ResourceID.TO_RENDER].append((text, (left, top_y)))
     top_y = line_h * 2
     text = font.render(target[0:18], True, text_color)
+
+    if cursor_y == 1 and (cursor_x // 4) == col_number:
+        rect = text.get_rect(topleft=(left - 2.5, top_y))
+        pygame.draw.rect(screen, accent_color, rect.inflate(15, 15), 5)
+
     app.resources[ResourceID.TO_RENDER].append((text, (left, top_y)))
-    screen = app.resources[ResourceID.SCREEN]
-    (cursor_x, cursor_y) = app.resources[ResourceID.MAIN_CURSOR_POS]
 
     def cell_selected(col, i):
         return cursor_y == i and cursor_x == (4 * col_number + col)
@@ -314,7 +305,6 @@ def render_stepper_col(app, midi, seq_name, target, left, line_h, font, text_col
         if cell_selected(1, i):
             rect = text.get_rect(topleft=(left_offset - 2.5, top))
             pygame.draw.rect(screen, accent_color, rect.inflate(15, 15), 5)
-
 
         app.resources[ResourceID.TO_RENDER].append((text, (left_offset, top)))
 
@@ -358,6 +348,7 @@ def draw_gui(app: App):
 
         text = font.render(f"{line_num:>2}", True,
                            text_color if not current_step else accent_color)
+
         app.resources[ResourceID.TO_RENDER].append(
             (text, (font_w * 2.25, top)))
 
@@ -378,12 +369,15 @@ def move_timer_done(last_time):
 
 @app.register(States.PLAYING, Schedule.UPDATE)
 def move_main_cursor(app: App):
-    # cursor = app.resources[ResourceID.MAIN_CURSOR_POS]
-    move_timer = app.resources[ResourceID.MEMO_MOVE_TIMER]
     key_scan = app.resources[ResourceID.KEY_SCAN]
 
+    if Buttons.A in key_scan:
+        return
+
+    move_timer = app.resources[ResourceID.MOVE_TIMER]
+
     if move_timer_done(move_timer):
-        app.resources[ResourceID.MEMO_MOVE_TIMER] = pygame.time.get_ticks()
+        app.resources[ResourceID.MOVE_TIMER] = pygame.time.get_ticks()
 
         if Buttons.RIGHT in key_scan:
             app.resources[ResourceID.MAIN_CURSOR_POS][0] += 1
@@ -398,8 +392,79 @@ def move_main_cursor(app: App):
             app.resources[ResourceID.MAIN_CURSOR_POS][1] += 1
             app.resources[ResourceID.MAIN_CURSOR_POS][1] %= 18
     elif Buttons.LEFT not in key_scan and Buttons.RIGHT not in key_scan and Buttons.UP not in key_scan and Buttons.DOWN not in key_scan:
-        app.resources[ResourceID.MEMO_MOVE_TIMER] = 0
+        app.resources[ResourceID.MOVE_TIMER] = 0
 
+
+@app.register(States.PLAYING, Schedule.UPDATE)
+def adjust_note(app: App):
+    key_scan = app.resources[ResourceID.KEY_SCAN]
+    (cursor_x, cursor_y) = app.resources[ResourceID.MAIN_CURSOR_POS]
+
+    if Buttons.A not in key_scan or cursor_x % 4 != 0 or cursor_y < 2:
+        return
+
+    note_timer = app.resources[ResourceID.NOTE_TIMER]
+
+    if move_timer_done(note_timer):
+        app.resources[ResourceID.NOTE_TIMER] = pygame.time.get_ticks()
+        midi = app.resources[ResourceID.MIDI_OUTPUT]
+        sequence_names = midi.get_seq_names()[:3]
+        seq = sequence_names[cursor_x // 4][0]
+        note, _, _, _ = midi.get_seq_row(seq, cursor_y - 2)
+        note = note.replace("-", "")
+        # print(f"note_from_str({note}) = {note_from_str(note)}")
+        note = note_from_str(note)
+
+        if note is not None:
+            note -= 24
+
+            if Buttons.RIGHT in key_scan:
+                new_note = (note + 12) % 104 + 24
+                # print(note, "->", new_note)
+                midi.set_note(seq, cursor_y - 2, new_note, None)
+            elif Buttons.LEFT in key_scan:
+                new_note = (note - 12) % 104 + 24
+                # print(note, "->", new_note)
+                midi.set_note(seq, cursor_y - 2, new_note, None)
+            elif Buttons.UP in key_scan:
+                new_note = (note + 1) % 104 + 24
+                # print(note, "->", new_note)
+                midi.set_note(seq, cursor_y - 2, new_note, None)
+            elif Buttons.DOWN in key_scan:
+                new_note = (note - 1) % 104 + 24
+                # print(note, "->", new_note)
+                midi.set_note(seq, cursor_y - 2, new_note, None)
+        else:
+            midi.set_note(seq, cursor_y - 2, 24, None)
+
+
+@app.register(States.PLAYING, Schedule.UPDATE)
+def cahnge_midi_target(app: App):
+    key_scan = app.resources[ResourceID.KEY_SCAN]
+    (cursor_x, cursor_y) = app.resources[ResourceID.MAIN_CURSOR_POS]
+
+    if Buttons.A not in key_scan or cursor_y != 1:
+        return
+
+    # timer = app.resources[ResourceID.NOTE_TIMER]
+
+    if move_timer_done(app.resources[ResourceID.NOTE_TIMER]):
+        app.resources[ResourceID.NOTE_TIMER] = pygame.time.get_ticks()
+        midi = app.resources[ResourceID.MIDI_OUTPUT]
+        devices = midi.list_devs()
+        sequence_names = midi.get_seq_names()[:3]
+        seq_name, old_dev = sequence_names[cursor_x // 4]
+        i = 0
+
+        if old_dev in devices:
+            i = devices.index(old_dev)
+
+            if Buttons.RIGHT in key_scan:
+                i = (i + 1) % len(devices)
+            elif Buttons.LEFT in key_scan:
+                i = (i - 1) % len(devices)
+
+        midi.change_sequence_dev(seq_name, devices[i % len(devices)])
 
 
 def run_app():
@@ -439,7 +504,6 @@ def run_app():
             app.resources[ResourceID.KEY_SCAN])
         # app.resources[ResourceID.KEY_SCAN].clear()
         app.resources[ResourceID.CLOCK].tick()
-
 
     pygame.quit()
 

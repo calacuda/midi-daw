@@ -1,7 +1,7 @@
 #![feature(lock_value_accessors)]
 use crossbeam::channel::{Receiver, Sender, unbounded};
-use midi_daw::server::{BPQ, Tempo};
-use midi_daw_types::{MidiChannel, MidiMsg, MidiReqBody, NoteDuration};
+// use midi_daw::server::{BPQ, Tempo};
+use midi_daw_types::{BPQ, MidiChannel, MidiMsg, MidiReqBody, NoteDuration, Tempo};
 use pyo3::prelude::*;
 use reqwest::{
     StatusCode,
@@ -11,7 +11,8 @@ use rustc_hash::FxHashMap;
 use serde_json::Value;
 use std::{
     sync::{Arc, RwLock},
-    thread::{JoinHandle, spawn},
+    thread::{JoinHandle, sleep, spawn},
+    time::Duration,
 };
 use tungstenite::connect;
 
@@ -125,7 +126,7 @@ impl MidiOut {
             map
         }));
         let playing = Arc::new(RwLock::new(Vec::default()));
-        let base_url: String = "http://127.0.0.1:8080".into();
+        let base_url: String = "http://192.168.1.166:8080".into();
         let midi_handler = Arc::new(RwLock::new(MidiOutHandlerTarget::Remote {
             base_url: base_url.clone(),
         }));
@@ -139,8 +140,10 @@ impl MidiOut {
 
                 move || {
                     sequence_thread(
-                        sequences, playing, // midi_handler,
-                        base_url, tx,
+                        sequences,
+                        playing, // midi_handler,
+                        &[base_url],
+                        tx,
                     )
                 }
             }),
@@ -357,6 +360,17 @@ impl MidiOut {
         step_num
     }
 
+    fn change_sequence_dev(&mut self, seq_name: String, device: String) {
+        let Ok(mut seqs) = self.sequences.write() else {
+            return;
+        };
+        let Some(seq) = seqs.get_mut(&seq_name) else {
+            return;
+        };
+
+        seq.dev = device;
+    }
+
     // fn panic(&self, dev_name: &str) {
     //     // TODO: write this
     // }
@@ -366,100 +380,104 @@ fn sequence_thread(
     sequences: Sequences,
     playing: PlayingSequences,
     // midi_handler: Arc<RwLock<MidiOutHandlerTarget>>,
-    server_url: String,
+    server_url: &[String],
     step_ev: Sender<usize>,
 ) -> ! {
     loop {
-        let base_url = server_url.clone();
-        let ws_url = format!("{}/message-bus", base_url.replace("http://", "ws://"));
-        // connect to websocket
-        let conn = connect(ws_url.clone());
+        // let base_url = server_url.clone();
+        for base_url in server_url {
+            let ws_url = format!("{}/message-bus", base_url.replace("http://", "ws://"));
+            // connect to websocket
+            let conn = connect(ws_url.clone());
 
-        // Establish a connection to the WebSocket server
-        if let Ok((mut socket, response)) = conn
-            && !response.status().is_server_error()
-            && !response.status().is_client_error()
-        {
-            let mut sync_pulses: usize = 0;
-            let mut note_threads = Vec::new();
+            // Establish a connection to the WebSocket server
+            if let Ok((mut socket, response)) = conn
+                && !response.status().is_server_error()
+                && !response.status().is_client_error()
+            {
+                println!("connected to {ws_url}");
+                let mut sync_pulses: usize = 0;
+                let mut note_threads = Vec::new();
 
-            // while connected to websocket ...
-            while let Ok(msg) = socket.read() {
-                if msg.is_binary() {
-                    // println!("bin message");
+                // while connected to websocket ...
+                while let Ok(msg) = socket.read() {
+                    if msg.is_binary() {
+                        // println!("bin message");
 
-                    if let (Ok(sequences), Ok(playing)) = (sequences.read(), playing.read())
-                        && sync_pulses % 12 == 0
-                    {
-                        let step_num = (sync_pulses / 12) % N_STEPS;
+                        if let (Ok(sequences), Ok(playing)) = (sequences.read(), playing.read())
+                            && sync_pulses % 12 == 0
+                        {
+                            let step_num = (sync_pulses / 12) % N_STEPS;
 
-                        if let Err(e) = step_ev.send(step_num) {
-                            println!("sending step_num resulted in error: {e}");
-                        }
+                            if let Err(e) = step_ev.send(step_num) {
+                                println!("sending step_num resulted in error: {e}");
+                            }
 
-                        note_threads.clear();
-                        // play notes
-                        for seq_name in playing.iter() {
-                            if let Some(seq) = sequences.get(seq_name) {
-                                // TODO: do before note cmd_stuff
+                            note_threads.clear();
+                            // play notes
+                            for seq_name in playing.iter() {
+                                if let Some(seq) = sequences.get(seq_name) {
+                                    // TODO: do before note cmd_stuff
 
-                                // play note
-                                if let Some((note, velocity)) = seq.steps[step_num].0 {
-                                    let jh = spawn({
-                                        let midi_dev = seq.dev.clone();
-                                        let channel = seq.channel.clone();
-                                        let url = format!("{base_url}/midi");
+                                    // play note
+                                    if let Some((note, velocity)) = seq.steps[step_num].0 {
+                                        let jh = spawn({
+                                            let midi_dev = seq.dev.clone();
+                                            let channel = seq.channel.clone();
+                                            let url = format!("{base_url}/midi");
 
-                                        move || {
-                                            // mk req
-                                            let client = Client::new();
-                                            let msg = MidiMsg::PlayNote {
-                                                note,
-                                                velocity,
-                                                duration: NoteDuration::Sn(1),
-                                            };
-                                            let midi_req_body = MidiReqBody {
-                                                midi_dev,
-                                                channel,
-                                                msg,
-                                            };
+                                            move || {
+                                                // mk req
+                                                let client = Client::new();
+                                                let msg = MidiMsg::PlayNote {
+                                                    note,
+                                                    velocity,
+                                                    duration: NoteDuration::Sn(1),
+                                                };
+                                                let midi_req_body = MidiReqBody {
+                                                    midi_dev,
+                                                    channel,
+                                                    msg,
+                                                };
 
-                                            if let Err(e) =
-                                                client.post(url).json(&midi_req_body).send()
-                                            {
-                                                println!("posting a message failed with: {e}");
+                                                if let Err(e) =
+                                                    client.post(url).json(&midi_req_body).send()
+                                                {
+                                                    println!("posting a message failed with: {e}");
+                                                }
                                             }
-                                        }
-                                    });
+                                        });
 
-                                    note_threads.push(jh);
+                                        note_threads.push(jh);
+                                    }
+
+                                    // TODO: do after note cmd_stuff
                                 }
-
-                                // TODO: do after note cmd_stuff
                             }
                         }
-                    }
 
-                    sync_pulses += 1;
+                        sync_pulses += 1;
+                    }
                 }
+            } else {
+                println!("failed to connect to {ws_url}");
+                // delay
+                sleep(Duration::from_secs_f64(0.1));
             }
-        } else {
-            println!("failed to connect to {ws_url}");
-            // delay
         }
     }
 }
 
 pub fn display_midi_note(midi_note: u8) -> String {
     let note_name_i = midi_note % 12;
-    let octave = midi_note / 12;
+    let octave = midi_note / 12 - 1;
 
     let note_names = [
         "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
     ];
     let note_name = note_names[note_name_i as usize];
 
-    format!("{note_name}{octave:X}")
+    format!("{note_name}{octave}")
 }
 
 // /// Formats the sum of two numbers as string.

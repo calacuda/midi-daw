@@ -12,9 +12,10 @@ use actix_web::{
 };
 use crossbeam::channel::Sender;
 use fx_hash::FxHashSet;
+pub use midi_daw_types::{BPQ, Tempo};
 use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
 use midir::MidiOutput;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::log::*;
 use tracing_actix_web::TracingLogger;
@@ -24,8 +25,8 @@ mod message_bus;
 mod note;
 
 pub type MidiOut = Sender<(String, midi_msg::MidiMsg)>;
-pub type Tempo = Arc<std::sync::RwLock<f64>>;
-pub type BPQ = Arc<std::sync::RwLock<f64>>;
+// pub type Tempo = Arc<std::sync::RwLock<f64>>;
+// pub type BPQ = Arc<std::sync::RwLock<f64>>;
 
 #[post("/midi")]
 async fn midi(
@@ -261,6 +262,7 @@ pub async fn run(
     .workers(12)
     .bind(("127.0.0.1", 8080))?
     .bind(("localhost", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .bind_uds(UDS_SERVER_PATH)?
     .run()
     .await

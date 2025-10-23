@@ -4,10 +4,13 @@ use midi_msg::Channel;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
 
 pub type MidiDeviceName = String;
+pub type Tempo = Arc<std::sync::RwLock<f64>>;
+pub type BPQ = Arc<std::sync::RwLock<f64>>;
 
 pub mod automation;
 
@@ -401,6 +404,8 @@ pub fn note_from_str(name: String) -> Option<u8> {
         print!("[Error] Sorry but \"{name}\" is not a real note");
         return None;
     };
+
+    // println!("name -> {name}");
 
     let octave: u8 = if let Ok(octave) = name.parse()
         && !name.is_empty()
