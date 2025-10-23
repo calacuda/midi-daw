@@ -260,8 +260,8 @@ pub async fn run(
     })
     .worker_max_blocking_threads(1)
     .workers(12)
-    .bind(("127.0.0.1", 8080))?
-    .bind(("localhost", 8080))?
+    // .bind(("127.0.0.1", 8080))?
+    // .bind(("localhost", 8080))?
     .bind(("0.0.0.0", 8080))?
     .bind_uds(UDS_SERVER_PATH)?
     .run()
