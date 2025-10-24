@@ -78,6 +78,7 @@ class Buttons(Enum):
     R_BUMP = 11
     L_TRIG = 12
     R_TRIG = 13
+    MENU = 14
 
 
 def clear_screen(app):
@@ -163,6 +164,9 @@ def log_exit_setup(app: App):
 
 def controls_step(app: App):
     for event in app.resources[ResourceID.PG_EVENTS]:
+        if event.type == pygame.JOYBUTTONDOWN:
+            app.log.info(str(event))
+
         if event.type == pygame.JOYHATMOTION and event.value[1] == 1:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.UP)
         elif event.type == pygame.JOYHATMOTION and event.value[1] == -1:
@@ -172,24 +176,30 @@ def controls_step(app: App):
         elif event.type == pygame.JOYHATMOTION and event.value[0] == 1:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.RIGHT)
         elif event.type == pygame.JOYBUTTONDOWN and event.button == 1:
-            app.resources[ResourceID.KEY_SCAN].append(Buttons.A)
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 0:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.B)
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 3:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 0:
+            app.resources[ResourceID.KEY_SCAN].append(Buttons.A)
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 2:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.X)
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 3:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.Y)
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 7:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 9:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.START)
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 6:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 8:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.SELECT)
         # elif event.type == pygame.JOYBUTTONUP and event.button == 6:
         #     app.resources[ResourceID.KEY_SCAN] = [
         #         button for button in app.resources[ResourceID.KEY_SCAN] if button != Buttons.SELECT]
         elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.L_BUMP)
-        elif event.type == pygame.JOYBUTTONDOWN and event.button == 4:
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 6:
+            app.resources[ResourceID.KEY_SCAN].append(Buttons.L_TRIG)
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 5:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.R_BUMP)
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 7:
+            app.resources[ResourceID.KEY_SCAN].append(Buttons.R_TRIG)
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 10:
+            app.resources[ResourceID.KEY_SCAN].append(Buttons.MENU)
         elif event.type == pygame.JOYAXISMOTION and event.axis == 4 and event.value < 0.5:
             app.resources[ResourceID.KEY_SCAN].append(Buttons.L_TRIG)
         elif event.type == pygame.JOYAXISMOTION and event.axis == 5 and event.value < 0.5:
@@ -216,24 +226,24 @@ def controls_step(app: App):
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.A)
             # print("rm'ing button A")
             app.resources[ResourceID.KEY_SCAN] = [
-                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.A]
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.B]
         elif event.type == pygame.JOYBUTTONUP and event.button == 0:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.B)
             app.resources[ResourceID.KEY_SCAN] = [
-                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.B]
-        elif event.type == pygame.JOYBUTTONUP and event.button == 3:
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.A]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 2:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.X)
             app.resources[ResourceID.KEY_SCAN] = [
                 button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.X]
-        elif event.type == pygame.JOYBUTTONUP and event.button == 4:
+        elif event.type == pygame.JOYBUTTONUP and event.button == 3:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.Y)
             app.resources[ResourceID.KEY_SCAN] = [
                 button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.Y]
-        elif event.type == pygame.JOYBUTTONUP and event.button == 7:
+        elif event.type == pygame.JOYBUTTONUP and event.button == 9:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.START)
             app.resources[ResourceID.KEY_SCAN] = [
                 button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.START]
-        elif event.type == pygame.JOYBUTTONUP and event.button == 6:
+        elif event.type == pygame.JOYBUTTONUP and event.button == 8:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.SELECT)
             app.resources[ResourceID.KEY_SCAN] = [
                 button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.SELECT]
@@ -246,10 +256,21 @@ def controls_step(app: App):
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.L_BUMP)
             app.resources[ResourceID.KEY_SCAN] = [
                 button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.L_BUMP]
-        elif event.type == pygame.JOYBUTTONUP and event.button == 4:
+        elif event.type == pygame.JOYBUTTONUP and event.button == 6:
+            # app.resources[ResourceID.KEY_SCAN].append(Buttons.L_BUMP)
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.L_TRIG]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 5:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.R_BUMP)
             app.resources[ResourceID.KEY_SCAN] = [
                 button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.R_BUMP]
+        elif event.type == pygame.JOYBUTTONUP and event.button == 7:
+            # app.resources[ResourceID.KEY_SCAN].append(Buttons.R_BUMP)
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.R_TRIG]
+        elif event.type == pygame.JOYBUTTONDOWN and event.button == 10:
+            app.resources[ResourceID.KEY_SCAN] = [
+                button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.MENU]
         elif event.type == pygame.JOYAXISMOTION and event.axis == 4 and event.value > 0.5:
             # app.resources[ResourceID.KEY_SCAN].append(Buttons.L_TRIG)
             app.resources[ResourceID.KEY_SCAN] = [
@@ -284,11 +305,14 @@ def render_stepper_col(app, midi, seq_name, target, left, line_h, font, text_col
     def cell_selected(col, i):
         return cursor_y == i and cursor_x == (4 * col_number + col)
 
+    row = midi.get_seq(seq_name)
+
     for i in range(2, 18):
         top = line_h * (i + 1)
 
         # get step data from rust backend.
-        row = midi.get_seq_row(seq_name, i - 2)
+        # row = midi.get_seq_row(seq_name, i - 2)
+        row = seq_rows[i - 2]
 
         left_offset = left
         text = font.render(row[0], True, text_color)
@@ -434,12 +458,14 @@ def adjust_note(app: App):
                 new_note = (note - 1) % 104 + 24
                 # print(note, "->", new_note)
                 midi.set_note(seq, cursor_y - 2, new_note, None)
+            elif Buttons.B in key_scan:
+                midi.set_note(seq, cursor_y - 2, None, None)
         else:
             midi.set_note(seq, cursor_y - 2, 24, None)
 
 
 @app.register(States.PLAYING, Schedule.UPDATE)
-def cahnge_midi_target(app: App):
+def change_midi_target(app: App):
     key_scan = app.resources[ResourceID.KEY_SCAN]
     (cursor_x, cursor_y) = app.resources[ResourceID.MAIN_CURSOR_POS]
 
@@ -452,6 +478,7 @@ def cahnge_midi_target(app: App):
         app.resources[ResourceID.NOTE_TIMER] = pygame.time.get_ticks()
         midi = app.resources[ResourceID.MIDI_OUTPUT]
         devices = midi.list_devs()
+        # print(f"devices: {devices}")
         sequence_names = midi.get_seq_names()[:3]
         seq_name, old_dev = sequence_names[cursor_x // 4]
         i = 0
@@ -464,7 +491,39 @@ def cahnge_midi_target(app: App):
             elif Buttons.LEFT in key_scan:
                 i = (i - 1) % len(devices)
 
-        midi.change_sequence_dev(seq_name, devices[i % len(devices)])
+        dev = devices[i % len(devices)]
+
+        if dev is not None:
+            midi.change_sequence_dev(seq_name, dev)
+
+
+@app.register(States.PLAYING, Schedule.UPDATE)
+def set_playing(app: App):
+    key_scan = app.resources[ResourceID.KEY_SCAN]
+    last_key_scan = app.resources[ResourceID.LAST_KEY_SCAN]
+
+    if Buttons.START in key_scan and Buttons.START not in last_key_scan:
+        cursor_x, _ = app.resources[ResourceID.MAIN_CURSOR_POS]
+        midi = app.resources[ResourceID.MIDI_OUTPUT]
+        sequence_names = midi.get_seq_names()[:3]
+        seq_name, _ = sequence_names[cursor_x // 4]
+        print(seq_name)
+        midi.play_seq(seq_name)
+
+
+# TODO: add sidebar menu
+# TODO: add adding sequences
+# TODO: add chains (a sequence of sequences)
+# TODO: add tempo changing
+# TODO: add cmds
+
+
+@app.register(States.PLAYING, Schedule.UPDATE)
+def exit_game(app: App):
+    key_scan = app.resources[ResourceID.KEY_SCAN]
+
+    if Buttons.SELECT in key_scan and Buttons.MENU in key_scan and len(key_scan) == 2:
+        app.exit()
 
 
 def run_app():
@@ -475,12 +534,6 @@ def run_app():
     app.resources[ResourceID.PG_EVENTS] = []
     app.resources[ResourceID.CONTROLLER] = joy
     midi = MidiOut()
-    midi.set_note("Example-1", 0, 69, 90)
-    midi.set_note("Example-2", 3, 69, 90)
-    midi.set_note("Example-2", 7, 69, 90)
-    midi.set_note("Example-2", 11, 69, 90)
-    midi.set_note("Example-2", 15, 69, 90)
-    midi.play_seq("Example-2")
     app.resources[ResourceID.MIDI_OUTPUT] = midi
 
     while app.should_loop():

@@ -126,7 +126,7 @@ impl MidiOut {
             map
         }));
         let playing = Arc::new(RwLock::new(Vec::default()));
-        let base_url: String = "http://192.168.1.166:8080".into();
+        let base_url: String = "http://192.168.12.1:8080".into();
         let midi_handler = Arc::new(RwLock::new(MidiOutHandlerTarget::Remote {
             base_url: base_url.clone(),
         }));
@@ -215,6 +215,7 @@ impl MidiOut {
             Ok(MidiOutHandlerTarget::Remote { ref base_url }) => {
                 // mk web req
                 let Ok(req) = get(format!("{base_url}/midi")) else {
+                    println!("list_devs get request failed");
                     return Vec::new();
                 };
                 let Ok(body) = req.text() else {
@@ -222,7 +223,15 @@ impl MidiOut {
                 };
 
                 if let Ok(Value::Array(arr)) = serde_json::from_str(&body) {
-                    arr.into_iter().map(|elm| elm.to_string()).collect()
+                    arr.into_iter()
+                        .filter_map(|elm| {
+                            if let Value::String(elm) = elm {
+                                Some(elm)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
                 } else {
                     Vec::new()
                 }
@@ -332,6 +341,34 @@ impl MidiOut {
         }
     }
 
+    fn get_seq(&self, seq_name: String) -> Option<Vec<[String; 4]>> {
+        if let Ok(seqs) = self.sequences.read() {
+            if let Some(seq) = seqs.get(&seq_name) {
+                Some(
+                    seq.steps
+                        .iter()
+                        .map(|(note, _cmd_1, _cmd_2)| {
+                            // let (note, _cmd_1, _cmd_2) = step;
+                            let n = note
+                                .map(|(note, _vel)| display_midi_note(note))
+                                .unwrap_or("---".into());
+                            let vel = note
+                                .map(|(_note, vel)| format!("{vel:->3}"))
+                                .unwrap_or("---".into());
+
+                            [n, vel, "----".into(), "----".into()]
+                        })
+                        .collect(),
+                )
+            } else {
+                println!("{seq_name}, is not one of; {:?}", seqs.keys());
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     fn play_seq(&mut self, seq_name: String) {
         if let Ok(mut seqs) = self.playing.write()
             && self
@@ -343,7 +380,11 @@ impl MidiOut {
                 .contains(&&seq_name)
         {
             // println!("Playing sequence {seq_name}");
-            seqs.push(seq_name);
+            if !seqs.contains(&seq_name) {
+                seqs.push(seq_name);
+            } else {
+                seqs.retain(|e| e != &seq_name);
+            }
         } else {
             println!("could not play");
         }
