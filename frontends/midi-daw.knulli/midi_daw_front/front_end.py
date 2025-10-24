@@ -521,6 +521,7 @@ def set_playing(app: App):
 
 # TODO: add sidebar menu
 # TODO: add adding sequences
+# TODO: add drum sequences
 # TODO: add chains (a sequence of sequences)
 # TODO: add tempo changing
 # TODO: add cmds
