@@ -2,7 +2,7 @@ import pygame
 from pathlib import Path
 from py_bevy import App, Schedule
 from enum import Enum
-from logging import DEBUG
+from logging import INFO
 from midi_daw_back import MidiOut
 from midi_daw_types import note_from_str
 from copy import deepcopy
@@ -28,7 +28,7 @@ class States(Enum):
     PLAYING = 2
 
 
-app = App(States.STARTUP, DEBUG)
+app = App(States.STARTUP, INFO)
 
 
 class ResourceID(Enum):
@@ -281,10 +281,10 @@ def controls_step(app: App):
                 button for button in app.resources[ResourceID.KEY_SCAN] if button is not Buttons.R_TRIG]
 
 
-def render_stepper_col(app, midi, seq_name, target, left, line_h, font, text_color, accent_color, font_w, col_number):
+def render_stepper_col(app, screen, midi, seq_name, target, left, line_h, font, text_color, accent_color, font_w, col_number, cursor_pos):
     top_y = line_h
-    screen = app.resources[ResourceID.SCREEN]
-    (cursor_x, cursor_y) = app.resources[ResourceID.MAIN_CURSOR_POS]
+    # screen = app.resources[ResourceID.SCREEN]
+    (cursor_x, cursor_y) = cursor_pos
 
     text = font.render(seq_name[0:18], True, text_color)
 
@@ -305,7 +305,7 @@ def render_stepper_col(app, midi, seq_name, target, left, line_h, font, text_col
     def cell_selected(col, i):
         return cursor_y == i and cursor_x == (4 * col_number + col)
 
-    row = midi.get_seq(seq_name)
+    seq_rows = midi.get_seq(seq_name)
 
     for i in range(2, 18):
         top = line_h * (i + 1)
@@ -353,7 +353,7 @@ def render_stepper_col(app, midi, seq_name, target, left, line_h, font, text_col
 
 @app.register(States.PLAYING, Schedule.UPDATE)
 def draw_gui(app: App):
-    _, px_height = SCREEN_SIZE
+    px_width, px_height = SCREEN_SIZE
     line_h = px_height / 20
     font = app.resources[ResourceID.FONT]
     font_w, _ = font.size("M")
@@ -362,6 +362,8 @@ def draw_gui(app: App):
     text_color = app.resources[ResourceID.TEXT_COLOR]
     accent_color = app.resources[ResourceID.HIGHLIGHT_COLOR]
     midi = app.resources[ResourceID.MIDI_OUTPUT]
+    screen = app.resources[ResourceID.SCREEN]
+    cursor_pos = app.resources[ResourceID.MAIN_CURSOR_POS]
     sequence_names = midi.get_seq_names()[:3]
 
     for i in range(2, 18):
@@ -380,8 +382,14 @@ def draw_gui(app: App):
         left = line_n_col_w + reg_line_w * i
         (name, dev) = sequence_names[i]
 
-        render_stepper_col(app,
-                           midi, name, dev, left, line_h, font, text_color, accent_color, font_w, i)
+        render_stepper_col(app, screen,
+                           midi, name, dev, left, line_h, font, text_color, accent_color, font_w, i, cursor_pos)
+
+    left = line_n_col_w + reg_line_w * 3 + font_w * 3
+    top = line_h * 2
+    bottom = px_height - top
+    rect = pygame.Rect(left - 2.5, top, px_width - left, bottom - top)
+    pygame.draw.rect(screen, accent_color, rect.inflate(15, 15), 5)
 
 
 def move_timer_done(last_time):
@@ -518,6 +526,7 @@ def set_playing(app: App):
 # TODO: add cmds
 
 
+@app.register(States.STARTUP, Schedule.UPDATE)
 @app.register(States.PLAYING, Schedule.UPDATE)
 def exit_game(app: App):
     key_scan = app.resources[ResourceID.KEY_SCAN]
