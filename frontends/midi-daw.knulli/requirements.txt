@@ -1,6 +1,6 @@
 esper==3.4
 -e git+ssh://git@github.com/calacuda/midi-daw.git@a281c0984f78fb3eee2b75344eb649d84a318be1#egg=midi_daw&subdirectory=python-lib
--e git+ssh://git@github.com/calacuda/midi-daw.git@93063d3c749de40b0bb5c2cc5315807e2d1eb12b#egg=midi_daw_types&subdirectory=midi-daw-types
--e git+ssh://git@github.com/calacuda/midi-daw.git@93063d3c749de40b0bb5c2cc5315807e2d1eb12b#egg=midi_daw_back&subdirectory=frontends/midi-daw.knulli/midi_daw_back
+-e git+ssh://git@github.com/calacuda/midi-daw.git@3ec5a25f215533d34144879f5209278a3e9481a3#egg=midi_daw_types&subdirectory=midi-daw-types
+-e git+ssh://git@github.com/calacuda/midi-daw.git@3ec5a25f215533d34144879f5209278a3e9481a3#egg=midi_daw_back&subdirectory=frontends/midi-daw.knulli/midi_daw_back
 py_bevy @ git+https://github.com/calacuda/py-bevy@f649461542ffd1a45f21feec79a79eafbbb475cc
 pygame==2.6.1

@@ -25,8 +25,6 @@ mod message_bus;
 mod note;
 
 pub type MidiOut = Sender<(String, midi_msg::MidiMsg)>;
-// pub type Tempo = Arc<std::sync::RwLock<f64>>;
-// pub type BPQ = Arc<std::sync::RwLock<f64>>;
 
 #[post("/midi")]
 async fn midi(

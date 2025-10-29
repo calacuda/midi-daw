@@ -41,3 +41,4 @@ these are listen in no particular order.
       - [ ] ar
 - [x] add an optional "setup" function that must run before a decorated function with looping enabled can start looping
 - [x] create virtual midi-outs
+- [ ] augment websocket-message-bus/http-api with mqtt.
