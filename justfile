@@ -10,10 +10,11 @@ _new-tmux-dev-session SESSION:
   @just _new-window "{{SESSION}}" "Run" "cd python-lib"
   @just _new-window "{{SESSION}}" "Misc" ""
   @just _new-window "{{SESSION}}" "Git" "git status"
-  @just _new-window "{{SESSION}}" "py-front" "cd ./frontends/midi-daw.knulli/ && nv midi-daw.pygame"
-  @just _new-window "{{SESSION}}" "test-front" "cd ./frontends/midi-daw.knulli/ "
-  @just _new-window "{{SESSION}}" "rust-front" "cd ./frontends/midi-daw.knulli/midi_daw_back/ && nv ./src/{lib.rs,*.rs,**/*.rs}"
-  @just _new-window "{{SESSION}}" "rust-front-build" "cd ./frontends/midi-daw.knulli/midi_daw_back/"
+  # @just _new-window "{{SESSION}}" "py-front" "cd ./frontends/midi-daw.knulli/ && nv midi-daw.pygame"
+  # @just _new-window "{{SESSION}}" "test-front" "cd ./frontends/midi-daw.knulli/ "
+  # @just _new-window "{{SESSION}}" "rust-front" "cd ./frontends/midi-daw.knulli/midi_daw_back/ && nv ./src/{lib.rs,*.rs,**/*.rs}"
+  # @just _new-window "{{SESSION}}" "rust-front-build" "cd ./frontends/midi-daw.knulli/midi_daw_back/"
+  # # @just _new-window "{{SESSION}}" "Git" "git status"
 
 _new-window SESSION NAME CMD:
   tmux new-w -t "{{SESSION}}" -n "{{NAME}}"
