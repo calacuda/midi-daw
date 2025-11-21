@@ -1,17 +1,16 @@
-use android_usbser::usb;
+// use android_usbser::usb;
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use dioxus::prelude::*;
-use lazy_static::lazy_static;
-use midi_control::{ControlEvent, KeyEvent, MidiMessage};
+// use lazy_static::lazy_static;
+// use midi_control::{ControlEvent, KeyEvent, MidiMessage};
 use std::{
     io::{self, BufRead, BufReader, Read, Write},
     str::FromStr,
-    sync::Mutex,
     sync::{
-        Arc, RwLock,
+        Arc, Mutex, RwLock,
         atomic::{AtomicBool, AtomicU32, Ordering},
     },
-    thread::{JoinHandle, spawn},
+    thread::{sleep, spawn},
     time::{Duration, SystemTime},
 };
 use tracing::*;
@@ -31,7 +30,7 @@ pub type SynthId = String;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
-const HEADER_SVG: Asset = asset!("/assets/header.svg");
+// const HEADER_SVG: Asset = asset!("/assets/header.svg");
 const N_STEPS: usize = 128;
 
 // lazy_static! {
@@ -59,81 +58,53 @@ fn main() {
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
 
     // needed bc audio output will fail if its started too soon.
-    // let (synth, output_dev) = make_synth();
-    let synth = make_synth();
+    // let synth = make_synth();
 
-    // let _jh = spawn(move || {
-    //         while let Ok(msg) = MIDI_RECV.recv() {
-    //             if let Ok(ref mut synth) = synth.synth.write() {
-    //                 match msg {
-    //                     MidiMessage::Invalid => {
-    //                         // error!("system received an invalid MIDI message.");
-    //                     }
-    //                     MidiMessage::NoteOn(_, KeyEvent { key, value }) => {
-    //                         synth.engine.play(key, value)
-    //                     }
-    //                     MidiMessage::NoteOff(_, KeyEvent { key, value: _ }) => {
-    //                         synth.engine.stop(key)
-    //                     }
-    //                     MidiMessage::PitchBend(_, lsb, msb) => {
-    //                         let bend =
-    //                             i16::from_le_bytes([lsb, msb]) as f32 / (32_000.0 * 0.5) - 1.0;
+    // let sections = use_signal(|| {
+    use_context_provider(|| {
+        Signal::new(vec![
+            Track::default(),
+            Track::new(
+                Some("Another-Section".into()),
+                1,
+                "Default".into(),
+                true,
+                Some(16),
+            ),
+        ])
+    });
 
-    //                         if bend > 0.02 || bend < -0.020 {
-    //                             synth.engine.bend(bend);
-    //                         } else {
-    //                             synth.engine.unbend();
-    //                         }
-    //                     }
-    //                     MidiMessage::ControlChange(_, ControlEvent { control, value }) => {
-    //                         let value = value as f32 / 127.0;
-    //                         // let effects = self.target_effects;
+    let _join_handle = spawn(|| {
+        loop {
+            // info!("thread!");
 
-    //                         match synth.engine {
-    //                             SynthModule::WaveTable(ref mut wt) => {
-    //                                 wt.synth.midi_input(&msg);
-    //                             }
-    //                             ref mut engine => {
-    //                                 match control {
-    //                                     70 => engine.knob_1(value),
-    //                                     71 => engine.knob_2(value),
-    //                                     72 => engine.knob_3(value),
-    //                                     73 => engine.knob_4(value),
-    //                                     74 => engine.knob_5(value),
-    //                                     75 => engine.knob_6(value),
-    //                                     76 => engine.knob_7(value),
-    //                                     77 => engine.knob_8(value),
-    //                                     1 => engine.volume_swell(value),
-    //                                     _ => {
-    //                                         // info!("CC message => {control}-{value}");
-    //                                         false
-    //                                     }
-    //                                 };
-    //                             }
-    //                         }
-    //                     }
-    //                     _ => {}
-    //                 }
-    //             }
-    //         }
-    //     }
-    // );
+            sleep(Duration::from_secs_f32(1.0));
+        }
+    });
 
     dioxus::launch(App);
 }
 
 #[component]
-fn App() -> Element {
+fn App(// sections: Signal<Vec<Track>>
+) -> Element {
     let middle_view = use_signal(|| MiddleColView::Section);
-    let sections = use_signal(|| {
-        vec![
-            Track::default(),
-            Track::new(Some("Another-Section".into()), 1, "Default".into()),
-        ]
-    });
+    // let sections = use_signal(|| {
+    //     vec![
+    //     Track::default(),
+    //     Track::new(
+    //         Some("Another-Section".into()),
+    //         1,
+    //         "Default".into(),
+    //         true,
+    //         Some(16),
+    //     ),
+    // ]
+    // });
     let displaying_uuid = use_signal(|| 0usize);
     // used to give context to the edit note/velcity/cmd-1/cmd-2
     let edit_cell = use_signal(|| None);
+    let sections: Signal<Vec<Track>> = use_context();
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -155,6 +126,7 @@ fn App() -> Element {
             div {
                 id: "right-col",
                 // PlayTone {  }
+                RightCol { middle_view, sections, displaying: displaying_uuid }
             }
         }
     }
@@ -168,9 +140,10 @@ fn EditSectionMenu(
 ) -> Element {
     let note = use_signal(|| {
         if let Some((row, cell)) = edit_cell() {
-            sections.read()[displaying()].steps[row]
+            *sections.read()[displaying()].steps[row]
                 .note
-                .unwrap_or(12u8)
+                .first()
+                .unwrap_or(&12u8)
         } else {
             0u8
         }
@@ -206,7 +179,7 @@ fn EditSectionMenu(
                             match cell {
                                 Colums::Note => {
                                     // set note
-                                    sections.write()[displaying()].steps[row].note = None;
+                                    sections.write()[displaying()].steps[row].note = vec![];
                                 }
                                 Colums::Velocity => {
                                     // set velocity
@@ -239,7 +212,7 @@ fn EditSectionMenu(
                             match cell {
                                 Colums::Note => {
                                     // set note
-                                    sections.write()[displaying()].steps[row].note = Some(note());
+                                    sections.write()[displaying()].steps[row].note = vec![note()];
 
                                     // set velocity if not yet set
                                     if sections()[displaying()].steps[row].velocity.is_none() {
@@ -273,6 +246,8 @@ fn EditSectionMenu(
 
             if let Some((row, cell)) = edit_cell() {
                 match cell {
+                    // Colums::Note if !sections.read()[displaying()].is_drum => rsx! { EditNote { note } },
+                    // Colums::Note if sections.read()[displaying()].is_drum => rsx! { EditDrum { note } },
                     Colums::Note => rsx! { EditNote { note } },
                     _ => { rsx! { } }
                 }
@@ -291,66 +266,65 @@ fn EditNote(note: Signal<u8>) -> Element {
     ];
 
     rsx! {
-        // div {
-            // class: "row
-            div {
-                class: "xx-large super-center",
+        div {
+            class: "xx-large super-center",
 
-                "Octave"
-            }
-            div {
-                class: "row space-around",
+            "Octave"
+        }
+        div {
+            class: "row space-around",
 
-                div {
-                    class: "button large",
-                    onclick: move |_| {
-                        octave.set(
-                            (if octave() > 1 {
-                                (octave() - 1)}
-                            else {
+            div {
+                class: "button large",
+                onclick: move |_| {
+                    octave.set(
+                        (
+                            if octave() > 1 {
+                                octave() - 1
+                            } else {
                                 9
-                            }) % 10
-                        );
-                        note.set((name() + octave() * 12) as u8);
-                    },
-                    "<-"
-                }
-                div {
-                    class: "large",
-                    "{octave.read()}"
-                }
+                            }
+                        ) % 10
+                    );
+                    note.set((name() + octave() * 12) as u8);
+                },
+                "<-"
+            }
+            div {
+                class: "large",
+                "{octave.read()}"
+            }
+            div {
+                class: "button large",
+                onclick: move |_| {
+                    octave.set((octave() % 9) + 1);
+                    note.set((name() + octave() * 12) as u8);
+                },
+                "->"
+            }
+        }
+        div {
+            class: "row space-around",
+
+            for (i, display_name) in note_names.iter().enumerate() {
                 div {
                     class: "button large",
                     onclick: move |_| {
-                        octave.set((octave() % 9) + 1);
+                        name.set(i as i8);
                         note.set((name() + octave() * 12) as u8);
                     },
-                    "->"
+                    "{display_name}"
                 }
             }
-            div {
-                class: "row space-around",
+        }
+        div {
+            class: "row space-around",
 
-                for (i, display_name) in note_names.iter().enumerate() {
-                    div {
-                        class: "button large",
-                        onclick: move |_| {
-                            name.set(i as i8);
-                            note.set((name() + octave() * 12) as u8);
-                        },
-                        "{display_name}"
-                    }
-                }
-            }
             div {
-                class: "row space-around",
-
-                div {
-                    class: "xx-large",
-                    "{display_midi_note(note())}"
-                }
+                class: "xx-large",
+                {display_midi_note(&note())}
             }
-        // }
+        }
     }
 }
 
@@ -361,12 +335,93 @@ fn MiddleCol(
     displaying: Signal<usize>,
     edit_cell: Signal<Option<(usize, Colums)>>,
 ) -> Element {
+    // let is_drum_track = use_signal(|| sections.read()[displaying()].is_drum);
+
     rsx! {
         div {
             id: "middle-main",
-            if middle_view() == MiddleColView::Section {
+            if middle_view() == MiddleColView::Section && !sections.read()[displaying()].is_drum {
                 SectionDisplay { middle_view, sections, displaying, edit_cell }
+            } else if middle_view() == MiddleColView::Section && sections.read()[displaying()].is_drum {
+                DrumSectionDisplay { middle_view, sections, displaying }
             } else if middle_view() == MiddleColView::Pattern {}
+        }
+    }
+}
+
+#[component]
+fn DrumSectionDisplay(
+    middle_view: Signal<MiddleColView>,
+    sections: Signal<Vec<Track>>,
+    displaying: Signal<usize>,
+) -> Element {
+    // info!("DrumSelectionDisplay");
+
+    rsx! {
+        div {
+            id: "drum-section",
+
+            div {
+                id: "drum-labels",
+
+                for (_, drum_name) in [
+                    (36u8, "Kick"),
+                    (40, "Snare"),
+                    (45, "Low Tom"),
+                    (50, "High Tom"),
+                    (39, "Clap"),
+                    (46, "Open HH"),
+                    (42, "Closed HH")
+                ] {
+                    div {
+                        class: "drum-label",
+
+                        "{drum_name}"
+                    }
+                }
+            }
+
+            div {
+                id: "drum-grid",
+
+                for (drum_note, _) in [
+                    (36u8, "Kick"),
+                    (40, "Snare"),
+                    (45, "Low Tom"),
+                    (50, "High Tom"),
+                    (39, "Clap"),
+                    (46, "Open HH"),
+                    (42, "Closed HH")
+                ] {
+                    div {
+                        class: "drum-row",
+
+                        for step_n in 0..sections.read()[displaying()].steps.len() {
+                            div {
+                                class: {
+                                    let mut classes = vec!["drum-button"];
+
+                                    if sections.read()[displaying()].steps[step_n].note.contains(&drum_note) {
+                                        classes.push("drum-button-active");
+                                    }
+
+                                    classes.join(" ")
+                                },
+                                onclick: move |_| {
+                                    let step = &mut sections.write()[displaying()].steps[step_n];
+
+                                    if step.note.contains(&drum_note) {
+                                        step.note.retain(|elm| *elm == drum_note);
+                                    } else {
+                                        step.note.push(drum_note);
+                                    }
+                                },
+                                " "
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -378,6 +433,8 @@ fn SectionDisplay(
     displaying: Signal<usize>,
     edit_cell: Signal<Option<(usize, Colums)>>,
 ) -> Element {
+    // info!("regular section view");
+
     rsx! {
         div {
             id: "section-display-header",
@@ -424,7 +481,7 @@ fn SectionDisplay(
                                 },
                                 class: "button super-center",
 
-                                "{step.note.map(display_midi_note).unwrap_or(\"---\".into())}"
+                                {step.note.first().map( display_midi_note ).unwrap_or("---".into())}
                             }
                             // Velocity
                             div {
@@ -436,7 +493,7 @@ fn SectionDisplay(
                                 },
                                 class: "button super-center",
 
-                                if sections()[displaying()].steps[i].note.is_some() {
+                                if sections()[displaying()].steps[i].note.first().is_some() {
                                     // "{step.velocity.unwrap_or(85):->3X}"
                                     "{step.velocity.unwrap_or(85):->3}"
                                 } else {
@@ -547,13 +604,55 @@ fn LeftCol(
                     },
                     "{name}"
                 }
-                // TODO: add deleat track button here
+                // TODO: add delete track button here
             }
         }
     }
 }
 
-pub fn display_midi_note(midi_note: u8) -> String {
+#[component]
+fn RightCol(
+    middle_view: Signal<MiddleColView>,
+    sections: Signal<Vec<Track>>,
+    displaying: Signal<usize>,
+    // edit_cell: Signal<Option<(usize, Colums)>>,
+) -> Element {
+    rsx! {
+        div {
+            id: "right-main",
+
+            // a button to set the device for teh selected track
+            div {
+                id: "set-device",
+                // TODO: gray out the button when middle_view() != MiddleColView::Section
+                class: "button",
+
+
+            }
+
+            // if middle_view() == MiddleColView::Section && !sections.read()[displaying()].is_drum {
+            //
+            // //     SectionDisplay { middle_view, sections, displaying, edit_cell }
+            // // } else if middle_view() == MiddleColView::Section && sections.read()[displaying()].is_drum {
+            // //     DrumSectionDisplay { middle_view, sections, displaying }
+            // } else if middle_view() == MiddleColView::Pattern {}
+        }
+    }
+}
+
+pub fn display_midi_note(midi_note: &u8) -> String {
+    let note_name_i = midi_note % 12;
+    let octave = midi_note / 12;
+
+    let note_names = [
+        "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
+    ];
+    let note_name = note_names[note_name_i as usize];
+
+    format!("{note_name}{octave:X}")
+}
+
+pub fn display_midi_drum(midi_note: u8) -> String {
     let note_name_i = midi_note % 12;
     let octave = midi_note / 12;
 
@@ -596,4 +695,3 @@ mod test {
         assert_eq!(display_midi_note(60), "C-4");
     }
 }
-

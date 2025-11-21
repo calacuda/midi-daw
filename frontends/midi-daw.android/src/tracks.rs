@@ -1,7 +1,7 @@
-use midi_control::Channel;
+use crate::{N_STEPS, SynthId, less_then::UsizeLessThan};
+use midi_daw_types::MidiChannel;
 use strum::EnumString;
 use tracing::*;
-use crate::{SynthId, N_STEPS, less_then::UsizeLessThan};
 
 pub type MidiNote = u8;
 
@@ -9,9 +9,10 @@ pub type MidiNote = u8;
 pub struct Track {
     pub steps: Vec<Step>,
     pub dev: SynthId,
-    pub chan: Channel,
+    pub chan: MidiChannel,
     pub name: String,
     pub uuid: usize,
+    pub is_drum: bool,
 }
 
 impl Default for Track {
@@ -21,30 +22,38 @@ impl Default for Track {
             steps: (0..N_STEPS).map(|_| Step::default()).collect(),
             dev: "Default".into(),
             // dev: SynthId::default(),
-            chan: Channel::Ch1,
+            chan: MidiChannel::Ch1,
             uuid: 0,
+            is_drum: false,
         }
     }
 }
 
 impl Track {
-    pub fn new(name: Option<String>, uuid: usize, dev: SynthId) -> Self {
-        let name = name.unwrap_or(format!("UNNAMED-{uuid}")); 
+    pub fn new(
+        name: Option<String>,
+        uuid: usize,
+        dev: SynthId,
+        is_drum: bool,
+        size: Option<usize>,
+    ) -> Self {
+        let name = name.unwrap_or(format!("UNNAMED-{uuid}"));
+        let n_steps = size.unwrap_or(N_STEPS);
 
         Self {
             name,
-            steps: (0..N_STEPS).map(|_| Step::default()).collect(),
+            steps: (0..n_steps).map(|_| Step::default()).collect(),
             dev,
-            chan: Channel::Ch1,
+            chan: MidiChannel::Ch1,
             uuid,
+            is_drum,
         }
     }
 }
 
 #[derive(Clone, Default, Debug, PartialEq, PartialOrd)]
-pub struct Step
-{
-    pub note: Option<MidiNote>,
+pub struct Step {
+    pub note: Vec<MidiNote>,
     pub velocity: Option<u8>,
     pub cmds: (TrackerCmd, TrackerCmd),
 }
@@ -107,10 +116,7 @@ pub enum TrackerCmd {
     #[strum(to_string = "STOP")]
     Panic,
     #[strum(to_string = "CC{cc_param:->2X}")]
-    MidiCmd {
-        cc_param: u8,
-        arg: u8,
-    },
+    MidiCmd { cc_param: u8, arg: u8 },
     #[strum(transparent)]
     Custom(Sf2Cmd),
 }
