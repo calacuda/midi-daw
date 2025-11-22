@@ -141,20 +141,22 @@ impl MbServer {
 
     async fn send_message(&mut self, conn: ConnId, mesg: impl Into<MbMsgType> + Clone) {
         for (id, channel) in self.sessions.clone().into_iter() {
-            if let Err(_e) = channel.send(mesg.clone().into())
-                && id != conn
-            {
-                _ = self.sessions.remove(&id);
+            if id != conn {
+                if let Err(_e) = channel.send(mesg.clone().into()) {
+                    error!("failed to send text message to {id}. removing from list.");
+                    _ = self.sessions.remove(&id);
+                }
             }
         }
     }
 
     async fn send_binary(&mut self, conn: ConnId, mesg: Bytes) {
         for (id, channel) in self.sessions.clone().into_iter() {
-            if let Err(_e) = channel.send(mesg.clone().into())
-                && id != conn
-            {
-                _ = self.sessions.remove(&id);
+            if id != conn {
+                if let Err(_e) = channel.send(mesg.clone().into()) {
+                    error!("failed to send binary message to {id}. removing from list.");
+                    _ = self.sessions.remove(&id);
+                }
             }
         }
     }
@@ -165,6 +167,7 @@ impl MbServer {
                 Command::Connect { conn, conn_tx } => {
                     self.connect(conn, conn_tx).await;
                     // let _ = res_tx.send(conn_id);
+                    info!("got a connection from conn_id: {conn}");
                 }
                 Command::Disconnect { conn } => {
                     self.disconnect(conn).await;
@@ -200,6 +203,12 @@ async fn do_message_bus(
     // unwrap: chat server is not dropped before the HTTP server
     chat_server.connect(id, conn_tx).await;
 
+    if let Err(e) = session.text(format!("your connection's ID is: {id}")).await {
+        error!(
+            "failed to alert the connected client of its ID. attempting to do so failed with error: {e}"
+        );
+    }
+
     let close_reason = {
         loop {
             select! {
@@ -209,33 +218,37 @@ async fn do_message_bus(
                         AggregatedMessage::Text(text) => {
                             // text message
                             // session.text(text).await.unwrap();
+                            info!("got message {text}");
                             chat_server.send_message(id, text);
+                            // info!("processed");
                         }
 
                         AggregatedMessage::Binary(bin) => {
                             // binary message
                             chat_server.send_binary(id, bin);
                         }
-                        AggregatedMessage::Ping(_msg) => {
+                        AggregatedMessage::Ping(msg) => {
                             // respond to PING frame with PONG frame
-                            // session.pong(&msg).await.unwrap();
+                            session.pong(&msg).await.unwrap();
                         }
-                    AggregatedMessage::Close(reason) => break reason,
-
+                        AggregatedMessage::Close(reason) => break reason,
                         _ => {}
                     }
                 }
                 // send to connected clients
                 Some(chat_msg) = conn_rx.recv() => {
                     match chat_msg {
-                        MbMsgType::Text(chat_msg) => if let Err(e) = session.text(chat_msg).await {
+                        MbMsgType::Text(chat_msg) => if let Err(e) = session.text(chat_msg.clone()).await {
                             chat_server.disconnect(id);
-                            error!("failed to send message to client because: {e}");
+                            error!("failed to send text message to client because: {e}");
                             break None;
                         }
+                        // else {
+                        //     info!("sending a message that was recieved on another connection to this client. {chat_msg} => {id}");
+                        // }
                         MbMsgType::Bin(chat_msg) => if let Err(e) = session.binary(chat_msg).await {
                             chat_server.disconnect(id);
-                            error!("failed to send message to client because: {e}");
+                            error!("failed to send binary message to client because: {e}");
                             break None;
                         }
                     }

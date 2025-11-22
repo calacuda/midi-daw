@@ -15,7 +15,7 @@ pub mod server;
 pub async fn run() -> std::io::Result<()> {
     // tempo
     let tempo = Arc::new(RwLock::new(99.0));
-    let bpq = Arc::new(RwLock::new(48.0));
+    let bpq = Arc::new(RwLock::new(24.0));
     let pulse_counter = Arc::new(RwLock::new(0));
 
     // prepare mpsc.

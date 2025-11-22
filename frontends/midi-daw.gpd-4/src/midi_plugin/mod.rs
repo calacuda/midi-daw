@@ -82,11 +82,11 @@ impl Plugin for MidiOutPlugin {
             .insert_resource(LastPlayedPulse(None))
             .insert_resource(Tempo(120))
             .insert_resource(SyncTimer(Timer::new(
-                Duration::from_secs_f64(60.0 / 120.0 / 48.0),
+                Duration::from_secs_f64(60.0 / 120.0 / 24.0),
                 TimerMode::Repeating,
             )))
             .insert_resource(Playing(true))
-            .insert_resource(BPQ(48))
+            .insert_resource(BPQ(24))
             // .insert_resource(LastPlayedPulse(None))
             .insert_resource(PlayingSyncPulse(true))
             .insert_resource(CmdPallet(false))

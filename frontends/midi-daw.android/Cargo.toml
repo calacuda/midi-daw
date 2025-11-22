@@ -20,6 +20,9 @@ tracing = "0.1.41"
 strum = { version = "0.27.2", features = ["derive"] }
 strum_macros = "0.27.2"
 midi-daw-types = { version = "0.1.0", path = "../../midi-daw-types", default-features = false }
+tungstenite = { version = "0.28.0", features = ["rustls"] }
+reqwest = { version = "0.12.24", features = ["blocking", "rustls-tls"] }
+serde_json = "1.0.145"
 # biquad = "0.5.0"
 
 [features]
@@ -27,9 +30,6 @@ default = ["mobile"]
 web = ["dioxus/web"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
-
-[profile.dev.package."stepper-synth"]
-opt-level = 3
 
 [profile.wasm-dev]
 inherits = "dev"
@@ -40,6 +40,3 @@ inherits = "dev"
 
 [profile.android-dev]
 inherits = "dev"
-
-[profile.android-dev.package."stepper-synth"]
-opt-level = 3

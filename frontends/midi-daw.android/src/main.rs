@@ -1,3 +1,4 @@
+#![feature(never_type)]
 // use android_usbser::usb;
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use dioxus::prelude::*;
@@ -15,7 +16,10 @@ use std::{
 };
 use tracing::*;
 // use synth::{make_synth, TabSynth};
-use crate::tracks::{Track, TrackerCmd};
+use crate::{
+    playback::playback,
+    tracks::{Track, TrackerCmd},
+};
 // use stepper_synth_backend::{
 //     CHANNEL_SIZE, KnobCtrl, MidiControlled, SAMPLE_RATE, SampleGen,
 //     synth_engines::{Synth, SynthEngine, SynthModule},
@@ -23,6 +27,7 @@ use crate::tracks::{Track, TrackerCmd};
 
 // pub mod synth;
 pub mod less_then;
+pub mod playback;
 pub mod tracks;
 
 pub type SynthId = String;
@@ -58,53 +63,60 @@ fn main() {
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
 
     // needed bc audio output will fail if its started too soon.
-    // let synth = make_synth();
+    // let synth = make_synth( );
 
-    // let sections = use_signal(|| {
-    use_context_provider(|| {
-        Signal::new(vec![
-            Track::default(),
-            Track::new(
-                Some("Another-Section".into()),
-                1,
-                "Default".into(),
-                true,
-                Some(16),
-            ),
-        ])
+    let sections = Arc::new(RwLock::new(vec![
+        Track::default(),
+        Track::new(
+            Some("Another-Section".into()),
+            1,
+            "Default".into(),
+            true,
+            Some(16),
+        ),
+    ]));
+    let displaying_uuid = Arc::new(RwLock::new(0usize));
+    // TODO: mk mpcs to communicate with the playback thread
+    let (send, recv) = unbounded();
+
+    let _join_handle = spawn({
+        let sections = sections.clone();
+
+        move || playback(sections, recv)
     });
 
-    let _join_handle = spawn(|| {
-        loop {
-            // info!("thread!");
-
-            sleep(Duration::from_secs_f32(1.0));
-        }
-    });
-
-    dioxus::launch(App);
+    // dioxus::launch(App);
+    dioxus::LaunchBuilder::new()
+        .with_context(sections.clone())
+        .with_context(displaying_uuid.clone())
+        .with_context(send)
+        .launch(App);
 }
 
 #[component]
-fn App(// sections: Signal<Vec<Track>>
-) -> Element {
+fn App() -> Element {
     let middle_view = use_signal(|| MiddleColView::Section);
+    let sections = use_context::<Arc<RwLock<Vec<Track>>>>();
+    let displaying_uuid = use_context::<Arc<RwLock<usize>>>();
+
+    let sections = use_signal(|| sections);
+    let displaying_uuid = use_signal(|| displaying_uuid);
+
     // let sections = use_signal(|| {
     //     vec![
-    //     Track::default(),
-    //     Track::new(
-    //         Some("Another-Section".into()),
-    //         1,
-    //         "Default".into(),
-    //         true,
-    //         Some(16),
-    //     ),
-    // ]
+    //         Track::default(),
+    //         Track::new(
+    //             Some("Another-Section".into()),
+    //             1,
+    //             "Default".into(),
+    //             true,
+    //             Some(16),
+    //         ),
+    //     ]
     // });
-    let displaying_uuid = use_signal(|| 0usize);
+    // let displaying_uuid = use_signal(|| 0usize);
     // used to give context to the edit note/velcity/cmd-1/cmd-2
-    let edit_cell = use_signal(|| None);
-    let sections: Signal<Vec<Track>> = use_context();
+    let edit_cell = use_signal(|| None::<(usize, Colums)>);
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -126,7 +138,7 @@ fn App(// sections: Signal<Vec<Track>>
             div {
                 id: "right-col",
                 // PlayTone {  }
-                RightCol { middle_view, sections, displaying: displaying_uuid }
+                // RightCol { middle_view, sections, displaying: displaying_uuid }
             }
         }
     }
@@ -134,13 +146,13 @@ fn App(// sections: Signal<Vec<Track>>
 
 #[component]
 fn EditSectionMenu(
-    sections: Signal<Vec<Track>>,
-    displaying: Signal<usize>,
+    sections: Signal<Arc<RwLock<Vec<Track>>>>,
+    displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
 ) -> Element {
     let note = use_signal(|| {
-        if let Some((row, cell)) = edit_cell() {
-            *sections.read()[displaying()].steps[row]
+        if let Some((row, _cell)) = edit_cell() {
+            *sections.read().read().unwrap()[*displaying().read().unwrap()].steps[row]
                 .note
                 .first()
                 .unwrap_or(&12u8)
@@ -175,23 +187,24 @@ fn EditSectionMenu(
                     onclick: move |_| {
                         if let Some((row, cell)) = edit_cell() {
                             info!("{row} => {cell:?}");
+                            let sections = sections.write();
 
                             match cell {
                                 Colums::Note => {
                                     // set note
-                                    sections.write()[displaying()].steps[row].note = vec![];
+                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![];
                                 }
                                 Colums::Velocity => {
                                     // set velocity
-                                    sections.write()[displaying()].steps[row].velocity = None;
+                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = None;
                                 }
                                 Colums::Cmd1 => {
                                     // set cmd
-                                    sections.write()[displaying()].steps[row].cmds.0 = TrackerCmd::None;
+                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.0 = TrackerCmd::None;
                                 }
                                 Colums::Cmd2 => {
                                     // set cmd
-                                    sections.write()[displaying()].steps[row].cmds.1 = TrackerCmd::None;
+                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.1 = TrackerCmd::None;
                                 }
                             }
                         }
@@ -208,30 +221,31 @@ fn EditSectionMenu(
                     onclick: move |_| {
                         if let Some((row, cell)) = edit_cell() {
                             info!("{row} => {cell:?}");
+                            let sections = sections.write();
 
                             match cell {
                                 Colums::Note => {
                                     // set note
-                                    sections.write()[displaying()].steps[row].note = vec![note()];
+                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![note()];
 
                                     // set velocity if not yet set
-                                    if sections()[displaying()].steps[row].velocity.is_none() {
-                                        sections.write()[displaying()].steps[row].velocity = Some(85);
+                                    if sections.read().unwrap()[*displaying().read().unwrap()].steps[row].velocity.is_none() {
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = Some(85);
                                     }
 
-                                    info!("set note to {:?}", sections()[displaying()].steps[row].note);
+                                    info!("set note to {:?}", sections.read().unwrap()[*displaying().read().unwrap()].steps[row].note);
                                 }
                                 Colums::Velocity => {
                                     // set velocity
-                                    sections.write()[displaying()].steps[row].velocity = Some(velocity())
+                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = Some(velocity())
                                 }
                                 Colums::Cmd1 => {
                                     // set cmd
-                                    sections.write()[displaying()].steps[row].cmds.0 = cmd();
+                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.0 = cmd();
                                 }
                                 Colums::Cmd2 => {
                                     // set cmd
-                                    sections.write()[displaying()].steps[row].cmds.1 = cmd();
+                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.1 = cmd();
                                 }
                             }
                         }
@@ -331,8 +345,8 @@ fn EditNote(note: Signal<u8>) -> Element {
 #[component]
 fn MiddleCol(
     middle_view: Signal<MiddleColView>,
-    sections: Signal<Vec<Track>>,
-    displaying: Signal<usize>,
+    sections: Signal<Arc<RwLock<Vec<Track>>>>,
+    displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
 ) -> Element {
     // let is_drum_track = use_signal(|| sections.read()[displaying()].is_drum);
@@ -340,9 +354,9 @@ fn MiddleCol(
     rsx! {
         div {
             id: "middle-main",
-            if middle_view() == MiddleColView::Section && !sections.read()[displaying()].is_drum {
+            if middle_view() == MiddleColView::Section && !sections.read().read().unwrap()[*displaying().read().unwrap()].is_drum {
                 SectionDisplay { middle_view, sections, displaying, edit_cell }
-            } else if middle_view() == MiddleColView::Section && sections.read()[displaying()].is_drum {
+            } else if middle_view() == MiddleColView::Section && sections.read().read().unwrap()[*displaying().read().unwrap()].is_drum {
                 DrumSectionDisplay { middle_view, sections, displaying }
             } else if middle_view() == MiddleColView::Pattern {}
         }
@@ -352,8 +366,8 @@ fn MiddleCol(
 #[component]
 fn DrumSectionDisplay(
     middle_view: Signal<MiddleColView>,
-    sections: Signal<Vec<Track>>,
-    displaying: Signal<usize>,
+    sections: Signal<Arc<RwLock<Vec<Track>>>>,
+    displaying: Signal<Arc<RwLock<usize>>>,
 ) -> Element {
     // info!("DrumSelectionDisplay");
 
@@ -396,19 +410,20 @@ fn DrumSectionDisplay(
                     div {
                         class: "drum-row",
 
-                        for step_n in 0..sections.read()[displaying()].steps.len() {
+                        for step_n in 0..sections.read().read().unwrap()[*displaying().read().unwrap()].steps.len() {
                             div {
                                 class: {
                                     let mut classes = vec!["drum-button"];
 
-                                    if sections.read()[displaying()].steps[step_n].note.contains(&drum_note) {
+                                    if sections.read().read().unwrap()[*displaying().read().unwrap()].steps[step_n].note.contains(&drum_note) {
                                         classes.push("drum-button-active");
                                     }
 
                                     classes.join(" ")
                                 },
                                 onclick: move |_| {
-                                    let step = &mut sections.write()[displaying()].steps[step_n];
+                                    let sections = sections.write();
+                                    let step = &mut sections.write().unwrap()[*displaying().read().unwrap()].steps[step_n];
 
                                     if step.note.contains(&drum_note) {
                                         step.note.retain(|elm| *elm == drum_note);
@@ -429,8 +444,8 @@ fn DrumSectionDisplay(
 #[component]
 fn SectionDisplay(
     middle_view: Signal<MiddleColView>,
-    sections: Signal<Vec<Track>>,
-    displaying: Signal<usize>,
+    sections: Signal<Arc<RwLock<Vec<Track>>>>,
+    displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
 ) -> Element {
     // info!("regular section view");
@@ -451,7 +466,7 @@ fn SectionDisplay(
             div {
                 id: "section-scroll-div",
 
-                for (i, step) in sections()[displaying()].steps.iter().enumerate() {
+                for (i, step) in sections().read().unwrap()[*displaying().read().unwrap()].steps.iter().enumerate() {
                     div {
                         class: "section-scroll-item",
 
@@ -493,7 +508,7 @@ fn SectionDisplay(
                                 },
                                 class: "button super-center",
 
-                                if sections()[displaying()].steps[i].note.first().is_some() {
+                                if sections().read().unwrap()[*displaying().read().unwrap()].steps[i].note.first().is_some() {
                                     // "{step.velocity.unwrap_or(85):->3X}"
                                     "{step.velocity.unwrap_or(85):->3}"
                                 } else {
@@ -535,12 +550,14 @@ fn SectionDisplay(
 #[component]
 fn LeftCol(
     middle_view: Signal<MiddleColView>,
-    sections: Signal<Vec<Track>>,
-    displaying: Signal<usize>,
+    sections: Signal<Arc<RwLock<Vec<Track>>>>,
+    displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
 ) -> Element {
     let mut listing = use_signal(|| MiddleColView::Section);
     let view_sections = || listing() == MiddleColView::Section;
+
+    info!("left-col");
 
     rsx! {
         div {
@@ -581,7 +598,7 @@ fn LeftCol(
 
             for (i, (name, uuid)) in match listing() {
                 MiddleColView::Section => {
-                    sections().iter().map(|section| (section.name.clone(), section.uuid)).enumerate().collect::<Vec<_>>()
+                    sections().read().unwrap().iter().map(|section| (section.name.clone(), section.uuid)).enumerate().collect::<Vec<_>>()
                 }
                 MiddleColView::Pattern => {
                     [].iter().map(|pattern: &(String, usize)| pattern.to_owned()).enumerate().collect::<Vec<_>>()
@@ -590,7 +607,7 @@ fn LeftCol(
                 // TODO: add edit-name button here
                 div {
                     id: {
-                        if (listing() == middle_view()) && (uuid == displaying()) {
+                        if (listing() == middle_view()) && displaying().read().is_ok_and(|dis_uuid| uuid == *dis_uuid ) {
                             "displaying-sp".to_string()
                         } else {
                             "".into()
@@ -599,7 +616,7 @@ fn LeftCol(
                     class: "button nav-item",
                     onclick: move |_| {
                         middle_view.set(listing());
-                        displaying.set(uuid);
+                        *displaying.write().write().unwrap() = uuid;
                         edit_cell.set(None);
                     },
                     "{name}"

@@ -1,0 +1,5 @@
+_:
+  @just -l
+
+mb:
+  rlwrap -z "$PWD/empty-line.py" http ws://127.0.0.1:8080/message-bus

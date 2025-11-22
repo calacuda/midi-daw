@@ -55,7 +55,7 @@ jupyter:
   bash -c "source ./.venv/bin/activate && jupyter-lab"
 
 adb:
-  adb reverse tcp:8888 tcp:8888
+  adb reverse tcp:8080 tcp:8080
 
 test-env:
   bash -c "tmux has-session -t \"=midi-daw-test-run\" && bash -c \"tmux a -t \"midi-daw-test-run\"; exit 1\" || true "

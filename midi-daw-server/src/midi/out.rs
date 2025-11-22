@@ -37,7 +37,7 @@ pub fn midi_out(
         // start a sleep thread to sleep for sleep_time.
         let sleep_thread = spawn({
             // calculate sleep_time based on BPQ & tempo.
-            let (tempo, beats) = (unwrap_rw_lock(&tempo, 99.), unwrap_rw_lock(&bpq, 48.));
+            let (tempo, beats) = (unwrap_rw_lock(&tempo, 99.), unwrap_rw_lock(&bpq, 24.));
             let sleep_time = Duration::from_secs_f64((60.0 / tempo) / beats);
 
             move || {

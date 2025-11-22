@@ -5,5 +5,5 @@ build:
   RUSTFLAGS='-C link-arg=-lc++_shared -C link-arg=-landroid' ~/.cargo/bin/dx build --platform android --verbose --trace
 
 serve:
-  ~/.cargo/bin/dx serve --platform android --device HA244HYM
+  ~/.cargo/bin/dx serve --platform android --device HA244HYM --port 8888
 
