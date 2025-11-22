@@ -32,24 +32,35 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
     let mut note_threads = Vec::new();
 
     loop {
-        if let Ok(message) = recv.recv() {
+        if let Ok(message) = recv.try_recv() {
             match message {
-                MessageToPlayer::PlaySection(section) => playing.push((section, 0)),
-                MessageToPlayer::StopSection(section) => playing.retain(|elm| elm.0 != section),
+                MessageToPlayer::PlaySection(section) => {
+                    info!("playing section: {section}");
+                    playing.push((section, 0))
+                }
+                MessageToPlayer::StopSection(section) => {
+                    info!("will no longer play section: {section}");
+                    playing.retain(|elm| elm.0 != section)
+                }
                 _ => error!("pattern playback not yet implemented"),
             }
         }
 
         // if rest done
-        if let Ok(_) = sync_pulse.recv() {
+        if let Ok(_) = sync_pulse.try_recv() {
             // for playing, play next
             if let Ok(sections) = sections.read() {
                 let client = reqwest::blocking::Client::new();
 
                 for (section, step_i) in playing.iter_mut() {
-                    let step = &sections[*section].steps[*step_i];
+                    let steps = &sections[*section].steps;
+                    let step = &steps[*step_i];
                     let (dev, channel) = (sections[*section].dev.clone(), sections[*section].chan);
                     let (notes, vel) = (step.note.clone(), step.velocity.unwrap_or(85));
+
+                    if notes.len() > 0 {
+                        info!("{notes:?}");
+                    }
 
                     for note in notes {
                         let req_body = MidiReqBody::new(
@@ -62,15 +73,18 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
                             },
                         );
 
-                        if let Ok(body) = serde_json::to_string(&req_body) {
-                            // mk request
-                            let req = client.post(format!("http://{BASE_URL}/midi")).body(body);
+                        // if let Ok(body) = serde_json::to_string(&req_body) {
+                        // mk request
+                        let req = client
+                            .post(format!("http://{BASE_URL}/midi"))
+                            .json(&req_body);
 
-                            note_threads.push(spawn(|| req.send()));
-                        }
+                        note_threads.push(spawn(|| req.send()));
+                        // }
                     }
 
                     *step_i += 1;
+                    *step_i %= steps.len();
 
                     note_threads.retain(|thread| !thread.is_finished());
                 }

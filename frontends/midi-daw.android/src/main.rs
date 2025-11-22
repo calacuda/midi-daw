@@ -17,7 +17,7 @@ use std::{
 use tracing::*;
 // use synth::{make_synth, TabSynth};
 use crate::{
-    playback::playback,
+    playback::{MessageToPlayer, playback},
     tracks::{Track, TrackerCmd},
 };
 // use stepper_synth_backend::{
@@ -31,6 +31,7 @@ pub mod playback;
 pub mod tracks;
 
 pub type SynthId = String;
+pub type SectionsUID = usize;
 // pub type InstrumentId = String;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -76,7 +77,6 @@ fn main() {
         ),
     ]));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
-    // TODO: mk mpcs to communicate with the playback thread
     let (send, recv) = unbounded();
 
     let _join_handle = spawn({
@@ -101,6 +101,7 @@ fn App() -> Element {
 
     let sections = use_signal(|| sections);
     let displaying_uuid = use_signal(|| displaying_uuid);
+    let playing_sections = use_signal(|| Vec::default());
 
     // let sections = use_signal(|| {
     //     vec![
@@ -138,7 +139,7 @@ fn App() -> Element {
             div {
                 id: "right-col",
                 // PlayTone {  }
-                // RightCol { middle_view, sections, displaying: displaying_uuid }
+                RightCol { middle_view, sections, displaying: displaying_uuid, playing_sections }
             }
         }
     }
@@ -426,7 +427,7 @@ fn DrumSectionDisplay(
                                     let step = &mut sections.write().unwrap()[*displaying().read().unwrap()].steps[step_n];
 
                                     if step.note.contains(&drum_note) {
-                                        step.note.retain(|elm| *elm == drum_note);
+                                        step.note.retain(|elm| *elm != drum_note);
                                     } else {
                                         step.note.push(drum_note);
                                     }
@@ -630,10 +631,13 @@ fn LeftCol(
 #[component]
 fn RightCol(
     middle_view: Signal<MiddleColView>,
-    sections: Signal<Vec<Track>>,
-    displaying: Signal<usize>,
+    sections: Signal<Arc<RwLock<Vec<Track>>>>,
+    displaying: Signal<Arc<RwLock<usize>>>,
     // edit_cell: Signal<Option<(usize, Colums)>>,
+    playing_sections: Signal<Vec<usize>>,
 ) -> Element {
+    let com_mpsc = use_context::<Sender<MessageToPlayer>>();
+
     rsx! {
         div {
             id: "right-main",
@@ -644,7 +648,38 @@ fn RightCol(
                 // TODO: gray out the button when middle_view() != MiddleColView::Section
                 class: "button",
 
+                "Set Device"
+            }
 
+            div {
+                id: "play-section",
+                class: "button",
+                onclick: move |_| {
+                    let dis = displaying.read();
+                    let dis = dis.read().unwrap();
+
+                    if !playing_sections.read().contains(&dis) {
+                        // start playback
+                        playing_sections.write().push(*dis);
+
+                        if let Err(e) = com_mpsc.send(MessageToPlayer::PlaySection(*dis)) {
+                            error!("attempting to send start playback message failed with error: {e}");
+                        }
+                    } else {
+                        // stop playback
+                        playing_sections.write().retain(|elm| *elm != *dis);
+
+                        if let Err(e) = com_mpsc.send(MessageToPlayer::StopSection(*dis)) {
+                            error!("attempting to send stop playback message failed with error: {e}");
+                        }
+                    }
+                },
+
+                if !playing_sections.read().contains(&displaying.read().read().unwrap()) {
+                    "Play"
+                } else {
+                    "Stop"
+                }
             }
 
             // if middle_view() == MiddleColView::Section && !sections.read()[displaying()].is_drum {
