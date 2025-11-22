@@ -177,7 +177,7 @@ pub fn sync_step_notif(data: MbServerHandle, tempo: web::Data<Tempo>, bpq: web::
         let sleep_thread = std::thread::spawn({
             // calculate sleep_time based on BPQ & tempo.
             let (tempo, beats) = (unwrap_rw_lock(&tempo, 99.), unwrap_rw_lock(&bpq, 24.));
-            let sleep_time = Duration::from_secs_f64((60.0 / tempo) / beats);
+            let sleep_time = Duration::from_secs_f64((60.0 / tempo) / 4. / beats);
 
             move || {
                 std::thread::sleep(sleep_time);
