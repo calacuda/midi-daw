@@ -89,11 +89,15 @@ pub fn sync_puse_reader(tx: Sender<()>) -> () {
         }
     };
 
-    if response.status() != 200 {
+    if response.status() != 101 {
+        error!(
+            "failed to connect to message-bus. failure detected based on responce code. (was {}, expected 101.)",
+            response.status()
+        );
         return;
     }
 
-    info!("connected...");
+    info!("connected... {}", response.status());
 
     let mut pulses = 0;
 
@@ -103,7 +107,7 @@ pub fn sync_puse_reader(tx: Sender<()>) -> () {
         };
 
         if pulses % bpq == 0 {
-            info!("pulse");
+            // info!("pulse");
             _ = tx.send(());
         }
 

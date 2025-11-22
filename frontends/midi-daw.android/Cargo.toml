@@ -20,8 +20,8 @@ tracing = "0.1.41"
 strum = { version = "0.27.2", features = ["derive"] }
 strum_macros = "0.27.2"
 midi-daw-types = { version = "0.1.0", path = "../../midi-daw-types", default-features = false }
-tungstenite = { version = "0.28.0", features = ["rustls"] }
-reqwest = { version = "0.12.24", features = ["blocking", "rustls-tls"] }
+tungstenite = { version = "0.28.0", features = ["handshake", "rustls"], default-features = false }
+reqwest = { version = "0.12.24", features = ["blocking", "json", "rustls-tls", "rustls-tls-no-provider"], default-features = false }
 serde_json = "1.0.145"
 # biquad = "0.5.0"
 
