@@ -398,6 +398,23 @@ div {
 	font-size: xx-large;
 }
 
+.right-justify {
+	text-align: right;
+}
+
+.space-around {
+	justify-content: space-around;
+	text-align: space-around;
+}
+
+.text-red {
+	color: #eba0ac;
+}
+
+.text-yellow {
+	color: #f9e2af;
+}
+
 .set-menu {
 	align-items: space-between;
 	align-content: space-between;

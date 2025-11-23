@@ -74,6 +74,9 @@ fn main() {
         move || playback(sections, recv)
     });
 
+    // #[cfg(android)]
+    // jni_sys::call_android_function();
+
     // dioxus::launch(App);
     dioxus::LaunchBuilder::new()
         .with_context(sections.clone())
@@ -155,27 +158,31 @@ fn MidiDevChooser(
                 id: "midi-scroll-list",
 
                 div {
-                    "Available Devices"
+                    class: "row",
+
+                    div {
+                        class: "midi-scroll-item super-center text-yellow",
+                        "Available Devices:"
+                    }
+
+                    div {
+                        class: "button midi-scroll-item super-center text-red",
+                        onclick: move |_| {
+                            *choosing_device.write() = false;
+                        },
+
+                        "Exit"
+                    }
                 }
 
                 div {
                     id: "midi-scroll-div",
 
-                    div {
-                        class: "button midi-scroll-item",
-
-                        onclick: move |_| {
-                            *choosing_device.write() = false;
-                        },
-
-                        "LEAVE-UNCHANGED"
-                    }
-
-
                     for dev_name in midi_devs {
                         div {
                             class: "button midi-scroll-item",
                             onclick: move |_| {
+                                info!("setting the device to {dev_name}");
                                 sections.write().write().unwrap()[*displaying().write().unwrap()].dev = dev_name.clone();
                                 *choosing_device.write() = false;
                             },

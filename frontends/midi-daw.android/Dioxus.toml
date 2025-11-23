@@ -1,4 +1,5 @@
 [application]
+name = "Midi-Daw"
 
 [web.app]
 

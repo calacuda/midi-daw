@@ -10,7 +10,7 @@ use tungstenite::connect;
 
 use crate::tracks::Track;
 
-pub const BASE_URL: &str = "localhost:8080";
+pub const BASE_URL: &str = "midi-daw.local:8080";
 
 #[derive(Debug)]
 pub enum MessageToPlayer {
