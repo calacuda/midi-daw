@@ -97,6 +97,8 @@ async fn get_devs(virtual_devs: web::Data<Mutex<FxHashSet<String>>>) -> impl Res
         .collect();
     midi_devs_names.append(&mut virtual_devs.lock().await.clone().into_iter().collect());
 
+    info!("{midi_devs_names:?}");
+
     serde_json::to_string(&midi_devs_names).map(|tempo| HttpResponse::Ok().body(tempo))
 }
 

@@ -1,29 +1,17 @@
 #![feature(never_type)]
 // use android_usbser::usb;
-use crossbeam::channel::{Receiver, Sender, unbounded};
-use dioxus::prelude::*;
-// use lazy_static::lazy_static;
-// use midi_control::{ControlEvent, KeyEvent, MidiMessage};
-use std::{
-    io::{self, BufRead, BufReader, Read, Write},
-    str::FromStr,
-    sync::{
-        Arc, Mutex, RwLock,
-        atomic::{AtomicBool, AtomicU32, Ordering},
-    },
-    thread::{sleep, spawn},
-    time::{Duration, SystemTime},
-};
-use tracing::*;
-// use synth::{make_synth, TabSynth};
 use crate::{
     playback::{MessageToPlayer, playback},
     tracks::{Track, TrackerCmd},
 };
-// use stepper_synth_backend::{
-//     CHANNEL_SIZE, KnobCtrl, MidiControlled, SAMPLE_RATE, SampleGen,
-//     synth_engines::{Synth, SynthEngine, SynthModule},
-// };
+use crossbeam::channel::{Sender, bounded, unbounded};
+use dioxus::prelude::*;
+use midi_daw_types::MidiChannel;
+use std::{
+    sync::{Arc, RwLock},
+    thread::spawn,
+};
+use tracing::*;
 
 // pub mod synth;
 pub mod less_then;
@@ -66,16 +54,17 @@ fn main() {
     // needed bc audio output will fail if its started too soon.
     // let synth = make_synth( );
 
-    let sections = Arc::new(RwLock::new(vec![
-        Track::default(),
-        Track::new(
-            Some("Another-Section".into()),
-            1,
-            "Default".into(),
-            true,
-            Some(16),
-        ),
-    ]));
+    let mut drums = Track::new(
+        Some("Another-Section".into()),
+        1,
+        "Volt 276:0".into(),
+        true,
+        Some(16),
+    );
+    drums.chan = MidiChannel::Ch10;
+    let mut melodic = Track::default();
+    melodic.dev = "Volt 276:0".into();
+    let sections = Arc::new(RwLock::new(vec![melodic, drums]));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
     let (send, recv) = unbounded();
 
@@ -103,21 +92,11 @@ fn App() -> Element {
     let displaying_uuid = use_signal(|| displaying_uuid);
     let playing_sections = use_signal(|| Vec::default());
 
-    // let sections = use_signal(|| {
-    //     vec![
-    //         Track::default(),
-    //         Track::new(
-    //             Some("Another-Section".into()),
-    //             1,
-    //             "Default".into(),
-    //             true,
-    //             Some(16),
-    //         ),
-    //     ]
-    // });
-    // let displaying_uuid = use_signal(|| 0usize);
-    // used to give context to the edit note/velcity/cmd-1/cmd-2
+    // used to give context to the edit note/velocity/cmd-1/cmd-2
     let edit_cell = use_signal(|| None::<(usize, Colums)>);
+    let choosing_device = use_signal(|| false);
+    // let known_midi_devs: Signal<Arc<[String]>> = use_signal(|| Vec::new().into());
+    let known_midi_devs: Signal<Vec<String>> = use_signal(|| Vec::new());
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -135,11 +114,76 @@ fn App() -> Element {
                 if edit_cell.read().is_some() && middle_view() == MiddleColView::Section {
                     EditSectionMenu { sections, displaying: displaying_uuid, edit_cell }
                 }
+
+                if *choosing_device.read() && middle_view() == MiddleColView::Section {
+                    MidiDevChooser { sections, displaying: displaying_uuid, choosing_device, known_midi_devs }
+                }
             }
             div {
                 id: "right-col",
                 // PlayTone {  }
-                RightCol { middle_view, sections, displaying: displaying_uuid, playing_sections }
+                RightCol { middle_view, sections, displaying: displaying_uuid, playing_sections, known_midi_devs, choosing_device }
+            }
+        }
+    }
+}
+
+#[component]
+fn MidiDevChooser(
+    mut sections: Signal<Arc<RwLock<Vec<Track>>>>,
+    displaying: Signal<Arc<RwLock<usize>>>,
+    known_midi_devs: Signal<Vec<String>>,
+    choosing_device: Signal<bool>,
+) -> Element {
+    info!("midi device chooser");
+    let com_mpsc = use_context::<Sender<MessageToPlayer>>();
+    let (tx, rx) = bounded(1);
+    _ = com_mpsc.send(MessageToPlayer::GetDevs(tx));
+
+    let midi_devs = if let Ok(devs) = rx.recv() {
+        devs
+    } else {
+        error!("no midi devices");
+        Vec::new()
+    };
+
+    rsx! {
+        div {
+            class: "sub-menu",
+
+            div {
+                id: "midi-scroll-list",
+
+                div {
+                    "Available Devices"
+                }
+
+                div {
+                    id: "midi-scroll-div",
+
+                    div {
+                        class: "button midi-scroll-item",
+
+                        onclick: move |_| {
+                            *choosing_device.write() = false;
+                        },
+
+                        "LEAVE-UNCHANGED"
+                    }
+
+
+                    for dev_name in midi_devs {
+                        div {
+                            class: "button midi-scroll-item",
+                            onclick: move |_| {
+                                sections.write().write().unwrap()[*displaying().write().unwrap()].dev = dev_name.clone();
+                                *choosing_device.write() = false;
+                            },
+
+                            {dev_name.clone()}
+                        }
+                    }
+                }
             }
         }
     }
@@ -259,7 +303,7 @@ fn EditSectionMenu(
             }
 
 
-            if let Some((row, cell)) = edit_cell() {
+            if let Some((_row, cell)) = edit_cell() {
                 match cell {
                     // Colums::Note if !sections.read()[displaying()].is_drum => rsx! { EditNote { note } },
                     // Colums::Note if sections.read()[displaying()].is_drum => rsx! { EditDrum { note } },
@@ -597,12 +641,12 @@ fn LeftCol(
         div {
             id: "nav-list",
 
-            for (i, (name, uuid)) in match listing() {
+            for (name, uuid) in match listing() {
                 MiddleColView::Section => {
-                    sections().read().unwrap().iter().map(|section| (section.name.clone(), section.uuid)).enumerate().collect::<Vec<_>>()
+                    sections().read().unwrap().iter().map(|section| (section.name.clone(), section.uuid)).collect::<Vec<_>>()
                 }
                 MiddleColView::Pattern => {
-                    [].iter().map(|pattern: &(String, usize)| pattern.to_owned()).enumerate().collect::<Vec<_>>()
+                    [].iter().map(|pattern: &(String, usize)| pattern.to_owned()).collect::<Vec<_>>()
                 }
             } {
                 // TODO: add edit-name button here
@@ -620,9 +664,9 @@ fn LeftCol(
                         *displaying.write().write().unwrap() = uuid;
                         edit_cell.set(None);
                     },
-                    "{name}"
+                    {name}
                 }
-                // TODO: add delete track button here
+                // TODO: add delete section button here
             }
         }
     }
@@ -635,20 +679,32 @@ fn RightCol(
     displaying: Signal<Arc<RwLock<usize>>>,
     // edit_cell: Signal<Option<(usize, Colums)>>,
     playing_sections: Signal<Vec<usize>>,
+    known_midi_devs: Signal<Vec<String>>,
+    choosing_device: Signal<bool>,
 ) -> Element {
     let com_mpsc = use_context::<Sender<MessageToPlayer>>();
+    // let (tx, rx) = oneshot::channel();
+    // com_mpsc.send(MessageToPlayer::GetDevs(tx));
+    //
+    // let mut devs = rx.recv();
 
     rsx! {
         div {
             id: "right-main",
 
-            // a button to set the device for teh selected track
+            // a button to set the device for the selected track
             div {
                 id: "set-device",
                 // TODO: gray out the button when middle_view() != MiddleColView::Section
                 class: "button",
+                onclick: move |_| {
+                    // get_devs.call();
+                    let val = !*choosing_device.read();
 
-                "Set Device"
+                    *choosing_device.write() = val;
+                },
+
+                "Set-Device"
             }
 
             div {
@@ -681,13 +737,6 @@ fn RightCol(
                     "Stop"
                 }
             }
-
-            // if middle_view() == MiddleColView::Section && !sections.read()[displaying()].is_drum {
-            //
-            // //     SectionDisplay { middle_view, sections, displaying, edit_cell }
-            // // } else if middle_view() == MiddleColView::Section && sections.read()[displaying()].is_drum {
-            // //     DrumSectionDisplay { middle_view, sections, displaying }
-            // } else if middle_view() == MiddleColView::Pattern {}
         }
     }
 }

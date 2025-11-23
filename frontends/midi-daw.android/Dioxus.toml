@@ -3,7 +3,7 @@
 [web.app]
 
 # HTML title tag content
-title = "tracker-synth"
+title = "midi-daw"
 
 # include `assets` in web platform
 [web.resource]

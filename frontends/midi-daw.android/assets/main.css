@@ -228,6 +228,19 @@ div {
 	justify-content: space-between;
 }
 
+#middle-col .sub-menu {
+	position: absolute;
+	width: 75%;
+	height: 50%;
+	top: 25%;
+	/* Adjust positioning as needed */
+	left: 12.5%;
+	z-index: 2;
+	background-color: #45475a;
+	border-radius: 1em;
+	justify-content: space-between;
+}
+
 #right-col {
 	margin: 0;
 	width: 15%;
@@ -342,6 +355,31 @@ div {
 
 #row-dark {
 	background-color: #45475a;
+}
+
+#midi-scroll-list {
+	height: 75%;
+	width: 100%;
+	display: column;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	overflow: scroll;
+	font-size: x-large;
+}
+
+#midi-scroll-div {
+	height: 100%;
+	justify-content: center;
+	align-items: center;
+	width: 100%;
+	overflow-y: auto;
+	min-height: 0;
+}
+
+.midi-scroll-item {
+	height: 2.75em;
+	width: 100%;
 }
 
 .normal-text {
