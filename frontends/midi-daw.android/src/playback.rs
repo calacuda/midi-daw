@@ -18,7 +18,7 @@ pub enum MessageToPlayer {
     PlayPattern(usize),
     StopSection(usize),
     StopPattern(usize),
-    GetDevs(Sender<Vec<String>>),
+    // GetDevs(Sender<Vec<String>>),
 }
 
 pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlayer>) {
@@ -46,35 +46,35 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
                     info!("will no longer play section: {section}");
                     playing.retain(|elm| elm.0 != section)
                 }
-                MessageToPlayer::GetDevs(responder) => {
-                    info!("get devs");
-                    let midi_url = format!("http://{BASE_URL}/midi");
-                    info!("{midi_url}");
-
-                    let devs = if let Ok(req) = client.get(midi_url).send() {
-                        info!("devs req {:?}", req);
-                        // Vec::new()
-
-                        if let Ok(dev_list) = req.json::<Vec<String>>() {
-                            info!("devs {:?}", dev_list);
-                            // let mut devs = known_midi_devs.write();
-                            // *devs = dev_list;
-                            dev_list
-                        } else {
-                            error!(
-                                "returned device list was expected to be json but failed to parse as such."
-                            );
-                            Vec::new()
-                        }
-                    } else {
-                        error!("failed to make get request to get a list of devices.");
-                        Vec::new()
-                    };
-
-                    if let Err(e) = responder.send(devs) {
-                        error!("{e}");
-                    }
-                }
+                // MessageToPlayer::GetDevs(responder) => {
+                //     info!("get devs");
+                //     let midi_url = format!("http://{BASE_URL}/midi");
+                //     info!("{midi_url}");
+                //
+                //     let devs = if let Ok(req) = client.get(midi_url).send() {
+                //         info!("devs req {:?}", req);
+                //         // Vec::new()
+                //
+                //         if let Ok(dev_list) = req.json::<Vec<String>>() {
+                //             info!("devs {:?}", dev_list);
+                //             // let mut devs = known_midi_devs.write();
+                //             // *devs = dev_list;
+                //             dev_list
+                //         } else {
+                //             error!(
+                //                 "returned device list was expected to be json but failed to parse as such."
+                //             );
+                //             Vec::new()
+                //         }
+                //     } else {
+                //         error!("failed to make get request to get a list of devices.");
+                //         Vec::new()
+                //     };
+                //
+                //     if let Err(e) = responder.send(devs) {
+                //         error!("{e}");
+                //     }
+                // }
                 _ => error!("pattern playback not yet implemented"),
             }
         }

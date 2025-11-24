@@ -1,7 +1,7 @@
 #![feature(never_type)]
 // use android_usbser::usb;
 use crate::{
-    playback::{MessageToPlayer, playback},
+    playback::{BASE_URL, MessageToPlayer, playback},
     tracks::{Track, TrackerCmd},
 };
 use crossbeam::channel::{Sender, bounded, unbounded};
@@ -54,16 +54,16 @@ fn main() {
     // needed bc audio output will fail if its started too soon.
     // let synth = make_synth( );
 
-    let mut drums = Track::new(
+    let drums = Track::new(
         Some("Another-Section".into()),
         1,
-        "Volt 276:0".into(),
+        "Midi Through:0".into(),
         true,
         Some(16),
     );
-    drums.chan = MidiChannel::Ch10;
+    // drums.chan = MidiChannel::Ch10;
     let mut melodic = Track::default();
-    melodic.dev = "Volt 276:0".into();
+    melodic.dev = "Midi Through:0".into();
     let sections = Arc::new(RwLock::new(vec![melodic, drums]));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
     let (send, recv) = unbounded();
@@ -112,7 +112,7 @@ fn App() -> Element {
             }
             div {
                 id: "middle-col",
-                MiddleCol { middle_view, sections, displaying: displaying_uuid, edit_cell }
+                MiddleCol { middle_view, sections, displaying: displaying_uuid, edit_cell, choosing_device }
 
                 if edit_cell.read().is_some() && middle_view() == MiddleColView::Section {
                     EditSectionMenu { sections, displaying: displaying_uuid, edit_cell }
@@ -140,58 +140,198 @@ fn MidiDevChooser(
 ) -> Element {
     info!("midi device chooser");
     let com_mpsc = use_context::<Sender<MessageToPlayer>>();
-    let (tx, rx) = bounded(1);
-    _ = com_mpsc.send(MessageToPlayer::GetDevs(tx));
+    // let (tx, rx) = bounded(1);
+    // _ = com_mpsc.send(MessageToPlayer::GetDevs(tx));
+    //
+    // let midi_devs = if let Ok(devs) = rx.recv() {
+    //     devs
+    // } else {
+    //     error!("no midi devices");
+    //     Vec::new()
+    // };
 
-    let midi_devs = if let Ok(devs) = rx.recv() {
-        devs
-    } else {
-        error!("no midi devices");
-        Vec::new()
-    };
+    let mut midi_devs = use_signal(|| None);
+    let coroutine_handle = use_coroutine(move |_: UnboundedReceiver<()>| async move {
+        info!("get devs");
+        let midi_url = format!("http://{BASE_URL}/midi");
+        info!("{midi_url}");
+        let client = reqwest::Client::new();
+
+        if let Ok(req) = client.get(midi_url).send().await {
+            info!("devs req {:?}", req);
+            // Vec::new()
+
+            if let Ok(dev_list) = req.json::<Vec<String>>().await {
+                info!("devs {:?}", dev_list);
+                // dev_list
+                midi_devs.write().replace(Ok(dev_list));
+            } else {
+                error!("returned device list was expected to be json but failed to parse as such.");
+                // Vec::new()
+                midi_devs.write().replace(Err(
+                    "Expected JSON from the API, but did not recieve JSON.".into(),
+                ));
+            }
+        } else {
+            error!("failed to make get request to get a list of devices.");
+            // Vec::new()
+            midi_devs.write().replace(Err(format!(
+                "The GET request to retrieve the dev list failed with an error."
+            )));
+        };
+    });
 
     rsx! {
+        // style { include_str!("./loading-dots.css") }
+        document::Link { rel: "stylesheet", href: asset!("/assets/loading-dots.css") }
+
         div {
             class: "sub-menu",
+
+            // div {
+            //     class: "space-around",
+            div {
+                class: "row",
+
+                div {
+                    class: "x-large midi-scroll-item super-center text-yellow",
+                    "Available Devices:"
+                }
+
+                div {
+                    class: "button midi-scroll-item super-center text-red",
+                    onclick: move |_| {
+                        *choosing_device.write() = false;
+                    },
+
+                    "Exit"
+                }
+            }
+
+            hr {}
 
             div {
                 id: "midi-scroll-list",
 
                 div {
-                    class: "row",
-
-                    div {
-                        class: "midi-scroll-item super-center text-yellow",
-                        "Available Devices:"
-                    }
-
-                    div {
-                        class: "button midi-scroll-item super-center text-red",
-                        onclick: move |_| {
-                            *choosing_device.write() = false;
-                        },
-
-                        "Exit"
-                    }
-                }
-
-                div {
                     id: "midi-scroll-div",
 
-                    for dev_name in midi_devs {
-                        div {
-                            class: "button midi-scroll-item",
-                            onclick: move |_| {
-                                info!("setting the device to {dev_name}");
-                                sections.write().write().unwrap()[*displaying().write().unwrap()].dev = dev_name.clone();
-                                *choosing_device.write() = false;
-                            },
+                    {
+                        match midi_devs.read().to_owned() {
+                            Some(Ok(midi_devs)) => rsx! {
+                                for dev_name in midi_devs {
+                                    div {
+                                        class: "button midi-scroll-item super-center",
+                                        onclick: move |_| {
+                                            info!("setting the device to {dev_name}");
+                                            sections.write().write().unwrap()[*displaying().read().unwrap()].dev = dev_name.clone();
+                                        },
 
-                            {dev_name.clone()}
+                                        if dev_name.clone() == sections.read().read().unwrap()[*displaying().read().unwrap()].dev {
+                                            "* {dev_name.clone()} *"
+                                        } else {
+                                            {dev_name.clone()}
+                                        }
+                                    }
+                                }
+                            },
+                            Some(Err(message)) => rsx! {
+                                div {
+                                    class: "midi-scroll-item text-red",
+
+                                    {message}
+                                }
+                            },
+                            None => rsx! {
+                                div {
+                                    class: "midi-scroll-item text-green super-center",
+
+                                    "LOADING"
+
+                                    div {
+                                        class: "loading-container",
+                                        span { class: "dot" }
+                                        span { class: "dot" }
+                                        span { class: "dot" }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
+
+            div {
+                class: "space-between",
+
+                div {
+                    class: "row space-around text-line padding-under",
+
+                    for channel in [
+                        MidiChannel::Ch1,
+                        MidiChannel::Ch2,
+                        MidiChannel::Ch3,
+                        MidiChannel::Ch4,
+                        MidiChannel::Ch5,
+                        MidiChannel::Ch6,
+                        MidiChannel::Ch7,
+                        MidiChannel::Ch8,
+                        MidiChannel::Ch9,
+                    ] {
+                        div {
+                            class: {
+                                let mut class = "button button-w-border super-center".to_string();
+
+                                if sections.read().read().unwrap()[*displaying().read().unwrap()].chan == channel.clone() {
+                                    class += " selected-channel";
+                                }
+
+                                class
+                            },
+                            onclick: move |_| {
+                                info!("setting the midi channel to {channel:?}");
+                                sections.write().write().unwrap()[*displaying().read().unwrap()].chan = channel.clone();
+                            },
+
+                            "{channel:?}"
+                        }
+                    }
+                }
+
+                div {
+                    class: "row space-around text-line",
+
+                    for channel in [
+                        // MidiChannel::Ch9,
+                        MidiChannel::Ch10,
+                        MidiChannel::Ch11,
+                        MidiChannel::Ch12,
+                        MidiChannel::Ch13,
+                        MidiChannel::Ch14,
+                        MidiChannel::Ch15,
+                        MidiChannel::Ch16
+                    ] {
+                        div {
+                            class: {
+                                let mut class = "button button-w-border super-center".to_string();
+
+                                if sections.read().read().unwrap()[*displaying().read().unwrap()].chan == channel.clone() {
+                                    class += " selected-channel";
+                                }
+
+                                class
+                            },
+                            onclick: move |_| {
+                                info!("setting the midi channel to {channel:?}");
+                                sections.write().write().unwrap()[*displaying().read().unwrap()].chan = channel.clone();
+                            },
+
+                            "{channel:?}"
+                        }
+                    }
+                }
+            }
+            // }
         }
     }
 }
@@ -218,103 +358,132 @@ fn EditSectionMenu(
     rsx! {
         div {
             id: "edit-menu",
-            class: "col",
+            class: "col sub-menu",
 
             div {
-                id: "set-menu",
-                class: "row set-menu",
+                // id: "set-menu",
+                class: "full-width fill-height",
 
                 div {
-                    class: "button",
-                    onclick: move |_| {
-                        edit_cell.set(None);
-                    },
+                    class: "row super-center space-around full-height",
 
-                    "ESC"
-                }
+                    div {
+                        class: "button text-yellow super-center full-width full-height",
+                        onclick: move |_| {
+                            edit_cell.set(None);
+                        },
 
-                div {
-                    class: "button",
+                        "ESC"
+                    }
 
-                    onclick: move |_| {
-                        if let Some((row, cell)) = edit_cell() {
-                            info!("{row} => {cell:?}");
-                            let sections = sections.write();
+                    div {
+                        class: "button text-red super-center full-width full-height",
 
-                            match cell {
-                                Colums::Note => {
-                                    // set note
-                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![];
-                                }
-                                Colums::Velocity => {
-                                    // set velocity
-                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = None;
-                                }
-                                Colums::Cmd1 => {
-                                    // set cmd
-                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.0 = TrackerCmd::None;
-                                }
-                                Colums::Cmd2 => {
-                                    // set cmd
-                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.1 = TrackerCmd::None;
-                                }
-                            }
-                        }
+                        onclick: move |_| {
+                            if let Some((row, cell)) = edit_cell() {
+                                info!("{row} => {cell:?}");
+                                let sections = sections.write();
 
-                        edit_cell.set(None);
-                    },
-
-                    "DEL"
-                }
-
-                div {
-                    class: "button",
-
-                    onclick: move |_| {
-                        if let Some((row, cell)) = edit_cell() {
-                            info!("{row} => {cell:?}");
-                            let sections = sections.write();
-
-                            match cell {
-                                Colums::Note => {
-                                    // set note
-                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![note()];
-
-                                    // set velocity if not yet set
-                                    if sections.read().unwrap()[*displaying().read().unwrap()].steps[row].velocity.is_none() {
-                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = Some(85);
+                                match cell {
+                                    Colums::Note => {
+                                        // set note
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![];
                                     }
-
-                                    info!("set note to {:?}", sections.read().unwrap()[*displaying().read().unwrap()].steps[row].note);
-                                }
-                                Colums::Velocity => {
-                                    // set velocity
-                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = Some(velocity())
-                                }
-                                Colums::Cmd1 => {
-                                    // set cmd
-                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.0 = cmd();
-                                }
-                                Colums::Cmd2 => {
-                                    // set cmd
-                                    sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.1 = cmd();
+                                    Colums::Velocity => {
+                                        // set velocity
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = None;
+                                    }
+                                    Colums::Cmd1 => {
+                                        // set cmd
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.0 = TrackerCmd::None;
+                                    }
+                                    Colums::Cmd2 => {
+                                        // set cmd
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.1 = TrackerCmd::None;
+                                    }
                                 }
                             }
-                        }
 
-                        edit_cell.set(None);
-                    },
+                            edit_cell.set(None);
+                        },
 
-                    "SET"
+                        "DEL"
+                    }
+
+                    div {
+                        class: "button text-green super-center full-width full-height",
+
+                        onclick: move |_| {
+                            if let Some((row, cell)) = edit_cell() {
+                                info!("{row} => {cell:?}");
+                                let sections = sections.write();
+
+                                match cell {
+                                    Colums::Note => {
+                                        // set note
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![note()];
+
+                                        // set velocity if not yet set
+                                        if sections.read().unwrap()[*displaying().read().unwrap()].steps[row].velocity.is_none() {
+                                            sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = Some(85);
+                                        }
+
+                                        info!("set note to {:?}", sections.read().unwrap()[*displaying().read().unwrap()].steps[row].note);
+                                    }
+                                    Colums::Velocity => {
+                                        // set velocity
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = Some(velocity())
+                                    }
+                                    Colums::Cmd1 => {
+                                        // set cmd
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.0 = cmd();
+                                    }
+                                    Colums::Cmd2 => {
+                                        // set cmd
+                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].cmds.1 = cmd();
+                                    }
+                                }
+                            }
+
+                            edit_cell.set(None);
+                        },
+
+                        "SET"
+                    }
+                }
+
+                hr {
+                    class: "full-width",
                 }
             }
-
 
             if let Some((_row, cell)) = edit_cell() {
                 match cell {
                     // Colums::Note if !sections.read()[displaying()].is_drum => rsx! { EditNote { note } },
                     // Colums::Note if sections.read()[displaying()].is_drum => rsx! { EditDrum { note } },
-                    Colums::Note => rsx! { EditNote { note } },
+                    Colums::Note => rsx! {
+                        // br {}
+                        // div {
+                        // }
+
+                        div {
+                            class: "h1 super-center",
+
+                            {display_midi_note(&note())}
+                        }
+
+                        div {
+                            id: "edit-notes",
+                            class: "full-width space-evenly",
+                            // h1 {
+                            //     // class: "xx-large",
+                            //     class: "super-center",
+                            //     {display_midi_note(&note())}
+                            // }
+
+                            EditNote { note }
+                        }
+                    },
                     _ => { rsx! { } }
                 }
             }
@@ -335,13 +504,34 @@ fn EditNote(note: Signal<u8>) -> Element {
         div {
             class: "xx-large super-center",
 
-            "Octave"
+            "Note:"
+        }
+
+        div {
+            class: "row space-around",
+
+            for (i, display_name) in note_names.iter().enumerate() {
+                div {
+                    class: "button button-w-border large",
+                    onclick: move |_| {
+                        name.set(i as i8);
+                        note.set((name() + octave() * 12) as u8);
+                    },
+                    "{display_name}"
+                }
+            }
+        }
+
+        div {
+            class: "xx-large super-center",
+
+            "Octave:"
         }
         div {
             class: "row space-around",
 
             div {
-                class: "button large",
+                class: "button button-w-border large",
                 onclick: move |_| {
                     octave.set(
                         (
@@ -361,34 +551,12 @@ fn EditNote(note: Signal<u8>) -> Element {
                 "{octave.read()}"
             }
             div {
-                class: "button large",
+                class: "button button-w-border large",
                 onclick: move |_| {
                     octave.set((octave() % 9) + 1);
                     note.set((name() + octave() * 12) as u8);
                 },
                 "->"
-            }
-        }
-        div {
-            class: "row space-around",
-
-            for (i, display_name) in note_names.iter().enumerate() {
-                div {
-                    class: "button large",
-                    onclick: move |_| {
-                        name.set(i as i8);
-                        note.set((name() + octave() * 12) as u8);
-                    },
-                    "{display_name}"
-                }
-            }
-        }
-        div {
-            class: "row space-around",
-
-            div {
-                class: "xx-large",
-                {display_midi_note(&note())}
             }
         }
     }
@@ -400,6 +568,7 @@ fn MiddleCol(
     sections: Signal<Arc<RwLock<Vec<Track>>>>,
     displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
+    choosing_device: Signal<bool>,
 ) -> Element {
     // let is_drum_track = use_signal(|| sections.read()[displaying()].is_drum);
 
@@ -407,7 +576,7 @@ fn MiddleCol(
         div {
             id: "middle-main",
             if middle_view() == MiddleColView::Section && !sections.read().read().unwrap()[*displaying().read().unwrap()].is_drum {
-                SectionDisplay { middle_view, sections, displaying, edit_cell }
+                SectionDisplay { middle_view, sections, displaying, edit_cell, choosing_device }
             } else if middle_view() == MiddleColView::Section && sections.read().read().unwrap()[*displaying().read().unwrap()].is_drum {
                 DrumSectionDisplay { middle_view, sections, displaying }
             } else if middle_view() == MiddleColView::Pattern {}
@@ -499,6 +668,7 @@ fn SectionDisplay(
     sections: Signal<Arc<RwLock<Vec<Track>>>>,
     displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
+    choosing_device: Signal<bool>,
 ) -> Element {
     // info!("regular section view");
 
@@ -545,6 +715,8 @@ fn SectionDisplay(
                                     if edit_cell.read().is_none() {
                                         edit_cell.set(Some((i, Colums::Note)));
                                     }
+
+                                    *choosing_device.write() = false;
                                 },
                                 class: "button super-center",
 
@@ -557,6 +729,8 @@ fn SectionDisplay(
                                     if edit_cell.read().is_none() {
                                         edit_cell.set(Some((i, Colums::Velocity)));
                                     }
+
+                                    *choosing_device.write() = false;
                                 },
                                 class: "button super-center",
 
@@ -574,6 +748,8 @@ fn SectionDisplay(
                                     if edit_cell.read().is_none() {
                                         edit_cell.set(Some((i, Colums::Cmd1)));
                                     }
+
+                                    *choosing_device.write() = false;
                                 },
                                 class: "button super-center",
 
@@ -586,6 +762,8 @@ fn SectionDisplay(
                                     if edit_cell.read().is_none() {
                                         edit_cell.set(Some((i, Colums::Cmd2)));
                                     }
+
+                                    *choosing_device.write() = false;
                                 },
                                 class: "button super-center",
 
