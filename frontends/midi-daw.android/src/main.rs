@@ -182,14 +182,11 @@ fn MidiDevChooser(
     });
 
     rsx! {
-        // style { include_str!("./loading-dots.css") }
         document::Link { rel: "stylesheet", href: asset!("/assets/loading-dots.css") }
 
         div {
             class: "sub-menu",
 
-            // div {
-            //     class: "space-around",
             div {
                 class: "row",
 
@@ -331,7 +328,6 @@ fn MidiDevChooser(
                     }
                 }
             }
-            // }
         }
     }
 }
