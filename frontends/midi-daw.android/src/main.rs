@@ -25,7 +25,8 @@ pub type SectionsUID = usize;
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 // const HEADER_SVG: Asset = asset!("/assets/header.svg");
-const N_STEPS: usize = 128;
+// const N_STEPS: usize = 128;
+const N_STEPS: usize = 16;
 
 // lazy_static! {
 //     pub static ref CBEAM_CHANNELS: (Sender<MidiMessage>, Receiver<MidiMessage>) = unbounded();
@@ -55,7 +56,7 @@ fn main() {
     // let synth = make_synth( );
 
     let drums = Track::new(
-        Some("Another-Section".into()),
+        Some("Drum-Track".into()),
         1,
         "Midi Through:0".into(),
         true,
@@ -63,7 +64,8 @@ fn main() {
     );
     // drums.chan = MidiChannel::Ch10;
     let mut melodic = Track::default();
-    melodic.dev = "Midi Through:0".into();
+    melodic.dev = " Midi Through:0".into();
+    melodic.name = "Melodic-1".into();
     let sections = Arc::new(RwLock::new(vec![melodic, drums]));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
     let (send, recv) = unbounded();
@@ -139,19 +141,8 @@ fn MidiDevChooser(
     choosing_device: Signal<bool>,
 ) -> Element {
     info!("midi device chooser");
-    let com_mpsc = use_context::<Sender<MessageToPlayer>>();
-    // let (tx, rx) = bounded(1);
-    // _ = com_mpsc.send(MessageToPlayer::GetDevs(tx));
-    //
-    // let midi_devs = if let Ok(devs) = rx.recv() {
-    //     devs
-    // } else {
-    //     error!("no midi devices");
-    //     Vec::new()
-    // };
-
     let mut midi_devs = use_signal(|| None);
-    let coroutine_handle = use_coroutine(move |_: UnboundedReceiver<()>| async move {
+    let _coroutine_handle = use_coroutine(move |_: UnboundedReceiver<()>| async move {
         info!("get devs");
         let midi_url = format!("http://{BASE_URL}/midi");
         info!("{midi_url}");
@@ -856,7 +847,29 @@ fn LeftCol(
         }
 
         div {
-            class: "full-width",
+            class: "full-width row",
+
+            div {
+                id: "add-section-or-pattern",
+                class: "button button-w-border full-width",
+                onclick: move |_| {
+                    if let Ok(mut sections) = sections.write().write() {
+                        let uid = sections.len();
+                        let name = format!("Section-{}", uid + 1);
+                        info!("adding section: {name}");
+
+                        sections.push(Track::new(
+                            Some(name),
+                            uid,
+                            "Midi Through:0".into(),
+                            true,
+                            Some(16),
+                        ));
+                    }
+                },
+
+                "+drums"
+            }
 
             div {
                 id: "add-section-or-pattern",
@@ -877,7 +890,7 @@ fn LeftCol(
                     }
                 },
 
-                "+"
+                "+lead"
             }
         }
     }
@@ -898,12 +911,13 @@ fn RightCol(
     rsx! {
         div {
             id: "right-main",
+            class: "full-width",
 
             // a button to set the device for the selected track
             div {
                 id: "set-device",
                 // TODO: gray out the button when middle_view() != MiddleColView::Section
-                class: "button button-w-border super-center",
+                class: "button button-w-border super-center full-width",
                 onclick: move |_| {
                     // get_devs.call();
                     let val = !*choosing_device.read();

@@ -23,6 +23,7 @@ pub enum MessageToPlayer {
 
 pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlayer>) {
     let mut playing: Vec<(usize, usize)> = Vec::default();
+    let mut will_play: Vec<usize> = Vec::default();
     let (send, sync_pulse) = unbounded();
     let _sync_pulse_jh = spawn(move || {
         loop {
@@ -32,6 +33,7 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
     });
     let mut note_threads = Vec::new();
     let client = reqwest::blocking::Client::new();
+    let mut pulses = 0;
     info!("playback function setup complete");
 
     loop {
@@ -39,49 +41,40 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
         if let Ok(message) = recv.try_recv() {
             match message {
                 MessageToPlayer::PlaySection(section) => {
-                    info!("playing section: {section}");
-                    playing.push((section, 0))
+                    if !playing.is_empty() {
+                        if !will_play.contains(&section) {
+                            info!("queueing section: {section}");
+                            will_play.push(section);
+                        }
+                    } else {
+                        info!("playing section: {section}, imediately");
+                        playing.push((section, 0))
+                    }
                 }
                 MessageToPlayer::StopSection(section) => {
                     info!("will no longer play section: {section}");
-                    playing.retain(|elm| elm.0 != section)
+                    playing.retain(|elm| elm.0 != section);
+                    will_play.retain(|elm| *elm != section);
                 }
-                // MessageToPlayer::GetDevs(responder) => {
-                //     info!("get devs");
-                //     let midi_url = format!("http://{BASE_URL}/midi");
-                //     info!("{midi_url}");
-                //
-                //     let devs = if let Ok(req) = client.get(midi_url).send() {
-                //         info!("devs req {:?}", req);
-                //         // Vec::new()
-                //
-                //         if let Ok(dev_list) = req.json::<Vec<String>>() {
-                //             info!("devs {:?}", dev_list);
-                //             // let mut devs = known_midi_devs.write();
-                //             // *devs = dev_list;
-                //             dev_list
-                //         } else {
-                //             error!(
-                //                 "returned device list was expected to be json but failed to parse as such."
-                //             );
-                //             Vec::new()
-                //         }
-                //     } else {
-                //         error!("failed to make get request to get a list of devices.");
-                //         Vec::new()
-                //     };
-                //
-                //     if let Err(e) = responder.send(devs) {
-                //         error!("{e}");
-                //     }
-                // }
                 _ => error!("pattern playback not yet implemented"),
             }
         }
 
         // if rest done
         if let Ok(_) = sync_pulse.try_recv() {
-            // for playing, play next
+            if pulses == 0 {
+                will_play.iter().for_each(|section| {
+                    info!("starting playback of queued session: {section}");
+                    playing.push((*section, 0));
+                });
+                will_play.clear();
+            }
+
+            if !playing.is_empty() {
+                pulses += 1;
+                pulses %= 16;
+            }
+
             if let Ok(sections) = sections.read() {
                 for (section_i, step_i) in playing.iter_mut() {
                     let section = &sections[*section_i];

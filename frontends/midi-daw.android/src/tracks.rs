@@ -1,7 +1,6 @@
 use crate::{N_STEPS, SynthId, less_then::UsizeLessThan};
 use midi_daw_types::MidiChannel;
 use strum::EnumString;
-use tracing::*;
 
 pub type MidiNote = u8;
 
@@ -20,7 +19,7 @@ impl Default for Track {
         Self {
             name: "UNNAMED-1".into(),
             steps: (0..N_STEPS).map(|_| Step::default()).collect(),
-            dev: "Default".into(),
+            dev: "Midi Through:0".into(),
             // dev: SynthId::default(),
             chan: MidiChannel::Ch1,
             uuid: 0,
@@ -44,7 +43,11 @@ impl Track {
             name,
             steps: (0..n_steps).map(|_| Step::default()).collect(),
             dev,
-            chan: MidiChannel::Ch1,
+            chan: if is_drum {
+                MidiChannel::Ch10
+            } else {
+                MidiChannel::Ch1
+            },
             uuid,
             is_drum,
         }
