@@ -1,9 +1,15 @@
 _: 
   @just -l
 
-build:
-  RUSTFLAGS='-C link-arg=-lc++_shared -C link-arg=-landroid' ~/.cargo/bin/dx build --platform android --verbose --trace
+# build:
+#   RUSTFLAGS='-C link-arg=-lc++_shared -C link-arg=-landroid' ~/.cargo/bin/dx build --platform android --verbose --trace
 
 serve:
   ~/.cargo/bin/dx serve --platform android --device HA244HYM --port 8888
+
+build:
+  ~/.cargo/bin/dx build --release --platform android --device HA244HYM
+
+install: build
+  adb install target/dx/midi-daw/release/android/app/app/build/outputs/apk/debug/app-debug.apk
 

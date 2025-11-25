@@ -850,6 +850,36 @@ fn LeftCol(
                 // TODO: add delete section button here
             }
         }
+
+        hr {
+            class: "full-width"
+        }
+
+        div {
+            class: "full-width",
+
+            div {
+                id: "add-section-or-pattern",
+                class: "button button-w-border full-width",
+                onclick: move |_| {
+                    if let Ok(mut sections) = sections.write().write() {
+                        let uid = sections.len();
+                        let name = format!("Section-{}", uid + 1);
+                        info!("adding section: {name}");
+
+                        sections.push(Track::new(
+                            Some(name),
+                            uid,
+                            "Midi Through:0".into(),
+                            false,
+                            Some(N_STEPS),
+                        ));
+                    }
+                },
+
+                "+"
+            }
+        }
     }
 }
 
@@ -864,10 +894,6 @@ fn RightCol(
     choosing_device: Signal<bool>,
 ) -> Element {
     let com_mpsc = use_context::<Sender<MessageToPlayer>>();
-    // let (tx, rx) = oneshot::channel();
-    // com_mpsc.send(MessageToPlayer::GetDevs(tx));
-    //
-    // let mut devs = rx.recv();
 
     rsx! {
         div {
@@ -877,7 +903,7 @@ fn RightCol(
             div {
                 id: "set-device",
                 // TODO: gray out the button when middle_view() != MiddleColView::Section
-                class: "button",
+                class: "button button-w-border super-center",
                 onclick: move |_| {
                     // get_devs.call();
                     let val = !*choosing_device.read();
@@ -885,12 +911,16 @@ fn RightCol(
                     *choosing_device.write() = val;
                 },
 
-                "Set-Device"
+                "Midi Dev:"
+
+                div {
+                    {sections.read().read().unwrap()[*displaying.read().read().unwrap()].dev.clone()}
+                }
             }
 
             div {
                 id: "play-section",
-                class: "button",
+                class: "button button-w-border super-center",
                 onclick: move |_| {
                     let dis = displaying.read();
                     let dis = dis.read().unwrap();
@@ -913,9 +943,29 @@ fn RightCol(
                 },
 
                 if !playing_sections.read().contains(&displaying.read().read().unwrap()) {
-                    "Play"
+                    div {
+                        class: "row",
+
+                        "Play"
+
+                        div {
+                            class: "text-green",
+
+                            "|>"
+                        }
+                    }
                 } else {
-                    "Stop"
+                    div {
+                        class: "row",
+
+                        "Stop"
+
+                        div {
+                            class: "text-red",
+
+                            "[]"
+                        }
+                    }
                 }
             }
         }
