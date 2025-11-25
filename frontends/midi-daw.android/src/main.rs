@@ -911,9 +911,19 @@ fn RightCol(
                     *choosing_device.write() = val;
                 },
 
-                "Midi Dev:"
+                div {
+                    class: "text-yellow",
+
+                    "Midi Dev:"
+                }
+
+                hr {
+                    class: "full-width",
+                }
 
                 div {
+                    class: "large",
+
                     {sections.read().read().unwrap()[*displaying.read().read().unwrap()].dev.clone()}
                 }
             }
