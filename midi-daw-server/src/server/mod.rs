@@ -17,7 +17,7 @@ pub use midi_daw_types::{BPQ, Tempo};
 use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
 use midir::MidiOutput;
 use std::time::Duration;
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, task::spawn_local};
 use tracing::log::*;
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -64,7 +64,7 @@ async fn midi_pool_exec(
         let tempo = tempo.clone();
         let midi_out = midi_out.clone();
 
-        spawn(async move {
+        spawn_local(async move {
             let dev = msg.midi_dev.clone();
             let channel = msg.channel;
 

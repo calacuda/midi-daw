@@ -78,8 +78,7 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
 
             if let Ok(sections) = sections.read() {
                 // for (section_i, step_i) in playing.iter_mut() {
-                // let client = client.clone();
-                let mut threads: Vec<_> = playing
+                let midi_cmds: Vec<MidiReqBody> = playing
                     .iter_mut()
                     .map(|(section_i, step_i)| {
                         let section = &sections[*section_i];
@@ -94,16 +93,11 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
                             NoteDuration::Sn(1)
                         };
 
-                        // if notes.len() > 0 {
-                        // info!("{notes:?}");
-                        // }
-
                         *step_i += 1;
                         *step_i %= steps.len();
 
-                        // for note in notes {
                         notes.into_iter().map(move |note| {
-                            let req_body = MidiReqBody::new(
+                            MidiReqBody::new(
                                 dev.clone(),
                                 channel,
                                 midi_daw_types::MidiMsg::PlayNote {
@@ -111,38 +105,24 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
                                     velocity: vel,
                                     duration,
                                 },
-                            );
-
-                            req_body
-
-                            // mk request
-                            // let req = client
-                            //     .post(format!("http://{BASE_URL}/midi"))
-                            //     .json(&req_body);
-                            //
-                            // req
-                            // note_threads.push(spawn(|| req.send()));
+                            )
                         })
                     })
                     .flatten()
-                    .collect::<Vec<_>>()
-                    .into_par_iter()
-                    .map(|req| {
-                        let client = client.clone();
-
-                        spawn(move || {
-                            if let Err(e) = client
-                                .post(format!("http://{BASE_URL}/midi"))
-                                .json(&req)
-                                .send()
-                            {
-                                error!("playing note failed with error {e}");
-                            }
-                        })
-                    })
                     .collect();
+                let client = client.clone();
 
-                note_threads.append(&mut threads);
+                if !midi_cmds.is_empty() {
+                    note_threads.push(spawn(move || {
+                        if let Err(e) = client
+                            .post(format!("http://{BASE_URL}/batch-midi"))
+                            .json(&midi_cmds)
+                            .send()
+                        {
+                            error!("playing note failed with error {e}");
+                        }
+                    }));
+                }
 
                 note_threads.retain(|thread| !thread.is_finished());
             }
