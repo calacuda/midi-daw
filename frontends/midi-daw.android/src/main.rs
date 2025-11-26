@@ -110,7 +110,7 @@ fn App() -> Element {
         main {
             div {
                 id: "left-col",
-                LeftCol { middle_view, sections, displaying: displaying_uuid, edit_cell }
+                LeftCol { middle_view, sections, displaying: displaying_uuid, edit_cell, playing_sections }
             }
             div {
                 id: "middle-col",
@@ -770,11 +770,14 @@ fn LeftCol(
     sections: Signal<Arc<RwLock<Vec<Track>>>>,
     displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
+    playing_sections: Signal<Vec<usize>>,
 ) -> Element {
+    let com_mpsc = use_context::<Sender<MessageToPlayer>>();
     let mut listing = use_signal(|| MiddleColView::Section);
     let view_sections = || listing() == MiddleColView::Section;
-
-    info!("left-col");
+    // info!("left-col");
+    let mut editing_name = use_signal(|| None);
+    let mut new_name = use_signal(|| String::new());
 
     rsx! {
         div {
@@ -813,32 +816,118 @@ fn LeftCol(
         div {
             id: "nav-list",
 
-            for (name, uuid) in match listing() {
+            for (uid, name) in match listing() {
                 MiddleColView::Section => {
-                    sections().read().unwrap().iter().map(|section| (section.name.clone(), section.uuid)).collect::<Vec<_>>()
+                    // sections().read().unwrap().iter().map(|section| (section.name.clone(), section.uuid)).collect::<Vec<_>>()
+                    sections().read().unwrap().iter().map(|section| section.name.clone()).enumerate().collect::<Vec<_>>()
                 }
                 MiddleColView::Pattern => {
-                    [].iter().map(|pattern: &(String, usize)| pattern.to_owned()).collect::<Vec<_>>()
+                    [].iter().map(|pattern: &String| pattern.to_owned()).enumerate().collect::<Vec<_>>()
                 }
             } {
-                // TODO: add edit-name button here
                 div {
-                    id: {
-                        if (listing() == middle_view()) && displaying().read().is_ok_and(|dis_uuid| uuid == *dis_uuid ) {
-                            "displaying-sp".to_string()
-                        } else {
-                            "".into()
+                    class: "row",
+
+                    // edit-name button
+                    div {
+                        class: "button button-w-border super-center text-green",
+                        onclick: {
+                            let name = name.clone();
+
+                            move |_| {
+                                info!("editing the name of section {name}");
+                                _ = editing_name.write().replace(uid);
+                                *new_name.write() = name.clone();
+                            }
+                        },
+
+                        "O"
+                    }
+
+                    if editing_name.read().is_some_and(|val| val == uid) {
+                        form {
+                            onsubmit: move |_| {
+                                if let Ok(mut sections) = sections.write().write() {
+                                    sections[uid].name = new_name.read().clone();
+                                    *editing_name.write() = None;
+                                }
+                            },
+                            input {
+                                id: "rename-field",
+                                name: "rename-field",
+                                autofocus: "value",
+                                r#type: "text",
+                                value: "{new_name}",
+                                onmounted: async move |cx| {
+                                    if let Err(_e) = cx.set_focus(true).await {
+                                        // error!("attempt to set focus to the rename section input field failed with: {e}")
+                                    }
+                                },
+                                oninput: move |event| {
+                                    new_name.set(event.value());
+                                },
+                            }
                         }
-                    },
-                    class: "button nav-item",
-                    onclick: move |_| {
-                        middle_view.set(listing());
-                        *displaying.write().write().unwrap() = uuid;
-                        edit_cell.set(None);
-                    },
-                    {name}
+                    } else {
+                        div {
+                            id: {
+                                if (listing() == middle_view()) && displaying().read().is_ok_and(|dis_uuid| uid == *dis_uuid ) {
+                                    "displaying-sp".to_string()
+                                } else {
+                                    "".into()
+                                }
+                            },
+                            class: "button nav-item",
+                            onclick: move |_| {
+                                middle_view.set(listing());
+                                *displaying.write().write().unwrap() = uid;
+                                edit_cell.set(None);
+                            },
+                            {name.clone()}
+                        }
+                    }
+
+                    // delete section button
+                    div {
+                        class: "button button-w-border super-center text-red",
+                        onclick: {
+                            let com_mpsc = com_mpsc.clone();
+
+                            move |_| {
+                                if let Ok(mut sections) = sections.write().write() {
+                                    let index_to_remove = uid;
+                                    let dis = *displaying.read().read().unwrap();
+                                    info!("removing section: {}", sections[index_to_remove].name);
+
+                                    // must be "<=", if this is changed to "<" app will crash if
+                                    // there are only two sections, a non-drum track and a drum
+                                    // track, and the drum track is displayed then deleted.
+                                    if index_to_remove <= dis && dis > 0 {
+                                        *displaying.write().write().unwrap() -= 1;
+                                    }
+
+                                    if playing_sections.read().contains(&index_to_remove) {
+                                        _ = com_mpsc.send(MessageToPlayer::StopSection(index_to_remove));
+                                        playing_sections.write().retain(|uid| *uid != index_to_remove);
+                                        playing_sections.write().iter_mut().for_each(|i| if *i > index_to_remove {
+                                            *i -= 1;
+                                        });
+                                    }
+
+                                    _ = com_mpsc.send(MessageToPlayer::DeletedSection(index_to_remove));
+
+                                    sections.remove(index_to_remove);
+
+                                    if sections.is_empty() {
+                                        sections.push(Track::default());
+                                    }
+                                }
+                            }
+                        },
+
+                        "X"
+                    }
                 }
-                // TODO: add delete section button here
             }
         }
 
@@ -851,7 +940,7 @@ fn LeftCol(
 
             div {
                 id: "add-section-or-pattern",
-                class: "button button-w-border full-width",
+                class: "button button-w-border full-width super-center",
                 onclick: move |_| {
                     if let Ok(mut sections) = sections.write().write() {
                         let uid = sections.len();
@@ -868,12 +957,12 @@ fn LeftCol(
                     }
                 },
 
-                "+drums"
+                "+Drums"
             }
 
             div {
                 id: "add-section-or-pattern",
-                class: "button button-w-border full-width",
+                class: "button button-w-border full-width super-center",
                 onclick: move |_| {
                     if let Ok(mut sections) = sections.write().write() {
                         let uid = sections.len();
@@ -890,7 +979,7 @@ fn LeftCol(
                     }
                 },
 
-                "+lead"
+                "+Lead"
             }
         }
     }
