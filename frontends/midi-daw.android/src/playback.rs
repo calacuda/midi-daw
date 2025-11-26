@@ -1,8 +1,9 @@
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use midi_daw_types::{MidiReqBody, NoteDuration};
+use rayon::prelude::*;
 use std::{
     sync::{Arc, RwLock},
-    thread::{sleep, spawn},
+    thread::{JoinHandle, sleep, spawn},
     time::Duration,
 };
 use tracing::*;
@@ -62,6 +63,11 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
 
         // if rest done
         if let Ok(_) = sync_pulse.try_recv() {
+            if !playing.is_empty() {
+                pulses += 1;
+                pulses %= 16;
+            }
+
             if pulses == 0 {
                 will_play.iter().for_each(|section| {
                     info!("starting playback of queued session: {section}");
@@ -70,53 +76,75 @@ pub fn playback(sections: Arc<RwLock<Vec<Track>>>, recv: Receiver<MessageToPlaye
                 will_play.clear();
             }
 
-            if !playing.is_empty() {
-                pulses += 1;
-                pulses %= 16;
-            }
-
             if let Ok(sections) = sections.read() {
-                for (section_i, step_i) in playing.iter_mut() {
-                    let section = &sections[*section_i];
-                    let steps = &section.steps;
-                    let step = &steps[*step_i];
-                    let (dev, channel) =
-                        (sections[*section_i].dev.clone(), sections[*section_i].chan);
-                    let (notes, vel) = (step.note.clone(), step.velocity.unwrap_or(85));
-                    let duration = if !section.is_drum {
-                        NoteDuration::Sn(1)
-                    } else {
-                        NoteDuration::Sn(1)
-                    };
+                // for (section_i, step_i) in playing.iter_mut() {
+                // let client = client.clone();
+                let mut threads: Vec<_> = playing
+                    .iter_mut()
+                    .map(|(section_i, step_i)| {
+                        let section = &sections[*section_i];
+                        let steps = &section.steps;
+                        let step = &steps[*step_i];
+                        let (dev, channel) =
+                            (sections[*section_i].dev.clone(), sections[*section_i].chan);
+                        let (notes, vel) = (step.note.clone(), step.velocity.unwrap_or(85));
+                        let duration = if !section.is_drum {
+                            NoteDuration::Sn(1)
+                        } else {
+                            NoteDuration::Sn(1)
+                        };
 
-                    // if notes.len() > 0 {
-                    // info!("{notes:?}");
-                    // }
+                        // if notes.len() > 0 {
+                        // info!("{notes:?}");
+                        // }
 
-                    for note in notes {
-                        let req_body = MidiReqBody::new(
-                            dev.clone(),
-                            channel,
-                            midi_daw_types::MidiMsg::PlayNote {
-                                note,
-                                velocity: vel,
-                                duration,
-                            },
-                        );
+                        *step_i += 1;
+                        *step_i %= steps.len();
 
-                        // mk request
-                        let req = client
-                            .post(format!("http://{BASE_URL}/midi"))
-                            .json(&req_body);
+                        // for note in notes {
+                        notes.into_iter().map(move |note| {
+                            let req_body = MidiReqBody::new(
+                                dev.clone(),
+                                channel,
+                                midi_daw_types::MidiMsg::PlayNote {
+                                    note,
+                                    velocity: vel,
+                                    duration,
+                                },
+                            );
 
-                        note_threads.push(spawn(|| req.send()));
-                    }
+                            req_body
 
-                    *step_i += 1;
-                    *step_i %= steps.len();
+                            // mk request
+                            // let req = client
+                            //     .post(format!("http://{BASE_URL}/midi"))
+                            //     .json(&req_body);
+                            //
+                            // req
+                            // note_threads.push(spawn(|| req.send()));
+                        })
+                    })
+                    .flatten()
+                    .collect::<Vec<_>>()
+                    .into_par_iter()
+                    .map(|req| {
+                        let client = client.clone();
 
-                    note_threads.retain(|thread| !thread.is_finished());
-                }
+                        spawn(move || {
+                            if let Err(e) = client
+                                .post(format!("http://{BASE_URL}/midi"))
+                                .json(&req)
+                                .send()
+                            {
+                                error!("playing note failed with error {e}");
+                            }
+                        })
+                    })
+                    .collect();
+
+                note_threads.append(&mut threads);
+
+                note_threads.retain(|thread| !thread.is_finished());
             }
         }
     }

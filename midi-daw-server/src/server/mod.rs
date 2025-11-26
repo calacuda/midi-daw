@@ -11,6 +11,7 @@ use actix_web::{
     web::{self, Json},
 };
 use crossbeam::channel::Sender;
+use futures::future::join_all;
 use fx_hash::FxHashSet;
 pub use midi_daw_types::{BPQ, Tempo};
 use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
@@ -49,6 +50,54 @@ async fn midi(
         MidiMsg::CC { control, value } => send_cc(midi_out, dev, channel, control, value).await,
         MidiMsg::PitchBend { bend } => pitch_bend(midi_out, dev, channel, bend).await,
     }
+
+    HttpResponse::Ok()
+}
+
+#[post("/midi_pool")]
+async fn midi_pool_exec(
+    tempo: web::Data<Tempo>,
+    midi_out: web::Data<MidiOut>,
+    req_body: Json<Vec<MidiReqBody>>,
+) -> impl Responder {
+    join_all(req_body.clone().into_iter().map(async |msg| {
+        let tempo = tempo.clone();
+        let midi_out = midi_out.clone();
+
+        spawn(async move {
+            let dev = msg.midi_dev.clone();
+            let channel = msg.channel;
+
+            match msg.msg {
+                MidiMsg::PlayNote {
+                    note,
+                    velocity,
+                    duration,
+                } => {
+                    if let Ok(tempo) = tempo.read() {
+                        play_note(
+                            *tempo,
+                            midi_out.clone(),
+                            dev,
+                            channel,
+                            note,
+                            velocity,
+                            duration,
+                        )
+                        .await;
+                    }
+                }
+                MidiMsg::StopNote { note } => stop_note(midi_out.clone(), dev, channel, note).await,
+                MidiMsg::CC { control, value } => {
+                    send_cc(midi_out.clone(), dev, channel, control, value).await
+                }
+                MidiMsg::PitchBend { bend } => {
+                    pitch_bend(midi_out.clone(), dev, channel, bend).await
+                }
+            }
+        })
+    }))
+    .await;
 
     HttpResponse::Ok()
 }
@@ -251,6 +300,7 @@ pub async fn run(
                 .app_data(new_dev_tx.clone())
                 .app_data(virtual_devs.clone())
                 .service(midi)
+                .service(midi_pool_exec)
                 .service(get_devs)
                 .service(get_tempo)
                 .service(set_tempo)
