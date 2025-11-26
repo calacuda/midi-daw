@@ -54,7 +54,7 @@ async fn midi(
     HttpResponse::Ok()
 }
 
-#[post("/midi_pool")]
+#[post("/batch-midi")]
 async fn midi_pool_exec(
     tempo: web::Data<Tempo>,
     midi_out: web::Data<MidiOut>,
