@@ -11,3 +11,5 @@ test-seq:
   echo '"new-seq"' | http post http://midi-daw.local:8080/sequence/new
   http post http://midi-daw.local:8080/sequence/set-dev < test-json/set-dev.json
   http post http://midi-daw.local:8080/sequence/add-note < test-json/add-note.json
+  http post http://midi-daw.local:8080/sequence/play-all
+
