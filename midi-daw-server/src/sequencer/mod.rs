@@ -223,6 +223,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                     jh_s.push(jh);
 
                     jh_s.retain(|jh| !jh.is_finished());
+                    break;
                 }
             }
 
@@ -335,7 +336,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                                 step.push(MidiMsg::PlayNote {
                                     note,
                                     velocity,
-                                    duration: note_len.unwrap_or(NoteDuration::Sn(0)),
+                                    duration: note_len.unwrap_or(NoteDuration::Sn(1)),
                                 });
                             } else {
                                 error!(
