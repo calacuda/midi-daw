@@ -8,19 +8,23 @@ use crate::{
 };
 use actix::spawn;
 use actix_web::{
-    App, HttpResponse, HttpResponseBuilder, HttpServer, Responder, get, post,
+    App, HttpResponse, HttpResponseBuilder, HttpServer, get, post,
     web::{self, Json},
 };
 use crossbeam::channel::Sender;
 use futures::future::join_all;
 use fx_hash::FxHashSet;
 use midi_daw_types::{
-    AddNoteBody, MidiMsg, MidiReqBody, NoteDuration, RmNoteBody, SetDevBody, UDS_SERVER_PATH,
+    AddNoteBody, GetSequenceQuery, MidiMsg, MidiReqBody, NoteDuration, RenameSequenceBody,
+    RmNoteBody, SetChannelBody, SetDevBody, UDS_SERVER_PATH,
 };
 pub use midi_daw_types::{BPQ, Tempo};
 use midir::MidiOutput;
 use std::time::Duration;
-use tokio::{sync::Mutex, task::spawn_local};
+use tokio::{
+    sync::{Mutex, oneshot},
+    task::spawn_local,
+};
 use tracing::log::*;
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -205,7 +209,7 @@ async fn rm_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<String>,
 ) -> HttpResponseBuilder {
-    let msg = SequencerControlCmd::RmSeqeunce { name: seq_name.0 };
+    let msg = SequencerControlCmd::RmSequence { name: seq_name.0 };
 
     match seq_coms.send(msg) {
         Ok(_) => HttpResponse::Ok(),
@@ -216,17 +220,64 @@ async fn rm_sequence(
     }
 }
 
+async fn do_get_sequences(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> HttpResponse {
+    let (responder, recv_er) = oneshot::channel();
+
+    let msg = SequencerControlCmd::GetSequences { responder };
+
+    match seq_coms.send(msg) {
+        Ok(_) => match recv_er.blocking_recv() {
+            Ok(sequences) => HttpResponse::Ok().json(sequences),
+            Err(e) => {
+                let error_msg = format!("reading reponse from sequencer failed with error, {e}");
+
+                error!("{error_msg}");
+                HttpResponse::InternalServerError().body(error_msg)
+            }
+        },
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
 #[get("/sequence/names")]
-async fn get_sequences(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> impl Responder {
-    ""
+async fn get_sequences(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> HttpResponse {
+    do_get_sequences(seq_coms).await
 }
 
 #[get("/sequence")]
 async fn get_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
-    seq_name: web::Query<String>,
-) -> impl Responder {
-    ""
+    seq_name: web::Query<GetSequenceQuery>,
+) -> HttpResponse {
+    let (responder, recv_er) = oneshot::channel();
+
+    let msg = SequencerControlCmd::GetSequence {
+        seqeunce: seq_name.sequence.clone(),
+        responder,
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => match recv_er.blocking_recv() {
+            Ok(sequences) => HttpResponse::Ok().json(sequences),
+            Err(e) => {
+                let error_msg = format!("reading reponse from sequencer failed with error, {e}");
+
+                error!("{error_msg}");
+                HttpResponse::InternalServerError().body(error_msg)
+            }
+        },
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
 }
 
 #[post("/sequence/play-one")]
@@ -312,7 +363,23 @@ async fn stop_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<String>,
 ) -> HttpResponseBuilder {
-    let msg = SequencerControlCmd::Play(vec![seq_name.0]);
+    let msg = SequencerControlCmd::Stop(vec![seq_name.0]);
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/stop-these")]
+async fn stop_some_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: Json<Vec<String>>,
+) -> HttpResponseBuilder {
+    let msg = SequencerControlCmd::Stop(seq_name.0);
 
     match seq_coms.send(msg) {
         Ok(_) => HttpResponse::Ok(),
@@ -399,6 +466,48 @@ async fn set_dev(
     }
 }
 
+#[post("/sequence/rename")]
+async fn rename_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<RenameSequenceBody>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::RenameSequence {
+        old_name: args.old_name.clone(),
+        new_name: args.new_name.clone(),
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => do_get_sequences(seq_coms).await,
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
+#[post("/sequence/set-channel")]
+async fn set_channel(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<SetChannelBody>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::SetSequenceChannel {
+        name: args.sequence.clone(),
+        channel: args.channel.clone(),
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
 /// sends a message to the message bus every note
 pub fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
     // TODO: make this a client running in a syncronouse std::thread
@@ -462,7 +571,7 @@ pub fn sync_step_notif(data: MbServerHandle, tempo: web::Data<Tempo>, bpq: web::
 
         data.send_binary(conn, Vec::new().into());
 
-        // time sync
+        // time syncRenameSequenceBody
         if let Err(e) = sleep_thread.join() {
             error!(
                 "joinning sleep thread in midi_out thread resultd in error; {e:?}. this likely means that the sending of sync pulses took longer then the sync step duration"
@@ -545,10 +654,13 @@ pub async fn run(
                 .service(pause_sequence)
                 .service(pause_all_sequence)
                 .service(stop_sequence)
+                .service(stop_some_sequence)
                 .service(stop_all_sequence)
                 .service(add_note)
                 .service(rm_note)
                 .service(set_dev)
+                .service(rename_sequence)
+                .service(set_channel)
                 .service(message_bus::message_bus)
         }
     })

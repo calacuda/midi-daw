@@ -76,7 +76,7 @@ pub enum SequencerControlCmd {
         old_name: SequenceName,
         new_name: SequenceName,
     },
-    RmSeqeunce {
+    RmSequence {
         name: SequenceName,
     },
     Play(Vec<SequenceName>),
@@ -272,7 +272,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                             sequences.insert(new_name, seq);
                         }
                     }
-                    SequencerControlCmd::RmSeqeunce { name } => {
+                    SequencerControlCmd::RmSequence { name } => {
                         sequences.remove(&name);
                     }
                     SequencerControlCmd::Play(names) => names.into_iter().for_each(|name| {

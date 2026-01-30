@@ -613,6 +613,111 @@ impl SetDevBody {
     }
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct GetSequenceQuery {
+    pub sequence: String,
+    // pub midi_dev: String,
+}
+
+impl GetSequenceQuery {
+    pub fn new(sequence: String) -> Self {
+        Self { sequence }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl GetSequenceQuery {
+    #[new]
+    fn new_py(sequence: String) -> Self {
+        Self::new(sequence)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct RenameSequenceBody {
+    pub old_name: String,
+    pub new_name: String,
+}
+
+impl RenameSequenceBody {
+    pub fn new(old_name: String, new_name: String) -> Self {
+        Self { old_name, new_name }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl RenameSequenceBody {
+    #[new]
+    fn new_py(old_name: String, new_name: String) -> Self {
+        Self::new(old_name, new_name)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct SetChannelBody {
+    pub sequence: String,
+    pub channel: MidiChannel,
+}
+
+impl SetChannelBody {
+    pub fn new(sequence: String, channel: MidiChannel) -> Self {
+        Self { sequence, channel }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl SetChannelBody {
+    #[new]
+    fn new_py(sequence: String, channel: MidiChannel) -> Self {
+        Self::new(sequence, channel)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
 // impl Into<Channel> for MidiChannel {
 //     fn into(self) -> Channel {
 //         match self {
