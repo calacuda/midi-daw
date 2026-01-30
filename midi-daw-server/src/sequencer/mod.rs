@@ -183,6 +183,12 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                     .iter()
                     .filter_map(|name| {
                         sequences.get(name).map(|sequence| {
+                            info!(
+                                "sequence, {}, has {} steps",
+                                sequence.name,
+                                sequence.steps.len()
+                            );
+
                             sequence.steps[i as usize % sequence.steps.len()]
                                 .iter()
                                 .map(|msg| {
