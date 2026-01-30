@@ -538,6 +538,7 @@ pub async fn run(
                 .service(stop_all_sequence)
                 .service(add_note)
                 .service(rm_note)
+                .service(set_dev)
                 .service(message_bus::message_bus)
         }
     })
