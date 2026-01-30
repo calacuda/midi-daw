@@ -131,46 +131,11 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
     let mut sequences: AllSequences = FxHashMap::default();
     let mut queued_sequences: Vec<SequenceName> = Vec::default();
     let mut playing_sequences: Vec<SequenceName> = Vec::default();
-    // let mut stop_notes: Vec<(u8, MidiReqBody)> = Vec::new();
     let mut jh_s = Vec::default();
 
     loop {
         if sleep_thread.is_finished() {
             sleep_thread = std::thread::spawn(mk_timer());
-
-            // // stop playing note by sending request_body
-            // let stop_messages: Vec<MidiReqBody> = stop_notes
-            //     .iter_mut()
-            //     .filter_map(|(steps_left, request_body)| {
-            //         *steps_left -= 1;
-            //
-            //         if *steps_left == 0 {
-            //             Some(request_body.clone())
-            //         } else {
-            //             None
-            //         }
-            //     })
-            //     .collect();
-            //
-            // if !stop_messages.is_empty() {
-            //     let url = Uri::new(UDS_SERVER_PATH, "/batch-midi");
-            //     let client: Client<UnixConnector, Full<Bytes>> = Client::unix();
-            //     let req = Request::builder()
-            //         .method(Method::POST)
-            //         .uri(url)
-            //         .header("content-type", "application/json")
-            //         .body(Full::new(Bytes::from(
-            //             serde_json::json!(stop_messages).to_string(),
-            //         )))
-            //         .unwrap();
-            //
-            //     match client.request(req).await {
-            //         Ok(res) => info!("{res:?}"),
-            //         Err(e) => error!("failed to stop a note, got error: {e}"),
-            //     }
-            // }
-
-            // stop_notes.retain_mut(|(steps_left, _request_body)| *steps_left != 0);
 
             playing_sequences.append(&mut queued_sequences);
 
@@ -182,14 +147,14 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                 let play_messages: Vec<MidiReqBody> = playing_sequences
                     .iter()
                     .filter_map(|name| {
-                        sequences.get(name).map(|sequence| {
-                            info!(
-                                "sequence, {}, has {} steps",
-                                sequence.name,
-                                sequence.steps.len()
-                            );
+                        if let Some(sequence) = sequences.get(name) {
+                            // info!(
+                            //     "sequence, {}, has {} steps",
+                            //     sequence.name,
+                            //     sequence.steps.len()
+                            // );
 
-                            sequence.steps[i as usize % sequence.steps.len()]
+                            let msgs = sequence.steps[i as usize % sequence.steps.len()]
                                 .iter()
                                 .map(|msg| {
                                     MidiReqBody::new(
@@ -197,14 +162,16 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                                         sequence.channel,
                                         msg.clone(),
                                     )
-                                })
-                            // .collect()
-                        })
-                        // .flatten()
+                                });
+
+                            if msgs.len() > 0 { Some(msgs) } else { None }
+                        } else {
+                            None
+                        }
                     })
+                    // .flatten()
                     .flatten()
                     .collect();
-                // play_messages.iter().for_each(|msg| stop_notes);
 
                 if !play_messages.is_empty() {
                     let jh = spawn(async move {
