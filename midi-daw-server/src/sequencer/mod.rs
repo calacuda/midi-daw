@@ -215,7 +215,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                             .unwrap();
 
                         match client.request(req).await {
-                            Ok(res) => info!("playing notes got result: {res:?}"),
+                            Ok(_res) => {} // info!("playing notes got result: {res:?}"),
                             Err(e) => error!("failed to play a note, got error: {e}"),
                         }
                     });
