@@ -77,7 +77,7 @@ async fn midi_pool_exec(
                     velocity,
                     duration,
                 } => {
-                    info!("note: {note} => {dev}");
+                    debug!("note: {note} => {dev}");
 
                     if let Ok(tempo) = tempo.read() {
                         play_note(

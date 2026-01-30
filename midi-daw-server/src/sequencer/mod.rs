@@ -142,17 +142,18 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
             if (counter % (unwrap_rw_lock(&bpq, 24.) / 4.)) == 0.0 {
                 let i = counter / (unwrap_rw_lock(&bpq, 24.) / 4.);
                 // info!("i = {i}");
+                // info!("i % 16 = {}", i as usize % 16);
 
                 // send midi messages from playing sequences
                 let play_messages: Vec<MidiReqBody> = playing_sequences
                     .iter()
                     .filter_map(|name| {
                         if let Some(sequence) = sequences.get(name) {
-                            // info!(
-                            //     "sequence, {}, has {} steps",
-                            //     sequence.name,
-                            //     sequence.steps.len()
-                            // );
+                            debug!(
+                                "sequence, {}, has {} steps",
+                                sequence.name,
+                                sequence.steps.len()
+                            );
 
                             let msgs = sequence.steps[i as usize % sequence.steps.len()]
                                 .iter()
@@ -169,13 +170,12 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                             None
                         }
                     })
-                    // .flatten()
                     .flatten()
                     .collect();
 
                 if !play_messages.is_empty() {
                     let jh = spawn(async move {
-                        info!("playing {} notes.", play_messages.len());
+                        trace!("playing {} notes.", play_messages.len());
                         let url = Uri::new(UDS_SERVER_PATH, "/batch-midi");
                         let client: Client<UnixConnector, Full<Bytes>> = Client::unix();
                         let req = Request::builder()
@@ -188,7 +188,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                             .unwrap();
 
                         match client.request(req).await {
-                            Ok(_res) => {} // info!("playing notes got result: {res:?}"),
+                            Ok(_res) => {}
                             Err(e) => error!("failed to play a note, got error: {e}"),
                         }
                     });
