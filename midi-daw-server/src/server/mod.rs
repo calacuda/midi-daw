@@ -8,7 +8,7 @@ use crate::{
 };
 use actix::spawn;
 use actix_web::{
-    App, HttpResponse, HttpServer, Responder, get, post,
+    App, HttpResponse, HttpResponseBuilder, HttpServer, Responder, get, post,
     web::{self, Json},
 };
 use crossbeam::channel::Sender;
@@ -35,7 +35,7 @@ async fn midi(
     tempo: web::Data<Tempo>,
     midi_out: web::Data<MidiOut>,
     req_body: Json<MidiReqBody>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let dev = req_body.midi_dev.clone();
     let channel = req_body.channel;
 
@@ -62,7 +62,7 @@ async fn midi_pool_exec(
     tempo: web::Data<Tempo>,
     midi_out: web::Data<MidiOut>,
     req_body: Json<Vec<MidiReqBody>>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     join_all(req_body.clone().into_iter().map(async |msg| {
         let tempo = tempo.clone();
         let midi_out = midi_out.clone();
@@ -77,6 +77,8 @@ async fn midi_pool_exec(
                     velocity,
                     duration,
                 } => {
+                    info!("note: {note} => {dev}");
+
                     if let Ok(tempo) = tempo.read() {
                         play_note(
                             *tempo,
@@ -106,7 +108,7 @@ async fn midi_pool_exec(
 }
 
 #[post("/rest")]
-async fn rest(tempo: web::Data<Tempo>, durration: Json<NoteDuration>) -> impl Responder {
+async fn rest(tempo: web::Data<Tempo>, durration: Json<NoteDuration>) -> HttpResponseBuilder {
     // let tempo = tempo.read().await;
     if let Ok(tempo) = tempo.read() {
         // serde_json::to_string(&*tempo).map(|tempo| HttpResponse::Ok().body(tempo))
@@ -117,7 +119,7 @@ async fn rest(tempo: web::Data<Tempo>, durration: Json<NoteDuration>) -> impl Re
 }
 
 #[post("/tempo")]
-async fn set_tempo(tempo: web::Data<Tempo>, req_body: Json<f64>) -> impl Responder {
+async fn set_tempo(tempo: web::Data<Tempo>, req_body: Json<f64>) -> HttpResponseBuilder {
     // let mut tempo = tempo.write().await;
     if let Ok(mut tempo) = tempo.write() {
         *tempo = *req_body;
@@ -127,7 +129,7 @@ async fn set_tempo(tempo: web::Data<Tempo>, req_body: Json<f64>) -> impl Respond
 }
 
 #[get("/tempo")]
-async fn get_tempo(tempo: web::Data<Tempo>) -> impl Responder {
+async fn get_tempo(tempo: web::Data<Tempo>) -> HttpResponse {
     // let tempo = tempo.read().await;
     if let Ok(tempo) = tempo.read() {
         if let Ok(tempo_json) = serde_json::to_string(&*tempo) {
@@ -139,7 +141,9 @@ async fn get_tempo(tempo: web::Data<Tempo>) -> impl Responder {
 }
 
 #[get("/midi")]
-async fn get_devs(virtual_devs: web::Data<Mutex<FxHashSet<String>>>) -> impl Responder {
+async fn get_devs(
+    virtual_devs: web::Data<Mutex<FxHashSet<String>>>,
+) -> Result<HttpResponse, serde_json::Error> {
     let midi_out = MidiOutput::new("MIDI-DAW-API").unwrap();
     let mut midi_devs_names: Vec<String> = midi_out
         .ports()
@@ -160,7 +164,7 @@ async fn new_dev(
     req_body: Json<String>,
     new_dev_tx: web::Data<Sender<MidiDev>>,
     virtual_devs: web::Data<Mutex<FxHashSet<String>>>,
-) -> impl Responder {
+) -> Result<HttpResponse, serde_json::Error> {
     let port_name = &req_body.0;
 
     // if let Err(e) = dev_id {
@@ -181,7 +185,7 @@ async fn new_dev(
 async fn new_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<String>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::NewSeqeunce {
         name: Some(seq_name.0),
         midi_dev: None,
@@ -200,7 +204,7 @@ async fn new_sequence(
 async fn rm_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<String>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::RmSeqeunce { name: seq_name.0 };
 
     match seq_coms.send(msg) {
@@ -229,7 +233,7 @@ async fn get_sequence(
 async fn play_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<String>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::Play(vec![seq_name.0]);
 
     match seq_coms.send(msg) {
@@ -245,7 +249,7 @@ async fn play_sequence(
 async fn play_these_sequences(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<Vec<String>>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::Play(seq_name.0);
 
     match seq_coms.send(msg) {
@@ -258,7 +262,9 @@ async fn play_these_sequences(
 }
 
 #[post("/sequence/play-all")]
-async fn play_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> impl Responder {
+async fn play_all_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::PlayAll;
 
     match seq_coms.send(msg) {
@@ -274,7 +280,7 @@ async fn play_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> 
 async fn pause_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<Vec<String>>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::Pause(seq_name.0);
 
     match seq_coms.send(msg) {
@@ -287,7 +293,9 @@ async fn pause_sequence(
 }
 
 #[post("/sequence/pause-all")]
-async fn pause_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> impl Responder {
+async fn pause_all_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::PauseAll;
 
     match seq_coms.send(msg) {
@@ -303,7 +311,7 @@ async fn pause_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) ->
 async fn stop_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<String>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::Play(vec![seq_name.0]);
 
     match seq_coms.send(msg) {
@@ -316,7 +324,9 @@ async fn stop_sequence(
 }
 
 #[post("/sequence/stop-all")]
-async fn stop_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> impl Responder {
+async fn stop_all_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::StopAll;
 
     match seq_coms.send(msg) {
@@ -332,7 +342,7 @@ async fn stop_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> 
 async fn add_note(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     args: Json<AddNoteBody>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::AddNote {
         sequence: args.sequence.clone(),
         step: args.step,
@@ -354,7 +364,7 @@ async fn add_note(
 async fn rm_note(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     args: Json<RmNoteBody>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::RmNote {
         sequence: args.sequence.clone(),
         step: args.step,
@@ -374,7 +384,7 @@ async fn rm_note(
 async fn set_dev(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     args: Json<SetDevBody>,
-) -> impl Responder {
+) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::SetSequenceDev {
         name: args.sequence.clone(),
         midi_dev: args.midi_dev.clone(),
