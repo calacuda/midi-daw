@@ -578,6 +578,41 @@ impl RmNoteBody {
     }
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct SetDevBody {
+    pub sequence: String,
+    pub midi_dev: String,
+}
+
+impl SetDevBody {
+    pub fn new(sequence: String, midi_dev: String) -> Self {
+        Self { sequence, midi_dev }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl SetDevBody {
+    #[new]
+    fn new_py(sequence: String, midi_dev: String) -> Self {
+        Self::new(sequence, midi_dev)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
 // impl Into<Channel> for MidiChannel {
 //     fn into(self) -> Channel {
 //         match self {

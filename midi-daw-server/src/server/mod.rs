@@ -15,7 +15,7 @@ use crossbeam::channel::Sender;
 use futures::future::join_all;
 use fx_hash::FxHashSet;
 use midi_daw_types::{
-    AddNoteBody, MidiMsg, MidiReqBody, NoteDuration, RmNoteBody, UDS_SERVER_PATH,
+    AddNoteBody, MidiMsg, MidiReqBody, NoteDuration, RmNoteBody, SetDevBody, UDS_SERVER_PATH,
 };
 pub use midi_daw_types::{BPQ, Tempo};
 use midir::MidiOutput;
@@ -176,8 +176,6 @@ async fn new_dev(
 
     serde_json::to_string(&port_name).map(|tempo| HttpResponse::Ok().body(tempo))
 }
-
-// TODO: write api-endpoints
 
 #[post("/sequence/new")]
 async fn new_sequence(
@@ -361,6 +359,25 @@ async fn rm_note(
         sequence: args.sequence.clone(),
         step: args.step,
         note: args.note,
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/set-dev")]
+async fn set_dev(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<SetDevBody>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::SetSequenceDev {
+        name: args.sequence.clone(),
+        midi_dev: args.midi_dev.clone(),
     };
 
     match seq_coms.send(msg) {

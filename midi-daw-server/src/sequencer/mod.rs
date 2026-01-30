@@ -198,6 +198,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                     .collect();
 
                 if !play_messages.is_empty() {
+                    info!("playing {} notes.", play_messages.len());
                     let url = Uri::new(UDS_SERVER_PATH, "/batch-midi");
                     let client: Client<UnixConnector, Full<Bytes>> = Client::unix();
                     let req = Request::builder()
