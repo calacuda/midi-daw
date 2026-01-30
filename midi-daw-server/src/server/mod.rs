@@ -1,5 +1,6 @@
 use crate::{
     midi::{MidiDev, dev::fmt_dev_name, out::unwrap_rw_lock},
+    sequencer::SequencerControlCmd,
     server::{
         message_bus::{MbServer, MbServerHandle},
         note::{pitch_bend, play_note, send_cc, stop_note},
@@ -13,8 +14,10 @@ use actix_web::{
 use crossbeam::channel::Sender;
 use futures::future::join_all;
 use fx_hash::FxHashSet;
+use midi_daw_types::{
+    AddNoteBody, MidiMsg, MidiReqBody, NoteDuration, RmNoteBody, UDS_SERVER_PATH,
+};
 pub use midi_daw_types::{BPQ, Tempo};
-use midi_daw_types::{MidiMsg, MidiReqBody, NoteDuration, UDS_SERVER_PATH};
 use midir::MidiOutput;
 use std::time::Duration;
 use tokio::{sync::Mutex, task::spawn_local};
@@ -174,6 +177,201 @@ async fn new_dev(
     serde_json::to_string(&port_name).map(|tempo| HttpResponse::Ok().body(tempo))
 }
 
+// TODO: write api-endpoints
+
+#[post("/sequence/new")]
+async fn new_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: Json<String>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::NewSeqeunce {
+        name: Some(seq_name.0),
+        midi_dev: None,
+        channel: None,
+    };
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/rm")]
+async fn rm_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: Json<String>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::RmSeqeunce { name: seq_name.0 };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[get("/sequence/names")]
+async fn get_sequences(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> impl Responder {
+    ""
+}
+
+#[get("/sequence")]
+async fn get_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: web::Query<String>,
+) -> impl Responder {
+    ""
+}
+
+#[post("/sequence/play-one")]
+async fn play_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: Json<String>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::Play(vec![seq_name.0]);
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/play-these")]
+async fn play_these_sequences(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: Json<Vec<String>>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::Play(seq_name.0);
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/play-all")]
+async fn play_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> impl Responder {
+    let msg = SequencerControlCmd::PlayAll;
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/pause")]
+async fn pause_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: Json<Vec<String>>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::Pause(seq_name.0);
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/pause-all")]
+async fn pause_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> impl Responder {
+    let msg = SequencerControlCmd::PauseAll;
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/stop-one")]
+async fn stop_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: Json<String>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::Play(vec![seq_name.0]);
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/stop-all")]
+async fn stop_all_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> impl Responder {
+    let msg = SequencerControlCmd::StopAll;
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/add-note")]
+async fn add_note(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<AddNoteBody>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::AddNote {
+        sequence: args.sequence.clone(),
+        step: args.step,
+        note: args.note,
+        velocity: args.velocity,
+        note_len: args.note_len,
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/rm-note")]
+async fn rm_note(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<RmNoteBody>,
+) -> impl Responder {
+    let msg = SequencerControlCmd::RmNote {
+        sequence: args.sequence.clone(),
+        step: args.step,
+        note: args.note,
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
 /// sends a message to the message bus every note
 pub fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
     // TODO: make this a client running in a syncronouse std::thread
@@ -251,11 +449,13 @@ pub async fn run(
     bpq: BPQ,
     midi_out: MidiOut,
     new_dev_tx: Sender<MidiDev>,
+    sequencer_tx: Sender<SequencerControlCmd>,
 ) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
     let bpq = web::Data::new(bpq);
     let midi_out = web::Data::new(midi_out);
     let new_dev_tx = web::Data::new(new_dev_tx);
+    let seq_tx = web::Data::new(sequencer_tx);
     let virtual_devs = web::Data::new(Mutex::new(FxHashSet::<String>::default()));
     // let msg_event_addr = web::Data::new(MbMessageEvent.start());
     let (mb_server, server_tx) = MbServer::new();
@@ -291,6 +491,7 @@ pub async fn run(
 
     HttpServer::new({
         let server_tx = web::Data::new(server_tx);
+
         move || {
             App::new()
                 .wrap(TracingLogger::default())
@@ -299,6 +500,7 @@ pub async fn run(
                 .app_data(server_tx.clone())
                 .app_data(new_dev_tx.clone())
                 .app_data(virtual_devs.clone())
+                .app_data(seq_tx.clone())
                 .service(midi)
                 .service(midi_pool_exec)
                 .service(get_devs)
@@ -306,6 +508,19 @@ pub async fn run(
                 .service(set_tempo)
                 .service(rest)
                 .service(new_dev)
+                .service(new_sequence)
+                .service(rm_sequence)
+                .service(get_sequences)
+                .service(get_sequence)
+                .service(play_sequence)
+                .service(play_these_sequences)
+                .service(play_all_sequence)
+                .service(pause_sequence)
+                .service(pause_all_sequence)
+                .service(stop_sequence)
+                .service(stop_all_sequence)
+                .service(add_note)
+                .service(rm_note)
                 .service(message_bus::message_bus)
         }
     })

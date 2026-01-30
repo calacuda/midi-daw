@@ -3,3 +3,6 @@ _:
 
 mb:
   rlwrap -z "$PWD/empty-line.py" http ws://127.0.0.1:8080/message-bus
+
+req:
+  http http+unix://%2Ftmp%2Fmidi-daw.sock/midi

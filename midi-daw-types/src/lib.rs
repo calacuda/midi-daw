@@ -251,7 +251,7 @@ impl MidiChannel {
 // }
 
 #[cfg_attr(feature = "pyo3", pyclass(name = "NoteLen"))]
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash)]
 pub enum NoteDuration {
     // how_many: u8
     Wn(u8),
@@ -473,13 +473,109 @@ impl MidiReqBody {
     }
 }
 
-// #[pyclass]
+// // #[pyclass]
+// #[cfg_attr(feature = "pyo3", pyclass)]
+// #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+// pub struct RestReqBody {
+//     pub tempo: String,
+//     // pub channel: MidiChannel,
+//     // pub msg: MidiMsg
+// }
+
 #[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
-pub struct RestReqBody {
-    pub tempo: String,
-    // pub channel: MidiChannel,
-    // pub msg: MidiMsg
+pub struct AddNoteBody {
+    pub sequence: String,
+    pub step: usize,
+    pub note: u8,
+    pub velocity: u8,
+    pub note_len: Option<NoteDuration>,
+}
+
+impl AddNoteBody {
+    pub fn new(
+        sequence: String,
+        step: usize,
+        note: u8,
+        velocity: u8,
+        note_len: Option<NoteDuration>,
+    ) -> Self {
+        Self {
+            sequence,
+            step,
+            note,
+            velocity,
+            note_len,
+        }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl AddNoteBody {
+    #[new]
+    fn new_py(
+        sequence: String,
+        step: usize,
+        note: u8,
+        velocity: u8,
+        note_len: Option<NoteDuration>,
+    ) -> Self {
+        Self::new(sequence, step, note, velocity, note_len)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct RmNoteBody {
+    pub sequence: String,
+    pub step: usize,
+    pub note: u8,
+}
+
+impl RmNoteBody {
+    pub fn new(sequence: String, step: usize, note: u8) -> Self {
+        Self {
+            sequence,
+            step,
+            note,
+        }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl RmNoteBody {
+    #[new]
+    fn new_py(sequence: String, step: usize, note: u8) -> Self {
+        Self::new(sequence, step, note)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
 }
 
 // impl Into<Channel> for MidiChannel {
