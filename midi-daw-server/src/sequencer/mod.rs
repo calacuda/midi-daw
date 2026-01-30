@@ -40,7 +40,7 @@ impl Default for Sequence {
     fn default() -> Self {
         Self {
             name: "Default-Sequence".into(),
-            steps: Vec::with_capacity(16),
+            steps: (0..16).map(|_| Vec::default()).collect(),
             midi_dev: "Default-Device".into(),
             channel: MidiChannel::Ch1,
         }
