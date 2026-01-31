@@ -18,7 +18,10 @@ pub async fn rest(tempo: f64, dur: NoteDuration) {
     };
     let mul = mul as f64;
 
-    sleep(Duration::from_secs_f64(((60.0 / tempo) * 2.0 / denom) * mul)).await;
+    sleep(Duration::from_secs_f64(
+        ((60.0 / tempo) * 2.0 / denom) * mul,
+    ))
+    .await;
 }
 
 pub async fn play_note(
@@ -30,7 +33,7 @@ pub async fn play_note(
     velocity: u8,
     dur: NoteDuration,
 ) {
-    info!("playing note {note}");
+    info!("playing note {note} on {dev} with velocity {velocity}");
 
     let msg = midi_msg::MidiMsg::ChannelVoice {
         channel: channel.into(),

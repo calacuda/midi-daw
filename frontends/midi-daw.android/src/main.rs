@@ -455,9 +455,20 @@ fn EditSectionMenu(
                                         // connect to the API and set the note with the velocity.
                                         let track = &mut sections.write().unwrap()[*displaying().read().unwrap()];
 
+                                        if let Some(note) = track.steps[row].note.get(0) {
+                                            if let Err(e) = client
+                                                .post(format!("http://{BASE_URL}/sequence/rm-note"))
+                                                .json(&RmNoteBody::new(track.name.clone(), row, *note))
+                                                .send().await
+                                            {
+                                                error!("rming failed with error {e}");
+                                                return;
+                                            }
+                                        }
+
                                         if let Err(e) = client
                                             .post(format!("http://{BASE_URL}/sequence/add-note"))
-                                            .json(&AddNoteBody::new(track.name.clone(), row, note(), track.steps[row].velocity.unwrap_or(85), Some(NoteDuration::Sn(1))))
+                                            .json(&AddNoteBody::new(track.name.clone(), row, note(), track.steps[row].velocity.unwrap_or(85), None))
                                             .send().await
                                         {
                                             error!("adding note failed with error {e}");
@@ -1155,9 +1166,11 @@ fn RightCol(
             div {
                 id: "play-section",
                 class: "button button-w-border super-center",
-                onclick: move |_| {
+                onclick: move |_| async move {
                     let dis = displaying.read();
                     let dis = dis.read().unwrap();
+                    let client = reqwest::Client::new();
+                    let track_name = sections.read().read().unwrap()[*dis].name.clone();
 
                     if !playing_sections.read().contains(&dis) {
                         // start playback
@@ -1167,7 +1180,14 @@ fn RightCol(
                         //     error!("attempting to send start playback message failed with error: {e}");
                         // }
 
-                        // TODO: connect to API and start playback for this track
+                        // connect to API and start playback for this track
+                        if let Err(e) = client
+                            .post(format!("http://{BASE_URL}/sequence/play-one"))
+                            .json(&track_name)
+                            .send().await
+                        {
+                            error!("playing sequence failed with error {e}");
+                        }
                     } else {
                         // stop playback
                         playing_sections.write().retain(|elm| *elm != *dis);
@@ -1176,7 +1196,14 @@ fn RightCol(
                         //     error!("attempting to send stop playback message failed with error: {e}");
                         // }
 
-                        // TODO: connect to API and stop playback for this track
+                        // connect to API and stop playback for this track
+                        if let Err(e) = client
+                            .post(format!("http://{BASE_URL}/sequence/stop-one"))
+                            .json(&track_name)
+                            .send().await
+                        {
+                            error!("playing sequence failed with error {e}");
+                        }
                     }
                 },
 
