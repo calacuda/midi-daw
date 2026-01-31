@@ -221,18 +221,14 @@ async fn rm_sequence(
 }
 
 async fn do_get_sequences(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> HttpResponse {
-    let (responder, recv_er) = oneshot::channel();
+    let (responder, mut recv_er) = oneshot::channel();
 
     let msg = SequencerControlCmd::GetSequences { responder };
 
     match seq_coms.send(msg) {
-        Ok(_) => match recv_er.blocking_recv() {
-            Ok(sequences) => HttpResponse::Ok().json(sequences),
-            Err(e) => {
-                let error_msg = format!("reading reponse from sequencer failed with error, {e}");
-
-                error!("{error_msg}");
-                HttpResponse::InternalServerError().body(error_msg)
+        Ok(_) => loop {
+            if let Ok(res) = recv_er.try_recv() {
+                return HttpResponse::Ok().json(res);
             }
         },
         Err(e) => {
@@ -262,10 +258,16 @@ async fn get_sequence(
     };
 
     match seq_coms.send(msg) {
-        Ok(_) => match recv_er.try_recv() {
-            Ok(sequences) => HttpResponse::Ok().json(sequences),
-            Err(e) => {
-                let error_msg = format!("reading reponse from sequencer failed with error, {e}");
+        Ok(_) => match {
+            loop {
+                if let Ok(res) = recv_er.try_recv() {
+                    break res;
+                }
+            }
+        } {
+            Some(sequences) => HttpResponse::Ok().json(sequences),
+            None => {
+                let error_msg = format!("reading reponse from sequencer failed");
 
                 error!("{error_msg}");
                 HttpResponse::InternalServerError().body(error_msg)
