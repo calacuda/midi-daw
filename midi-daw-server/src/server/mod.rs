@@ -254,7 +254,7 @@ async fn get_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: web::Query<GetSequenceQuery>,
 ) -> HttpResponse {
-    let (responder, recv_er) = oneshot::channel();
+    let (responder, mut recv_er) = oneshot::channel();
 
     let msg = SequencerControlCmd::GetSequence {
         seqeunce: seq_name.sequence.clone(),
@@ -262,7 +262,7 @@ async fn get_sequence(
     };
 
     match seq_coms.send(msg) {
-        Ok(_) => match recv_er.blocking_recv() {
+        Ok(_) => match recv_er.try_recv() {
             Ok(sequences) => HttpResponse::Ok().json(sequences),
             Err(e) => {
                 let error_msg = format!("reading reponse from sequencer failed with error, {e}");
