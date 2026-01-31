@@ -1,5 +1,5 @@
 use crate::{N_STEPS, SynthId, less_then::UsizeLessThan};
-use midi_daw_types::MidiChannel;
+use midi_daw_types::{MidiChannel, MidiMsg, Step as RawStep};
 use strum::EnumString;
 
 pub type MidiNote = u8;
@@ -59,6 +59,61 @@ pub struct Step {
     pub note: Vec<MidiNote>,
     pub velocity: Option<u8>,
     pub cmds: (TrackerCmd, TrackerCmd),
+    pub cc_s: Vec<MidiMsg>,
+}
+
+impl From<RawStep> for Step {
+    fn from(value: RawStep) -> Self {
+        let notes: Vec<(u8, u8)> = value
+            .iter()
+            .filter_map(|msg| {
+                if let MidiMsg::PlayNote {
+                    note,
+                    velocity,
+                    duration: _,
+                } = *msg
+                {
+                    Some((note, velocity))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let velocity = if !notes.is_empty() {
+            Some(
+                (notes
+                    .iter()
+                    .map(|(_note, vel)| *vel as usize)
+                    .sum::<usize>()
+                    / notes.len()) as u8,
+            )
+        } else {
+            None
+        };
+        let note = notes.iter().map(|(note, _vel)| *note).collect();
+        let cc_s: Vec<MidiMsg> = value
+            .into_iter()
+            .filter_map(|msg| {
+                if matches!(
+                    msg,
+                    MidiMsg::CC {
+                        control: _,
+                        value: _
+                    }
+                ) {
+                    Some(msg)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Step {
+            note,
+            velocity,
+            cmds: (TrackerCmd::None, TrackerCmd::None),
+            cc_s,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, PartialOrd, Eq, Hash)]

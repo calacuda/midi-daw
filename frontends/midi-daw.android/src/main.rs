@@ -1,38 +1,37 @@
 #![feature(never_type)]
-// use android_usbser::usb;
 use crate::{
-    playback::{BASE_URL, MessageToPlayer, playback},
+    playback::{
+        BASE_URL,
+        // MessageToPlayer,
+        // playback
+    },
     tracks::{Track, TrackerCmd},
 };
-use crossbeam::channel::{Sender, bounded, unbounded};
+// use crossbeam::channel::{
+//     // Sender,
+//     unbounded,
+// };
 use dioxus::prelude::*;
-use midi_daw_types::MidiChannel;
+use midi_daw_types::{
+    AddNoteBody, GetSequenceQuery, MidiChannel, NoteDuration, RenameSequenceBody, RmNoteBody,
+    Sequence,
+};
 use std::{
     sync::{Arc, RwLock},
-    thread::spawn,
+    // thread::spawn,
 };
 use tracing::*;
 
-// pub mod synth;
 pub mod less_then;
 pub mod playback;
 pub mod tracks;
 
 pub type SynthId = String;
 pub type SectionsUID = usize;
-// pub type InstrumentId = String;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
-// const HEADER_SVG: Asset = asset!("/assets/header.svg");
-// const N_STEPS: usize = 128;
 const N_STEPS: usize = 16;
-
-// lazy_static! {
-//     pub static ref CBEAM_CHANNELS: (Sender<MidiMessage>, Receiver<MidiMessage>) = unbounded();
-//     pub static ref MIDI_SEND: Sender<MidiMessage> = CBEAM_CHANNELS.0.clone();
-//     pub static ref MIDI_RECV: Receiver<MidiMessage> = CBEAM_CHANNELS.1.clone();
-// }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum MiddleColView {
@@ -68,14 +67,15 @@ fn main() {
     melodic.name = "Melodic-1".into();
     let sections = Arc::new(RwLock::new(vec![melodic, drums]));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
-    let (send, recv) = unbounded();
+    // let (send, recv) = unbounded();
+    //
+    // let _join_handle = spawn({
+    //     let sections = sections.clone();
+    //
+    //     move || playback(sections, recv)
+    // });
 
-    let _join_handle = spawn({
-        let sections = sections.clone();
-
-        move || playback(sections, recv)
-    });
-
+    // this is here to remind me of some technique, but what? google the docs for this function.
     // #[cfg(android)]
     // jni_sys::call_android_function();
 
@@ -83,7 +83,7 @@ fn main() {
     dioxus::LaunchBuilder::new()
         .with_context(sections.clone())
         .with_context(displaying_uuid.clone())
-        .with_context(send)
+        // .with_context(send)
         .launch(App);
 }
 
@@ -366,15 +366,41 @@ fn EditSectionMenu(
                     div {
                         class: "button text-red super-center full-width full-height",
 
-                        onclick: move |_| {
+                        onclick: move |_| async move {
                             if let Some((row, cell)) = edit_cell() {
                                 info!("{row} => {cell:?}");
                                 let sections = sections.write();
+                                let client = reqwest::Client::new();
 
                                 match cell {
                                     Colums::Note => {
                                         // set note
-                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![];
+                                        let track = &mut sections.write().unwrap()[*displaying().read().unwrap()];
+
+                                        // connect to the API and rm the note
+                                        if let Err(e) = client
+                                            .post(format!("http://{BASE_URL}/sequence/rm-note"))
+                                            .json(&RmNoteBody::new(track.name.clone(), row, track.steps[row].note[0]))
+                                            .send().await
+                                        {
+                                            error!("rming failed with error {e}");
+                                            return;
+                                        }
+                                        track.steps[row].note = vec![];
+
+                                        // refresh track/sequence
+                                        match client
+                                            .get(format!("http://{BASE_URL}/sequence"))
+                                            .query(&GetSequenceQuery::new(track.name.clone()))
+                                            .send().await
+                                        {
+                                            Ok(res) => match res.json::<Sequence>().await {
+                                                Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                                Err(e) => error!("invalid json. {e}"),
+                                            }
+                                            Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+                                        }
+
                                     }
                                     Colums::Velocity => {
                                         // set velocity
@@ -400,22 +426,45 @@ fn EditSectionMenu(
                     div {
                         class: "button text-green super-center full-width full-height",
 
-                        onclick: move |_| {
+                        onclick: move |_| async move {
                             if let Some((row, cell)) = edit_cell() {
                                 info!("{row} => {cell:?}");
                                 let sections = sections.write();
+                                let client = reqwest::Client::new();
 
                                 match cell {
                                     Colums::Note => {
                                         // set note
-                                        sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![note()];
+                                        // sections.write().unwrap()[*displaying().read().unwrap()].steps[row].note = vec![note()];
 
                                         // set velocity if not yet set
                                         if sections.read().unwrap()[*displaying().read().unwrap()].steps[row].velocity.is_none() {
                                             sections.write().unwrap()[*displaying().read().unwrap()].steps[row].velocity = Some(85);
                                         }
+                                        // connect to the API and set the note with the velocity.
+                                        let track = &mut sections.write().unwrap()[*displaying().read().unwrap()];
 
-                                        info!("set note to {:?}", sections.read().unwrap()[*displaying().read().unwrap()].steps[row].note);
+                                        if let Err(e) = client
+                                            .post(format!("http://{BASE_URL}/sequence/add-note"))
+                                            .json(&AddNoteBody::new(track.name.clone(), row, note(), track.steps[row].velocity.unwrap_or(85), Some(NoteDuration::Sn(1))))
+                                            .send().await
+                                        {
+                                            error!("adding note failed with error {e}");
+                                            return;
+                                        }
+
+                                        // refresh track/sequence
+                                        match client
+                                            .get(format!("http://{BASE_URL}/sequence"))
+                                            .query(&GetSequenceQuery::new(track.name.clone()))
+                                            .send().await
+                                        {
+                                            Ok(res) => match res.json::<Sequence>().await {
+                                                Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                                Err(e) => error!("invalid json. {e}"),
+                                            }
+                                            Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+                                        }
                                     }
                                     Colums::Velocity => {
                                         // set velocity
@@ -772,7 +821,7 @@ fn LeftCol(
     edit_cell: Signal<Option<(usize, Colums)>>,
     playing_sections: Signal<Vec<usize>>,
 ) -> Element {
-    let com_mpsc = use_context::<Sender<MessageToPlayer>>();
+    // let com_mpsc = use_context::<Sender<MessageToPlayer>>();
     let mut listing = use_signal(|| MiddleColView::Section);
     let view_sections = || listing() == MiddleColView::Section;
     // info!("left-col");
@@ -846,9 +895,21 @@ fn LeftCol(
 
                     if editing_name.read().is_some_and(|val| val == uid) {
                         form {
-                            onsubmit: move |_| {
+                            onsubmit: move |_| async move {
                                 if let Ok(mut sections) = sections.write().write() {
+                                    let client = reqwest::Client::new();
+                                    // Rename track/seqeunce with API
+                                    if let Err(e) = client
+                                        .post(format!("http://{BASE_URL}/sequence/rename"))
+                                        .json(&RenameSequenceBody::new(sections[uid].name.clone(), new_name.read().clone()))
+                                        .send().await
+                                    {
+                                        error!("renaming failed with error {e}");
+                                        return;
+                                    }
+
                                     sections[uid].name = new_name.read().clone();
+
                                     *editing_name.write() = None;
                                 }
                             },
@@ -878,10 +939,26 @@ fn LeftCol(
                                 }
                             },
                             class: "button nav-item",
-                            onclick: move |_| {
+                            onclick: move |_| async move {
                                 middle_view.set(listing());
                                 *displaying.write().write().unwrap() = uid;
                                 edit_cell.set(None);
+                                let client = reqwest::Client::new();
+                                let sections = sections.write();
+                                let track = &mut sections.write().unwrap()[uid];
+
+                                // get information about track/sequence
+                                match client
+                                    .get(format!("http://{BASE_URL}/sequence"))
+                                    .query(&GetSequenceQuery::new(track.name.clone()))
+                                    .send().await
+                                {
+                                    Ok(res) => match res.json::<Sequence>().await {
+                                        Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                        Err(e) => error!("invalid json. {e}"),
+                                    }
+                                    Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+                                }
                             },
                             {name.clone()}
                         }
@@ -891,9 +968,9 @@ fn LeftCol(
                     div {
                         class: "button button-w-border super-center text-red",
                         onclick: {
-                            let com_mpsc = com_mpsc.clone();
+                            // let com_mpsc = com_mpsc.clone();
 
-                            move |_| {
+                            move |_| async move {
                                 if let Ok(mut sections) = sections.write().write() {
                                     let index_to_remove = uid;
                                     let dis = *displaying.read().read().unwrap();
@@ -907,14 +984,39 @@ fn LeftCol(
                                     }
 
                                     if playing_sections.read().contains(&index_to_remove) {
-                                        _ = com_mpsc.send(MessageToPlayer::StopSection(index_to_remove));
+                                        // _ = com_mpsc.send(MessageToPlayer::StopSection(index_to_remove));
                                         playing_sections.write().retain(|uid| *uid != index_to_remove);
                                         playing_sections.write().iter_mut().for_each(|i| if *i > index_to_remove {
                                             *i -= 1;
                                         });
                                     }
 
-                                    _ = com_mpsc.send(MessageToPlayer::DeletedSection(index_to_remove));
+                                    // _ = com_mpsc.send(MessageToPlayer::DeletedSection(index_to_remove));
+                                    let track = &mut sections[*displaying().read().unwrap()];
+                                    let client = reqwest::Client::new();
+
+                                    // connect to API and Delete,
+                                    if let Err(e) = client
+                                        .post(format!("http://{BASE_URL}/sequence/rm"))
+                                        .json(&track.name.clone())
+                                        .send().await
+                                    {
+                                        error!("rming sequence failed with error {e}");
+                                        return;
+                                    }
+
+                                    // refresh track/sequence
+                                    match client
+                                        .get(format!("http://{BASE_URL}/sequence"))
+                                        .query(&GetSequenceQuery::new(track.name.clone()))
+                                        .send().await
+                                    {
+                                        Ok(res) => match res.json::<Sequence>().await {
+                                            Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                            Err(e) => error!("invalid json. {e}"),
+                                        }
+                                        Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+                                    }
 
                                     sections.remove(index_to_remove);
 
@@ -947,6 +1049,10 @@ fn LeftCol(
                         let name = format!("Section-{}", uid + 1);
                         info!("adding section: {name}");
 
+                        // TODO: add track/sequence using API
+                        // TODO: refresh track/sequence list
+
+
                         sections.push(Track::new(
                             Some(name),
                             uid,
@@ -968,6 +1074,9 @@ fn LeftCol(
                         let uid = sections.len();
                         let name = format!("Section-{}", uid + 1);
                         info!("adding section: {name}");
+
+                        // TODO: add track/sequence using API
+                        // TODO: refresh track/sequence list
 
                         sections.push(Track::new(
                             Some(name),
@@ -995,7 +1104,7 @@ fn RightCol(
     known_midi_devs: Signal<Vec<String>>,
     choosing_device: Signal<bool>,
 ) -> Element {
-    let com_mpsc = use_context::<Sender<MessageToPlayer>>();
+    // let com_mpsc = use_context::<Sender<MessageToPlayer>>();
 
     rsx! {
         div {
@@ -1042,16 +1151,20 @@ fn RightCol(
                         // start playback
                         playing_sections.write().push(*dis);
 
-                        if let Err(e) = com_mpsc.send(MessageToPlayer::PlaySection(*dis)) {
-                            error!("attempting to send start playback message failed with error: {e}");
-                        }
+                        // if let Err(e) = com_mpsc.send(MessageToPlayer::PlaySection(*dis)) {
+                        //     error!("attempting to send start playback message failed with error: {e}");
+                        // }
+
+                        // TODO: connect to API and start playback for this track
                     } else {
                         // stop playback
                         playing_sections.write().retain(|elm| *elm != *dis);
 
-                        if let Err(e) = com_mpsc.send(MessageToPlayer::StopSection(*dis)) {
-                            error!("attempting to send stop playback message failed with error: {e}");
-                        }
+                        // if let Err(e) = com_mpsc.send(MessageToPlayer::StopSection(*dis)) {
+                        //     error!("attempting to send stop playback message failed with error: {e}");
+                        // }
+
+                        // TODO: connect to API and stop playback for this track
                     }
                 },
 
@@ -1137,6 +1250,6 @@ mod test {
 
     #[test]
     fn note_display() {
-        assert_eq!(display_midi_note(60), "C-4");
+        assert_eq!(display_midi_note(&60), "C-4");
     }
 }

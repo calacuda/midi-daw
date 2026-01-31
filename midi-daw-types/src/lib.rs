@@ -11,6 +11,8 @@ pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
 pub type MidiDeviceName = String;
 pub type Tempo = Arc<std::sync::RwLock<f64>>;
 pub type BPQ = Arc<std::sync::RwLock<f64>>;
+pub type Step = Vec<MidiMsg>;
+pub type SequenceName = String;
 
 pub mod automation;
 
@@ -616,13 +618,13 @@ impl SetDevBody {
 #[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct GetSequenceQuery {
-    pub sequence: String,
+    pub name: String,
     // pub midi_dev: String,
 }
 
 impl GetSequenceQuery {
-    pub fn new(sequence: String) -> Self {
-        Self { sequence }
+    pub fn new(name: String) -> Self {
+        Self { name }
     }
 
     pub fn json(&self) -> String {
@@ -638,8 +640,8 @@ impl GetSequenceQuery {
 #[pymethods]
 impl GetSequenceQuery {
     #[new]
-    fn new_py(sequence: String) -> Self {
-        Self::new(sequence)
+    fn new_py(name: String) -> Self {
+        Self::new(name)
     }
 
     #[pyo3(name = "json")]
@@ -715,6 +717,35 @@ impl SetChannelBody {
     #[pyo3(name = "json")]
     fn json_py(&self) -> String {
         self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Sequence {
+    pub name: SequenceName,
+    pub steps: Vec<Step>,
+    pub midi_dev: String,
+    pub channel: MidiChannel,
+}
+
+impl Sequence {
+    pub fn new(name: String) -> Self {
+        let mut seq = Self::default();
+        seq.name = name;
+
+        seq
+    }
+}
+
+impl Default for Sequence {
+    fn default() -> Self {
+        Self {
+            name: "Default-Sequence".into(),
+            steps: (0..16).map(|_| Vec::default()).collect(),
+            midi_dev: "Midi Through:0".into(),
+            channel: MidiChannel::Ch1,
+        }
     }
 }
 

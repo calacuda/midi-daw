@@ -8,45 +8,15 @@ use hyper::{Method, Request, body::Bytes};
 use hyper_util::client::legacy::Client;
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 use midi_daw_types::{
-    BPQ, MidiChannel, MidiMsg, MidiReqBody, NoteDuration, Tempo, UDS_SERVER_PATH,
+    BPQ, MidiChannel, MidiMsg, MidiReqBody, NoteDuration, Sequence, SequenceName, Tempo,
+    UDS_SERVER_PATH,
 };
-use serde::{Deserialize, Serialize};
 use tokio::spawn;
 use tracing::*;
 
 use crate::midi::out::unwrap_rw_lock;
 
-pub type SequenceName = String;
-pub type Step = Vec<MidiMsg>;
 pub type AllSequences = FxHashMap<SequenceName, Sequence>;
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Sequence {
-    pub name: SequenceName,
-    pub steps: Vec<Step>,
-    pub midi_dev: String,
-    pub channel: MidiChannel,
-}
-
-impl Sequence {
-    pub fn new(name: String) -> Self {
-        let mut seq = Self::default();
-        seq.name = name;
-
-        seq
-    }
-}
-
-impl Default for Sequence {
-    fn default() -> Self {
-        Self {
-            name: "Default-Sequence".into(),
-            steps: (0..16).map(|_| Vec::default()).collect(),
-            midi_dev: "Default-Device".into(),
-            channel: MidiChannel::Ch1,
-        }
-    }
-}
 
 // #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SequencerControlCmd {
