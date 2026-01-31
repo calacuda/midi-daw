@@ -618,13 +618,13 @@ impl SetDevBody {
 #[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct GetSequenceQuery {
-    pub name: String,
+    pub sequence: String,
     // pub midi_dev: String,
 }
 
 impl GetSequenceQuery {
-    pub fn new(name: String) -> Self {
-        Self { name }
+    pub fn new(sequence: String) -> Self {
+        Self { sequence }
     }
 
     pub fn json(&self) -> String {
@@ -640,8 +640,8 @@ impl GetSequenceQuery {
 #[pymethods]
 impl GetSequenceQuery {
     #[new]
-    fn new_py(name: String) -> Self {
-        Self::new(name)
+    fn new_py(sequence: String) -> Self {
+        Self::new(sequence)
     }
 
     #[pyo3(name = "json")]
