@@ -87,7 +87,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
     let mk_timer = || {
         // calculate sleep_time based on BPQ & tempo.
         let (tempo, beats) = (unwrap_rw_lock(&tempo, 99.), unwrap_rw_lock(&bpq, 24.));
-        let sleep_time = Duration::from_secs_f64((60.0 / tempo) / 4. / beats);
+        let sleep_time = Duration::from_secs_f64((60.0 / tempo) / beats);
 
         move || {
             std::thread::sleep(sleep_time);

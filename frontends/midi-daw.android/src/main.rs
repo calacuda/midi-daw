@@ -14,7 +14,7 @@ use crate::{
 use dioxus::prelude::*;
 use midi_daw_types::{
     AddNoteBody, GetSequenceQuery, MidiChannel, NoteDuration, RenameSequenceBody, RmNoteBody,
-    Sequence,
+    Sequence, SetDevBody,
 };
 use std::{
     sync::{Arc, RwLock},
@@ -222,8 +222,23 @@ fn MidiDevChooser(
                                     div {
                                         class: "button midi-scroll-item super-center",
                                         onclick: move |_| {
-                                            info!("setting the device to {dev_name}");
-                                            sections.write().write().unwrap()[*displaying().read().unwrap()].dev = dev_name.clone();
+                                            let dev_name = dev_name.clone();
+
+                                            async move {
+                                                info!("setting the device to {dev_name}");
+
+                                                sections.write().write().unwrap()[*displaying().read().unwrap()].dev = dev_name.clone();
+                                                let track_name = sections.read().read().unwrap()[*displaying().read().unwrap()].name.clone();
+                                                let client = reqwest::Client::new();
+
+                                                if let Err(e) = client
+                                                    .post(format!("http://{BASE_URL}/sequence/set-dev"))
+                                                    .json(&SetDevBody::new(track_name, dev_name.clone()) )
+                                                    .send().await
+                                                {
+                                                    error!("playing sequence failed with error {e}");
+                                                }
+                                            }
                                         },
 
                                         if dev_name.clone() == sections.read().read().unwrap()[*displaying().read().unwrap()].dev {
