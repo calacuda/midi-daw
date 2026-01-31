@@ -14,7 +14,7 @@ use crate::{
 use dioxus::prelude::*;
 use midi_daw_types::{
     AddNoteBody, GetSequenceQuery, MidiChannel, NoteDuration, RenameSequenceBody, RmNoteBody,
-    Sequence, SetDevBody,
+    Sequence, SetChannelBody, SetDevBody,
 };
 use std::{
     sync::{Arc, RwLock},
@@ -236,7 +236,7 @@ fn MidiDevChooser(
                                                     .json(&SetDevBody::new(track_name, dev_name.clone()) )
                                                     .send().await
                                                 {
-                                                    error!("playing sequence failed with error {e}");
+                                                    error!("changing midi device failed with error {e}");
                                                 }
                                             }
                                         },
@@ -303,8 +303,21 @@ fn MidiDevChooser(
                                 class
                             },
                             onclick: move |_| {
-                                info!("setting the midi channel to {channel:?}");
-                                sections.write().write().unwrap()[*displaying().read().unwrap()].chan = channel.clone();
+                                async move {
+                                    info!("setting the midi channel to {channel:?}");
+                                    sections.write().write().unwrap()[*displaying().read().unwrap()].chan = channel.clone();
+
+                                    let track_name = sections.read().read().unwrap()[*displaying().read().unwrap()].name.clone();
+                                    let client = reqwest::Client::new();
+
+                                    if let Err(e) = client
+                                        .post(format!("http://{BASE_URL}/sequence/set-dev"))
+                                        .json(&SetChannelBody::new(track_name, channel.clone()) )
+                                        .send().await
+                                    {
+                                        error!("playing sequence failed with error {e}");
+                                    }
+                                }
                             },
 
                             "{channel:?}"
@@ -336,9 +349,21 @@ fn MidiDevChooser(
                                 class
                             },
                             onclick: move |_| {
-                                info!("setting the midi channel to {channel:?}");
-                                sections.write().write().unwrap()[*displaying().read().unwrap()].chan = channel.clone();
-                            },
+                                async move {
+                                    info!("setting the midi channel to {channel:?}");
+                                    sections.write().write().unwrap()[*displaying().read().unwrap()].chan = channel.clone();
+
+                                    let track_name = sections.read().read().unwrap()[*displaying().read().unwrap()].name.clone();
+                                    let client = reqwest::Client::new();
+
+                                    if let Err(e) = client
+                                        .post(format!("http://{BASE_URL}/sequence/set-dev"))
+                                        .json(&SetChannelBody::new(track_name, channel.clone()) )
+                                        .send().await
+                                    {
+                                        error!("playing sequence failed with error {e}");
+                                    }
+                                }                            },
 
                             "{channel:?}"
                         }
@@ -404,13 +429,15 @@ fn EditSectionMenu(
                                         let track = &mut sections.write().unwrap()[*displaying().read().unwrap()];
 
                                         // connect to the API and rm the note
-                                        if let Err(e) = client
-                                            .post(format!("http://{BASE_URL}/sequence/rm-note"))
-                                            .json(&RmNoteBody::new(track.name.clone(), row, track.steps[row].note[0]))
-                                            .send().await
-                                        {
-                                            error!("rming failed with error {e}");
-                                            return;
+                                        if let Some(note) = track.steps[row].note.get(0) {
+                                            if let Err(e) = client
+                                                .post(format!("http://{BASE_URL}/sequence/rm-note"))
+                                                .json(&RmNoteBody::new(track.name.clone(), row, *note))
+                                                .send().await
+                                            {
+                                                error!("rming failed with error {e}");
+                                                return;
+                                            }
                                         }
                                         track.steps[row].note = vec![];
 
