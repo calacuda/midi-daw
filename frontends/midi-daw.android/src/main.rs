@@ -78,6 +78,17 @@ fn main() {
     // this is here to remind me of some technique, but what? google the docs for this function.
     // #[cfg(android)]
     // jni_sys::call_android_function();
+    let client = reqwest::blocking::Client::new();
+
+    for track in sections.read().unwrap().clone() {
+        if let Err(e) = client
+            .post(format!("http://{BASE_URL}/sequence/new"))
+            .json(&track.name.clone())
+            .send()
+        {
+            error!("adding track failed with error {e}");
+        }
+    }
 
     // dioxus::launch(App);
     dioxus::LaunchBuilder::new()
@@ -944,20 +955,21 @@ fn LeftCol(
                                 *displaying.write().write().unwrap() = uid;
                                 edit_cell.set(None);
                                 let client = reqwest::Client::new();
-                                let sections = sections.write();
-                                let track = &mut sections.write().unwrap()[uid];
+                                if let Ok(mut sections) = sections.write().write() {
+                                    let track = &mut sections[uid];
 
-                                // get information about track/sequence
-                                match client
-                                    .get(format!("http://{BASE_URL}/sequence"))
-                                    .query(&GetSequenceQuery::new(track.name.clone()))
-                                    .send().await
-                                {
-                                    Ok(res) => match res.json::<Sequence>().await {
-                                        Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
-                                        Err(e) => error!("invalid json. {e}"),
+                                    // get information about track/sequence
+                                    match client
+                                        .get(format!("http://{BASE_URL}/sequence"))
+                                        .query(&GetSequenceQuery::new(track.name.clone()))
+                                        .send().await
+                                    {
+                                        Ok(res) => match res.json::<Sequence>().await {
+                                            Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                            Err(e) => error!("invalid json. {e}"),
+                                        }
+                                        Err(e) => error!("refreshing seqeunce failed with error, {e}"),
                                     }
-                                    Err(e) => error!("refreshing seqeunce failed with error, {e}"),
                                 }
                             },
                             {name.clone()}
