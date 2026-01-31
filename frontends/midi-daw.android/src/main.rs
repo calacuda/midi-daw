@@ -429,10 +429,10 @@ fn EditSectionMenu(
                                         let track = &mut sections.write().unwrap()[*displaying().read().unwrap()];
 
                                         // connect to the API and rm the note
-                                        if let Some(note) = track.steps[row].note.get(0) {
+                                        for note in track.steps[row].note.iter() {
                                             if let Err(e) = client
                                                 .post(format!("http://{BASE_URL}/sequence/rm-note"))
-                                                .json(&RmNoteBody::new(track.name.clone(), row, *note))
+                                                .json(&RmNoteBody::new(track.name.clone(), row, note))
                                                 .send().await
                                             {
                                                 error!("rming failed with error {e}");
@@ -497,7 +497,7 @@ fn EditSectionMenu(
                                         // connect to the API and set the note with the velocity.
                                         let track = &mut sections.write().unwrap()[*displaying().read().unwrap()];
 
-                                        if let Some(note) = track.steps[row].note.get(0) {
+                                        for note in track.steps[row].note.iter() {
                                             if let Err(e) = client
                                                 .post(format!("http://{BASE_URL}/sequence/rm-note"))
                                                 .json(&RmNoteBody::new(track.name.clone(), row, *note))

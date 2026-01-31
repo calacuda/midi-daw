@@ -308,7 +308,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                                         return true;
                                     };
 
-                                    *msg_note == note
+                                    *msg_note != note
                                 });
                             } else {
                                 error!(
