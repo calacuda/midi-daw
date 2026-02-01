@@ -287,10 +287,13 @@ async fn play_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<String>,
 ) -> HttpResponseBuilder {
-    let msg = SequencerControlCmd::Play(vec![seq_name.0]);
+    let msg = SequencerControlCmd::Play(vec![seq_name.0.clone()]);
 
     match seq_coms.send(msg) {
-        Ok(_) => HttpResponse::Ok(),
+        Ok(_) => {
+            info!("now playing: {}.", seq_name.0);
+            HttpResponse::Ok()
+        }
         Err(e) => {
             error!("{e}");
             HttpResponse::InternalServerError()
@@ -303,10 +306,13 @@ async fn play_these_sequences(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<Vec<String>>,
 ) -> HttpResponseBuilder {
-    let msg = SequencerControlCmd::Play(seq_name.0);
+    let msg = SequencerControlCmd::Play(seq_name.0.clone());
 
     match seq_coms.send(msg) {
-        Ok(_) => HttpResponse::Ok(),
+        Ok(_) => {
+            info!("playing the folowing sequences: {:?}", seq_name.0);
+            HttpResponse::Ok()
+        }
         Err(e) => {
             error!("{e}");
             HttpResponse::InternalServerError()
@@ -321,7 +327,10 @@ async fn play_all_sequence(
     let msg = SequencerControlCmd::PlayAll;
 
     match seq_coms.send(msg) {
-        Ok(_) => HttpResponse::Ok(),
+        Ok(_) => {
+            info!("playing every sequence.");
+            HttpResponse::Ok()
+        }
         Err(e) => {
             error!("{e}");
             HttpResponse::InternalServerError()
