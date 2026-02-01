@@ -13,8 +13,8 @@ use crate::{
 // };
 use dioxus::prelude::*;
 use midi_daw_types::{
-    AddNoteBody, GetSequenceQuery, MidiChannel, NoteDuration, RenameSequenceBody, RmNoteBody,
-    Sequence, SetChannelBody, SetDevBody,
+    AddNoteBody, GetSequenceQuery, MidiChannel, RenameSequenceBody, RmNoteBody, Sequence,
+    SetChannelBody, SetDevBody,
 };
 use std::{
     sync::{Arc, RwLock},
@@ -79,23 +79,34 @@ fn main() {
     // #[cfg(android)]
     // jni_sys::call_android_function();
     let client = reqwest::blocking::Client::new();
+    let names: Option<Vec<String>> = client
+        .get(format!("http://{BASE_URL}/sequence/names"))
+        .send()
+        .map(|res| res.json().ok())
+        .ok()
+        .flatten();
 
     for track in sections.read().unwrap().clone() {
-        if let Err(e) = client
-            .post(format!("http://{BASE_URL}/sequence/new"))
-            .json(&track.name.clone())
-            .send()
+        if names
+            .as_ref()
+            .is_none_or(|names| !names.contains(&track.name))
         {
-            error!("adding track failed with error {e}");
-        }
-
-        if track.is_drum {
             if let Err(e) = client
-                .post(format!("http://{BASE_URL}/sequence/set-channel"))
-                .json(&SetChannelBody::new(track.name.clone(), track.chan.clone()))
+                .post(format!("http://{BASE_URL}/sequence/new"))
+                .json(&track.name.clone())
                 .send()
             {
-                error!("setting channel failed with error {e}");
+                error!("adding track failed with error {e}");
+            }
+
+            if track.is_drum {
+                if let Err(e) = client
+                    .post(format!("http://{BASE_URL}/sequence/set-channel"))
+                    .json(&SetChannelBody::new(track.name.clone(), track.chan.clone()))
+                    .send()
+                {
+                    error!("setting channel failed with error {e}");
+                }
             }
         }
     }
@@ -1067,10 +1078,11 @@ fn LeftCol(
                             // let com_mpsc = com_mpsc.clone();
 
                             move |_| async move {
-                                if let Ok(mut sections) = sections.write().write() {
+                                // if let Ok(mut sections) = sections.write() {
                                     let index_to_remove = uid;
                                     let dis = *displaying.read().read().unwrap();
-                                    info!("removing section: {}", sections[index_to_remove].name);
+                                    let track_name = sections.read().read().unwrap()[dis].name.clone();
+                                    info!("removing section: {}", sections.read().read().unwrap()[index_to_remove].name);
 
                                     // must be "<=", if this is changed to "<" app will crash if
                                     // there are only two sections, a non-drum track and a drum
@@ -1088,38 +1100,24 @@ fn LeftCol(
                                     }
 
                                     // _ = com_mpsc.send(MessageToPlayer::DeletedSection(index_to_remove));
-                                    let track = &mut sections[*displaying().read().unwrap()];
                                     let client = reqwest::Client::new();
 
                                     // connect to API and Delete,
                                     if let Err(e) = client
                                         .post(format!("http://{BASE_URL}/sequence/rm"))
-                                        .json(&track.name.clone())
+                                        .json(&track_name)
                                         .send().await
                                     {
                                         error!("rming sequence failed with error {e}");
                                         return;
                                     }
 
-                                    // refresh track/sequence
-                                    match client
-                                        .get(format!("http://{BASE_URL}/sequence"))
-                                        .query(&GetSequenceQuery::new(track.name.clone()))
-                                        .send().await
-                                    {
-                                        Ok(res) => match res.json::<Sequence>().await {
-                                            Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
-                                            Err(e) => error!("invalid json. {e}"),
-                                        }
-                                        Err(e) => error!("refreshing seqeunce failed with error, {e}"),
-                                    }
+                                    sections.write().write().unwrap().remove(index_to_remove);
 
-                                    sections.remove(index_to_remove);
-
-                                    if sections.is_empty() {
-                                        sections.push(Track::default());
+                                    if sections.read().read().unwrap().is_empty() {
+                                        sections.write().write().unwrap().push(Track::default());
                                     }
-                                }
+                                // }
                             }
                         },
 
@@ -1139,15 +1137,46 @@ fn LeftCol(
             div {
                 id: "add-section-or-pattern",
                 class: "button button-w-border full-width super-center",
-                onclick: move |_| {
+                onclick: move |_| async move {
                     if let Ok(mut sections) = sections.write().write() {
                         let uid = sections.len();
                         let name = format!("Section-{}", uid + 1);
-                        info!("adding section: {name}");
+                        info!("adding drum section: {name}");
 
-                        // TODO: add track/sequence using API
-                        // TODO: refresh track/sequence list
+                        // add track/sequence using API
+                        let track = &mut sections[*displaying().read().unwrap()];
+                        let client = reqwest::Client::new();
 
+                        if let Err(e) = client
+                            .post(format!("http://{BASE_URL}/sequence/new"))
+                            .json(&name.clone())
+                            .send().await
+                        {
+                            error!("adding sequence failed with error {e}");
+                            return;
+                        }
+
+                        if let Err(e) = client
+                            .post(format!("http://{BASE_URL}/sequence/set-channel"))
+                            .json(&SetChannelBody::new(name.clone(), MidiChannel::Ch10))
+                            .send().await
+                        {
+                            error!("setting sequence channel failed with error {e}");
+                            return;
+                        }
+
+                        // refresh track/sequence
+                        match client
+                            .get(format!("http://{BASE_URL}/sequence"))
+                            .query(&GetSequenceQuery::new(name.clone()))
+                            .send().await
+                        {
+                            Ok(res) => match res.json::<Sequence>().await {
+                                Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                Err(e) => error!("invalid json. {e}"),
+                            }
+                            Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+                        }
 
                         sections.push(Track::new(
                             Some(name),
@@ -1165,14 +1194,37 @@ fn LeftCol(
             div {
                 id: "add-section-or-pattern",
                 class: "button button-w-border full-width super-center",
-                onclick: move |_| {
+                onclick: move |_| async move {
                     if let Ok(mut sections) = sections.write().write() {
                         let uid = sections.len();
                         let name = format!("Section-{}", uid + 1);
-                        info!("adding section: {name}");
+                        info!("adding melody section: {name}");
 
-                        // TODO: add track/sequence using API
-                        // TODO: refresh track/sequence list
+                        // add track/sequence using API
+                        let track = &mut sections[*displaying().read().unwrap()];
+                        let client = reqwest::Client::new();
+
+                        if let Err(e) = client
+                            .post(format!("http://{BASE_URL}/sequence/new"))
+                            .json(&track.name.clone())
+                            .send().await
+                        {
+                            error!("adding sequence failed with error {e}");
+                            return;
+                        }
+
+                        // refresh track/sequence
+                        match client
+                            .get(format!("http://{BASE_URL}/sequence"))
+                            .query(&GetSequenceQuery::new(track.name.clone()))
+                            .send().await
+                        {
+                            Ok(res) => match res.json::<Sequence>().await {
+                                Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                Err(e) => error!("invalid json. {e}"),
+                            }
+                            Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+                        }
 
                         sections.push(Track::new(
                             Some(name),
