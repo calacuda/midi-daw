@@ -112,7 +112,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                 // info!("i = {i}");
                 // info!("i % 16 = {}", i as usize % 16);
 
-                if i == 0. {
+                if i % 16. == 0. || playing_sequences.is_empty() {
                     playing_sequences.append(&mut queued_sequences);
                 }
 
