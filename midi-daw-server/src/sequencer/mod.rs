@@ -107,12 +107,14 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
         if sleep_thread.is_finished() {
             sleep_thread = std::thread::spawn(mk_timer());
 
-            playing_sequences.append(&mut queued_sequences);
-
             if (counter % (unwrap_rw_lock(&bpq, 24.) / 4.)) == 0.0 {
                 let i = counter / (unwrap_rw_lock(&bpq, 24.) / 4.);
                 // info!("i = {i}");
                 // info!("i % 16 = {}", i as usize % 16);
+
+                if i == 0. {
+                    playing_sequences.append(&mut queued_sequences);
+                }
 
                 // send midi messages from playing sequences
                 let play_messages: Vec<MidiReqBody> = playing_sequences
@@ -244,6 +246,14 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                     }
                     SequencerControlCmd::RmSequence { name } => {
                         sequences.remove(&name);
+                        queued_sequences.retain(|n| n != &name);
+                        playing_sequences.retain(|n| n != &name);
+
+                        if sequences.is_empty()
+                            || (playing_sequences.is_empty() && queued_sequences.is_empty())
+                        {
+                            counter = 0.;
+                        }
                     }
                     SequencerControlCmd::Play(names) => names.into_iter().for_each(|name| {
                         if sequences.contains_key(&name) {
@@ -260,10 +270,15 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                     SequencerControlCmd::Stop(names) => {
                         queued_sequences.retain(|name| !names.contains(name));
                         playing_sequences.retain(|name| !names.contains(name));
+
+                        if playing_sequences.is_empty() && queued_sequences.is_empty() {
+                            counter = 0.;
+                        }
                     }
                     SequencerControlCmd::StopAll => {
                         queued_sequences.clear();
                         playing_sequences.clear();
+                        counter = 0.;
                     }
                     SequencerControlCmd::Pause(_names) => warn!("not implemented yet"),
                     SequencerControlCmd::PauseAll => warn!("not implemented yet"),

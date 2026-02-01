@@ -33,7 +33,7 @@ pub async fn play_note(
     velocity: u8,
     dur: NoteDuration,
 ) {
-    info!("playing note {note} on {dev} with velocity {velocity}");
+    debug!("playing note {note} on {dev} with velocity {velocity}");
 
     let msg = midi_msg::MidiMsg::ChannelVoice {
         channel: channel.into(),
