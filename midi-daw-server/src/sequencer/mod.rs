@@ -21,13 +21,13 @@ pub type AllSequences = FxHashMap<SequenceName, Sequence>;
 // #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SequencerControlCmd {
     GetSequence {
-        seqeunce: SequenceName,
+        sequence: SequenceName,
         responder: OneshotSender<Option<Sequence>>,
     },
     GetSequences {
         responder: OneshotSender<Vec<String>>,
     },
-    NewSeqeunce {
+    NewSequence {
         name: Option<SequenceName>,
         midi_dev: Option<String>,
         channel: Option<MidiChannel>,
@@ -178,23 +178,23 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
 
                 match msg {
                     SequencerControlCmd::GetSequence {
-                        seqeunce,
+                        sequence,
                         responder,
                     } => {
                         if let Err(e) =
-                            responder.send(sequences.get(&seqeunce).map(|seq| seq.clone()))
+                            responder.send(sequences.get(&sequence).map(|seq| seq.clone()))
                         {
-                            error!("sending seqeunce failed with error: {e:?}");
+                            error!("sending sequence failed with error: {e:?}");
                         }
                     }
                     SequencerControlCmd::GetSequences { responder } => {
                         if let Err(e) =
                             responder.send(sequences.keys().map(|name| name.clone()).collect())
                         {
-                            error!("sending seqeunce names failed with error: {e:?}");
+                            error!("sending sequence names failed with error: {e:?}");
                         }
                     }
-                    SequencerControlCmd::NewSeqeunce {
+                    SequencerControlCmd::NewSequence {
                         name,
                         midi_dev,
                         channel,

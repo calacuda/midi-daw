@@ -190,7 +190,7 @@ async fn new_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<String>,
 ) -> HttpResponseBuilder {
-    let msg = SequencerControlCmd::NewSeqeunce {
+    let msg = SequencerControlCmd::NewSequence {
         name: Some(seq_name.0),
         midi_dev: None,
         channel: None,
@@ -253,7 +253,7 @@ async fn get_sequence(
     let (responder, mut recv_er) = oneshot::channel();
 
     let msg = SequencerControlCmd::GetSequence {
-        seqeunce: seq_name.sequence.clone(),
+        sequence: seq_name.sequence.clone(),
         responder,
     };
 
