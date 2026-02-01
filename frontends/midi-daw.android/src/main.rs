@@ -88,6 +88,16 @@ fn main() {
         {
             error!("adding track failed with error {e}");
         }
+
+        if track.is_drum {
+            if let Err(e) = client
+                .post(format!("http://{BASE_URL}/sequence/set-channel"))
+                .json(&SetChannelBody::new(track.name.clone(), track.chan.clone()))
+                .send()
+            {
+                error!("setting channel failed with error {e}");
+            }
+        }
     }
 
     // dioxus::launch(App);
@@ -311,11 +321,11 @@ fn MidiDevChooser(
                                     let client = reqwest::Client::new();
 
                                     if let Err(e) = client
-                                        .post(format!("http://{BASE_URL}/sequence/set-dev"))
+                                        .post(format!("http://{BASE_URL}/sequence/set-channel"))
                                         .json(&SetChannelBody::new(track_name, channel.clone()) )
                                         .send().await
                                     {
-                                        error!("playing sequence failed with error {e}");
+                                        error!("setting channel failed with error {e}");
                                     }
                                 }
                             },
@@ -357,13 +367,14 @@ fn MidiDevChooser(
                                     let client = reqwest::Client::new();
 
                                     if let Err(e) = client
-                                        .post(format!("http://{BASE_URL}/sequence/set-dev"))
+                                        .post(format!("http://{BASE_URL}/sequence/set-channel"))
                                         .json(&SetChannelBody::new(track_name, channel.clone()) )
                                         .send().await
                                     {
-                                        error!("playing sequence failed with error {e}");
+                                        error!("setting channel failed with error {e}");
                                     }
-                                }                            },
+                                }
+                            },
 
                             "{channel:?}"
                         }
@@ -432,7 +443,7 @@ fn EditSectionMenu(
                                         for note in track.steps[row].note.iter() {
                                             if let Err(e) = client
                                                 .post(format!("http://{BASE_URL}/sequence/rm-note"))
-                                                .json(&RmNoteBody::new(track.name.clone(), row, note))
+                                                .json(&RmNoteBody::new(track.name.clone(), row, *note))
                                                 .send().await
                                             {
                                                 error!("rming failed with error {e}");
@@ -742,14 +753,34 @@ fn DrumSectionDisplay(
 
                                     classes.join(" ")
                                 },
-                                onclick: move |_| {
+                                onclick: move |_| async move {
                                     let sections = sections.write();
+                                    let track_name = sections.read().unwrap()[*displaying().read().unwrap()].name.clone();
                                     let step = &mut sections.write().unwrap()[*displaying().read().unwrap()].steps[step_n];
+                                    let client = reqwest::Client::new();
 
                                     if step.note.contains(&drum_note) {
                                         step.note.retain(|elm| *elm != drum_note);
+                                        // rm drum note
+                                        if let Err(e) = client
+                                            .post(format!("http://{BASE_URL}/sequence/rm-note"))
+                                            .json(&RmNoteBody::new(track_name.clone(), step_n, drum_note))
+                                            .send().await
+                                        {
+                                            error!("rming failed with error {e}");
+                                            return;
+                                        }
                                     } else {
                                         step.note.push(drum_note);
+                                        // add drum note
+                                        if let Err(e) = client
+                                            .post(format!("http://{BASE_URL}/sequence/add-note"))
+                                            .json(&AddNoteBody::new(track_name.clone(), step_n, drum_note, 99, None))
+                                            .send().await
+                                        {
+                                            error!("adding note failed with error {e}");
+                                            return;
+                                        }
                                     }
                                 },
                                 " "
@@ -1008,21 +1039,21 @@ fn LeftCol(
                                 *displaying.write().write().unwrap() = uid;
                                 edit_cell.set(None);
                                 let client = reqwest::Client::new();
-                                if let Ok(mut sections) = sections.write().write() {
-                                    let track = &mut sections[uid];
+                                // let mut sections =  {
+                                // let track = &mut sections.write().write().unwrap()[uid];
+                                let track_name = sections.read().read().unwrap()[uid].name.clone();
 
-                                    // get information about track/sequence
-                                    match client
-                                        .get(format!("http://{BASE_URL}/sequence"))
-                                        .query(&GetSequenceQuery::new(track.name.clone()))
-                                        .send().await
-                                    {
-                                        Ok(res) => match res.json::<Sequence>().await {
-                                            Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
-                                            Err(e) => error!("invalid json. {e}"),
-                                        }
-                                        Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+                                // get information about track/sequence
+                                match client
+                                    .get(format!("http://{BASE_URL}/sequence"))
+                                    .query(&GetSequenceQuery::new(track_name))
+                                    .send().await
+                                {
+                                    Ok(res) => match res.json::<Sequence>().await {
+                                        Ok(json) => sections.write().write().unwrap()[uid].steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                        Err(e) => error!("invalid json. {e}"),
                                     }
+                                    Err(e) => error!("refreshing seqeunce failed with error, {e}"),
                                 }
                             },
                             {name.clone()}
