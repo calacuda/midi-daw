@@ -176,8 +176,10 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                 }
             }
 
-            counter += 1.;
-            counter %= f64::MAX;
+            if !(playing_sequences.is_empty() && queued_sequences.is_empty()) {
+                counter += 1.;
+                counter %= f64::MAX;
+            }
         } else {
             while let Ok(msg) = controls.try_recv() {
                 // do msg thing

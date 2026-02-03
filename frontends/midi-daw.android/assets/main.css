@@ -394,7 +394,8 @@ div {
 }
 
 #set-device {
-	height: 10%;
+	height: 12.5%;
+	justify-content: space-around;
 }
 
 #tempo {
@@ -427,7 +428,7 @@ div {
 	justify-content: space-between;
 }
 
-#track-size-change-buttons > * + * {
+#track-size-change-buttons>*+* {
 	margin-left: 3.125%;
 }
 

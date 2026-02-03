@@ -13,8 +13,8 @@ use crate::{
 // };
 use dioxus::prelude::*;
 use midi_daw_types::{
-    AddNoteBody, GetSequenceQuery, MidiChannel, RenameSequenceBody, RmNoteBody, Sequence,
-    SetChannelBody, SetDevBody,
+    AddNoteBody, ChangeLenByBody, GetSequenceQuery, MidiChannel, RenameSequenceBody, RmNoteBody,
+    Sequence, SetChannelBody, SetDevBody,
 };
 use std::{
     sync::{Arc, RwLock},
@@ -1346,7 +1346,7 @@ fn RightCol(
     });
     let mut editing_tempo = use_signal(|| false);
 
-    let change_len = |amt, verb| {
+    let change_len = move |amt, verb| {
         async move {
             let client = reqwest::Client::new();
             let track_name = sections.read().read().unwrap()[*displaying.read().read().unwrap()]
@@ -1356,7 +1356,7 @@ fn RightCol(
             // TODO: send make sequence longer
             if let Err(e) = client
                 .post(format!("http://{BASE_URL}/sequence/change-len-by"))
-                .json(&ChangeLenByBody::new(track_name, amt))
+                .json(&ChangeLenByBody::new(track_name.clone(), amt))
                 .send()
                 .await
             {
@@ -1573,7 +1573,7 @@ fn RightCol(
                             new_tempo.set(tempo());
                         },
 
-                        "{tempo:.1} BPM"
+                        "{tempo:.1}"
                     }
                 }
             }
@@ -1586,7 +1586,7 @@ fn RightCol(
                     id: "track-size-change-title",
                     class: "super-center full-width text-yellow",
 
-                    "Track Length Edit:"
+                    "Track Len:"
                 }
 
                 div {
