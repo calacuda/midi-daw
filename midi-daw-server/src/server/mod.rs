@@ -15,8 +15,8 @@ use crossbeam::channel::Sender;
 use futures::future::join_all;
 use fx_hash::FxHashSet;
 use midi_daw_types::{
-    AddNoteBody, GetSequenceQuery, MidiMsg, MidiReqBody, NoteDuration, RenameSequenceBody,
-    RmNoteBody, SetChannelBody, SetDevBody, UDS_SERVER_PATH,
+    AddNoteBody, ChangeLenByBody, GetSequenceQuery, MidiMsg, MidiReqBody, NoteDuration,
+    RenameSequenceBody, RmNoteBody, SetChannelBody, SetDevBody, UDS_SERVER_PATH,
 };
 pub use midi_daw_types::{BPQ, Tempo};
 use midir::MidiOutput;
@@ -519,6 +519,27 @@ async fn set_channel(
     }
 }
 
+#[post("/sequence/change-len-by")]
+async fn change_len_by(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<ChangeLenByBody>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::ChangeLenBy {
+        name: args.sequence.clone(),
+        amt: args.amt.clone(),
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
 /// sends a message to the message bus every note
 pub fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
     // TODO: make this a client running in a syncronouse std::thread
@@ -672,6 +693,7 @@ pub async fn run(
                 .service(set_dev)
                 .service(rename_sequence)
                 .service(set_channel)
+                .service(change_len_by)
                 .service(message_bus::message_bus)
         }
     })

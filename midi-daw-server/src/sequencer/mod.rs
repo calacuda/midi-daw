@@ -78,6 +78,10 @@ pub enum SequencerControlCmd {
         step: usize,
         cmd: MidiMsg,
     },
+    ChangeLenBy {
+        sequence: SequenceName,
+        amt: isize,
+    },
 }
 
 #[tokio::main]
@@ -345,6 +349,19 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                         step: _,
                         cmd: _,
                     } => warn!("not implemented yet"),
+                    SequencerControlCmd::ChangeLenBy { sequence, amt } => {
+                        if let Some(seq) = sequences.get_mut(&sequence) {
+                            if amt > 0 {
+                                (0..amt).for_each(|_| seq.steps.push(Vec::default()));
+                            } else if amt < 0 && (seq.steps.len() + amt as usize) > 0 {
+                                (0..amt.abs()).for_each(|_| {
+                                    seq.steps.pop();
+                                });
+                            }
+                        } else {
+                            error!("sequence not found");
+                        }
+                    }
                 }
             }
         }

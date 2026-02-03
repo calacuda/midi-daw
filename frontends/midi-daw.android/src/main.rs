@@ -86,7 +86,7 @@ fn main() {
         .ok()
         .flatten();
 
-    for track in sections.read().unwrap().clone() {
+    for track in sections.write().unwrap().iter_mut() {
         if names
             .as_ref()
             .is_none_or(|names| !names.contains(&track.name))
@@ -107,6 +107,25 @@ fn main() {
                 {
                     error!("setting channel failed with error {e}");
                 }
+            }
+        } else {
+            match client
+                .get(format!("http://{BASE_URL}/sequence"))
+                .query(&GetSequenceQuery::new(track.name.clone()))
+                .send()
+                .map(|res| res.json::<Sequence>())
+            {
+                Ok(Ok(json)) => {
+                    track.steps = json
+                        .steps
+                        .iter()
+                        .map(|step| tracks::Step::from(step.clone()))
+                        .collect();
+                    track.dev = json.midi_dev.clone();
+                    track.chan = json.channel.clone();
+                }
+                Ok(Err(e)) => error!("invalid json returned from server. {e}"),
+                Err(e) => error!("refreshing seqeunce failed with error, {e}"),
             }
         }
     }
@@ -470,12 +489,15 @@ fn EditSectionMenu(
                                             .send().await
                                         {
                                             Ok(res) => match res.json::<Sequence>().await {
-                                                Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                                Ok(json) => {
+                                                    track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect();
+                                                    track.dev = json.midi_dev.clone();
+                                                    track.chan = json.channel.clone();
+                                                }
                                                 Err(e) => error!("invalid json. {e}"),
                                             }
                                             Err(e) => error!("refreshing seqeunce failed with error, {e}"),
                                         }
-
                                     }
                                     Colums::Velocity => {
                                         // set velocity
@@ -546,7 +568,11 @@ fn EditSectionMenu(
                                             .send().await
                                         {
                                             Ok(res) => match res.json::<Sequence>().await {
-                                                Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                                Ok(json) => {
+                                                    track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect();
+                                                    track.dev = json.midi_dev.clone();
+                                                    track.chan = json.channel.clone();
+                                                }
                                                 Err(e) => error!("invalid json. {e}"),
                                             }
                                             Err(e) => error!("refreshing seqeunce failed with error, {e}"),
@@ -741,6 +767,16 @@ fn DrumSectionDisplay(
             div {
                 id: "drum-grid",
 
+                // div {
+                //     class: "drum-row",
+                //
+                //     for step_n in 0..sections.read().read().unwrap()[*displaying().read().unwrap()].steps.len() {
+                //         div {
+                //             "{step_n + 1}"
+                //         }
+                //     }
+                // }
+
                 for (drum_note, _) in [
                     (36u8, "Kick"),
                     (40, "Snare"),
@@ -794,7 +830,7 @@ fn DrumSectionDisplay(
                                         }
                                     }
                                 },
-                                " "
+                                "{step_n + 1:<2}"
                             }
                         }
                     }
@@ -1014,6 +1050,25 @@ fn LeftCol(
                                         return;
                                     }
 
+                                    let track_name = sections[uid].name.clone();
+
+                                    // get information about track/sequence
+                                    match client
+                                        .get(format!("http://{BASE_URL}/sequence"))
+                                        .query(&GetSequenceQuery::new(track_name))
+                                        .send().await
+                                    {
+                                        Ok(res) => match res.json::<Sequence>().await {
+                                            Ok(json) => {
+                                                sections[uid].steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect();
+                                                sections[uid].dev = json.midi_dev.clone();
+                                                sections[uid].chan = json.channel.clone();
+                                            }
+                                            Err(e) => error!("invalid json. {e}"),
+                                        }
+                                        Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+                                    }
+
                                     sections[uid].name = new_name.read().clone();
 
                                     *editing_name.write() = None;
@@ -1055,17 +1110,21 @@ fn LeftCol(
                                 let track_name = sections.read().read().unwrap()[uid].name.clone();
 
                                 // get information about track/sequence
-                                match client
-                                    .get(format!("http://{BASE_URL}/sequence"))
-                                    .query(&GetSequenceQuery::new(track_name))
-                                    .send().await
-                                {
-                                    Ok(res) => match res.json::<Sequence>().await {
-                                        Ok(json) => sections.write().write().unwrap()[uid].steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
-                                        Err(e) => error!("invalid json. {e}"),
+                                    match client
+                                        .get(format!("http://{BASE_URL}/sequence"))
+                                        .query(&GetSequenceQuery::new(track_name))
+                                        .send().await
+                                    {
+                                        Ok(res) => match res.json::<Sequence>().await {
+                                            Ok(json) => {
+                                                sections.write().write().unwrap()[uid].steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect();
+                                                sections.write().write().unwrap()[uid].dev = json.midi_dev.clone();
+                                                sections.write().write().unwrap()[uid].chan = json.channel.clone();
+                                            }
+                                            Err(e) => error!("invalid json. {e}"),
+                                        }
+                                        Err(e) => error!("refreshing seqeunce failed with error, {e}"),
                                     }
-                                    Err(e) => error!("refreshing seqeunce failed with error, {e}"),
-                                }
                             },
                             {name.clone()}
                         }
@@ -1172,7 +1231,11 @@ fn LeftCol(
                             .send().await
                         {
                             Ok(res) => match res.json::<Sequence>().await {
-                                Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                Ok(json) => {
+                                    track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect();
+                                    track.dev = json.midi_dev.clone();
+                                    track.chan = json.channel.clone();
+                                }
                                 Err(e) => error!("invalid json. {e}"),
                             }
                             Err(e) => error!("refreshing seqeunce failed with error, {e}"),
@@ -1220,7 +1283,11 @@ fn LeftCol(
                             .send().await
                         {
                             Ok(res) => match res.json::<Sequence>().await {
-                                Ok(json) => track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect(),
+                                Ok(json) => {
+                                    track.steps = json.steps.iter().map(|step| tracks::Step::from(step.clone())).collect();
+                                    track.dev = json.midi_dev.clone();
+                                    track.chan = json.channel.clone();
+                                }
                                 Err(e) => error!("invalid json. {e}"),
                             }
                             Err(e) => error!("refreshing seqeunce failed with error, {e}"),
@@ -1254,10 +1321,82 @@ fn RightCol(
 ) -> Element {
     // let com_mpsc = use_context::<Sender<MessageToPlayer>>();
 
+    let mut tempo: Signal<f64> = use_signal(|| 0.0);
+    let mut new_tempo = use_signal(|| tempo());
+    use_future(move || async move {
+        let client = reqwest::Client::new();
+
+        match client.get(format!("http://{BASE_URL}/tempo")).send().await {
+            Ok(res) => match res.json::<f64>().await {
+                Ok(loc_tempo) => {
+                    info!("got new tempo from the server: {loc_tempo}");
+                    tempo.set(loc_tempo);
+                    new_tempo.set(loc_tempo);
+                }
+                Err(e) => {
+                    error!("parsing json tempo from server failed with error: {e}");
+                    0.0;
+                }
+            },
+            Err(e) => {
+                error!("tempo change failed with error: {e}");
+                0.0;
+            }
+        }
+    });
+    let mut editing_tempo = use_signal(|| false);
+
+    let change_len = |amt, verb| {
+        async move {
+            let client = reqwest::Client::new();
+            let track_name = sections.read().read().unwrap()[*displaying.read().read().unwrap()]
+                .name
+                .clone();
+
+            // TODO: send make sequence longer
+            if let Err(e) = client
+                .post(format!("http://{BASE_URL}/sequence/change-len-by"))
+                .json(&ChangeLenByBody::new(track_name, amt))
+                .send()
+                .await
+            {
+                error!("tempo change failed with error {e}");
+                return;
+            } else {
+                info!("length of track, {track_name}, has been {verb} by one");
+            }
+
+            // refresh track/sequence
+            match client
+                .get(format!("http://{BASE_URL}/sequence"))
+                .query(&GetSequenceQuery::new(track_name))
+                .send()
+                .await
+            {
+                Ok(res) => match res.json::<Sequence>().await {
+                    Ok(json) => {
+                        sections.write().write().unwrap()[*displaying.read().read().unwrap()]
+                            .steps = json
+                            .steps
+                            .iter()
+                            .map(|step| tracks::Step::from(step.clone()))
+                            .collect();
+                        sections.write().write().unwrap()[*displaying.read().read().unwrap()].dev =
+                            json.midi_dev.clone();
+                        sections.write().write().unwrap()[*displaying.read().read().unwrap()]
+                            .chan = json.channel.clone();
+                    }
+                    Err(e) => error!("invalid json. {e}"),
+                },
+                Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+            }
+        }
+    };
+
     rsx! {
         div {
             id: "right-main",
-            class: "full-width",
+            class: "full-width full-height",
 
             // a button to set the device for the selected track
             div {
@@ -1288,9 +1427,11 @@ fn RightCol(
                 }
             }
 
+            br {}
+
             div {
                 id: "play-section",
-                class: "button button-w-border super-center",
+                class: "button button-w-border super-center full-width",
                 onclick: move |_| async move {
                     let dis = displaying.read();
                     let dis = dis.read().unwrap();
@@ -1300,10 +1441,6 @@ fn RightCol(
                     if !playing_sections.read().contains(&dis) {
                         // start playback
                         playing_sections.write().push(*dis);
-
-                        // if let Err(e) = com_mpsc.send(MessageToPlayer::PlaySection(*dis)) {
-                        //     error!("attempting to send start playback message failed with error: {e}");
-                        // }
 
                         // connect to API and start playback for this track
                         if let Err(e) = client
@@ -1316,10 +1453,6 @@ fn RightCol(
                     } else {
                         // stop playback
                         playing_sections.write().retain(|elm| *elm != *dis);
-
-                        // if let Err(e) = com_mpsc.send(MessageToPlayer::StopSection(*dis)) {
-                        //     error!("attempting to send stop playback message failed with error: {e}");
-                        // }
 
                         // connect to API and stop playback for this track
                         if let Err(e) = client
@@ -1355,6 +1488,129 @@ fn RightCol(
 
                             "[]"
                         }
+                    }
+                }
+            }
+            br {}
+            hr {}
+            br {}
+            div {
+                id: "tempo",
+                class: "button super-center full-width row",
+
+                div {
+                    class: "text-yellow",
+
+                    "Tempo:"
+                }
+
+                if editing_tempo() {
+                    form {
+                        onsubmit: move |_| async move {
+                            let client = reqwest::Client::new();
+                            // Rename track/seqeunce with API
+                            if let Err(e) = client
+                                .post(format!("http://{BASE_URL}/tempo"))
+                                .json(&new_tempo())
+                                .send().await
+                            {
+                                error!("tempo change failed with error {e}");
+                                return;
+                            } else {
+                                info!("tempo send to server: {new_tempo}");
+                            }
+
+                            match client
+                                .get(format!("http://{BASE_URL}/tempo"))
+                                .send().await
+                            {
+                                Ok(res) => match res.json::<f64>().await {
+                                    Ok(loc_tempo) => {
+                                        info!("got new tempo from the server: {loc_tempo}");
+                                        tempo.set(loc_tempo);
+                                    }
+                                    Err(e) => {
+                                        error!("parsing json tempo from server failed with error: {e}");
+                                        return;
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("tempo change failed with error: {e}");
+                                    return;
+                                }
+                            }
+
+                            editing_tempo.set(false);
+                        },
+                        input {
+                            id: "rename-field",
+                            name: "rename-field",
+                            autofocus: "value",
+                            r#type: "number",
+                            min: "60.0",
+                            step: "any",
+                            value: "{new_tempo}",
+                            onmounted: async move |cx| {
+                                if let Err(_e) = cx.set_focus(true).await {
+                                    // error!("attempt to set focus to the rename section input field failed with: {e}")
+                                }
+                            },
+                            oninput: move |event| {
+                                if let Ok(tempo) = event.value().parse::<f64>() {
+                                    *new_tempo.write() = tempo;
+                                }
+                                // else {
+                                //     error!("bad parse");
+                                // }
+                            },
+                        }
+                    }
+                } else {
+                    div {
+                        class: "button button-w-border super-center full-width",
+                        onclick: move |_| async move {
+                            editing_tempo.set(true);
+                            new_tempo.set(tempo());
+                        },
+
+                        "{tempo:.1} BPM"
+                    }
+                }
+            }
+            br {}
+            div {
+                id: "track-size-change",
+                class: "super-center full-width col",
+
+                div {
+                    id: "track-size-change-title",
+                    class: "super-center full-width text-yellow",
+
+                    "Track Length Edit:"
+                }
+
+                div {
+                    id: "track-size-change-buttons",
+                    class: "super-center full-width row",
+
+                    // button to make the track longer
+                    div {
+                        class: "button button-w-border super-center track-size-button",
+                        onclick: move |_| {
+                            change_len(1, "extened")
+                        },
+
+                        "Longer"
+                    }
+                    // button to make the track shorter
+                    div {
+                        class: "button button-w-border super-center track-size-button",
+                        onclick: move |_| {
+                            // send make sequence shorter
+                            change_len(-1, "shortened")
+                        },
+
+                        "Shorter"
                     }
                 }
             }

@@ -140,6 +140,7 @@ div {
 	text-align: center;
 	justify-content: center;
 	align-items: center;
+	align-content: end;
 	font-size: x-large;
 	color: #45475a;
 	cursor: pointer;
@@ -386,6 +387,48 @@ div {
 	justify-items: center;
 	/* justify-self: center; */
 	/* align-self: center; */
+}
+
+#play-section {
+	height: 6.25%;
+}
+
+#set-device {
+	height: 10%;
+}
+
+#tempo {
+	height: 6.25%;
+	justify-content: space-around;
+}
+
+.track-size-button {
+	width: 50%;
+	/* margin: 3.125%; */
+}
+
+#track-size-change {
+	height: 10%;
+	width: calc(100% + 5px);
+	justify-content: space-between;
+}
+
+#track-size-change-title {
+	height: 25%;
+	text-align: center;
+	text-justify: center;
+	justify-content: center;
+	align-items: center;
+	font-size: x-large;
+}
+
+#track-size-change-buttons {
+	height: 50%;
+	justify-content: space-between;
+}
+
+#track-size-change-buttons > * + * {
+	margin-left: 3.125%;
 }
 
 #row-light {

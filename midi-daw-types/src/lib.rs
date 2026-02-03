@@ -749,6 +749,41 @@ impl Default for Sequence {
     }
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct ChangeLenByBody {
+    pub sequence: String,
+    pub amt: isize,
+}
+
+impl ChangeLenByBody {
+    pub fn new(sequence: String, amt: isize) -> Self {
+        Self { sequence, amt }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl ChangeLenByBody {
+    #[new]
+    fn new_py(sequence: String, amt: isize) -> Self {
+        Self::new(sequence, amt)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
 // impl Into<Channel> for MidiChannel {
 //     fn into(self) -> Channel {
 //         match self {
