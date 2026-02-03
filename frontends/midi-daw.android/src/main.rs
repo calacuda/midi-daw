@@ -121,9 +121,11 @@ fn main() {
     //     }
     // }
 
-    if let Some(names) = names
+    if let Some(mut names) = names
         && !names.is_empty()
     {
+        names.sort();
+
         for name in names {
             match client
                 .get(format!("http://{BASE_URL}/sequence"))
