@@ -51,29 +51,20 @@ fn main() {
     // Init logger
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
 
-    // needed bc audio output will fail if its started too soon.
-    // let synth = make_synth( );
-
-    let drums = Track::new(
-        Some("Drum-Track".into()),
-        1,
-        "Midi Through:0".into(),
-        true,
-        Some(16),
-    );
-    // drums.chan = MidiChannel::Ch10;
-    let mut melodic = Track::default();
-    melodic.dev = " Midi Through:0".into();
-    melodic.name = "Melodic-1".into();
-    let sections = Arc::new(RwLock::new(vec![melodic, drums]));
+    // let drums = Track::new(
+    //     Some("Drum-Track".into()),
+    //     1,
+    //     "Midi Through:0".into(),
+    //     true,
+    //     Some(16),
+    // );
+    // // drums.chan = MidiChannel::Ch10;
+    // let mut melodic = Track::default();
+    // melodic.dev = " Midi Through:0".into();
+    // melodic.name = "Melodic-1".into();
+    // let sections = Arc::new(RwLock::new(vec![melodic, drums]));
+    let sections = Arc::new(RwLock::new(Vec::<Track>::default()));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
-    // let (send, recv) = unbounded();
-    //
-    // let _join_handle = spawn({
-    //     let sections = sections.clone();
-    //
-    //     move || playback(sections, recv)
-    // });
 
     // this is here to remind me of some technique, but what? google the docs for this function.
     // #[cfg(android)]
@@ -86,36 +77,64 @@ fn main() {
         .ok()
         .flatten();
 
-    for track in sections.write().unwrap().iter_mut() {
-        if names
-            .as_ref()
-            .is_none_or(|names| !names.contains(&track.name))
-        {
-            if let Err(e) = client
-                .post(format!("http://{BASE_URL}/sequence/new"))
-                .json(&track.name.clone())
-                .send()
-            {
-                error!("adding track failed with error {e}");
-            }
+    // for track in sections.write().unwrap().iter_mut() {
+    //     if names
+    //         .as_ref()
+    //         .is_none_or(|names| !names.contains(&track.name))
+    //     {
+    //         if let Err(e) = client
+    //             .post(format!("http://{BASE_URL}/sequence/new"))
+    //             .json(&track.name.clone())
+    //             .send()
+    //         {
+    //             error!("adding track failed with error {e}");
+    //         }
+    //
+    //         if track.is_drum {
+    //             if let Err(e) = client
+    //                 .post(format!("http://{BASE_URL}/sequence/set-channel"))
+    //                 .json(&SetChannelBody::new(track.name.clone(), track.chan.clone()))
+    //                 .send()
+    //             {
+    //                 error!("setting channel failed with error {e}");
+    //             }
+    //         }
+    //     } else {
+    //         match client
+    //             .get(format!("http://{BASE_URL}/sequence"))
+    //             .query(&GetSequenceQuery::new(track.name.clone()))
+    //             .send()
+    //             .map(|res| res.json::<Sequence>())
+    //         {
+    //             Ok(Ok(json)) => {
+    //                 track.steps = json
+    //                     .steps
+    //                     .iter()
+    //                     .map(|step| tracks::Step::from(step.clone()))
+    //                     .collect();
+    //                 track.dev = json.midi_dev.clone();
+    //                 track.chan = json.channel.clone();
+    //             }
+    //             Ok(Err(e)) => error!("invalid json returned from server. {e}"),
+    //             Err(e) => error!("refreshing seqeunce failed with error, {e}"),
+    //         }
+    //     }
+    // }
 
-            if track.is_drum {
-                if let Err(e) = client
-                    .post(format!("http://{BASE_URL}/sequence/set-channel"))
-                    .json(&SetChannelBody::new(track.name.clone(), track.chan.clone()))
-                    .send()
-                {
-                    error!("setting channel failed with error {e}");
-                }
-            }
-        } else {
+    if let Some(names) = names
+        && !names.is_empty()
+    {
+        for name in names {
             match client
                 .get(format!("http://{BASE_URL}/sequence"))
-                .query(&GetSequenceQuery::new(track.name.clone()))
+                .query(&GetSequenceQuery::new(name.clone()))
                 .send()
                 .map(|res| res.json::<Sequence>())
             {
                 Ok(Ok(json)) => {
+                    let mut track = Track::default();
+                    track.name = name.clone();
+
                     track.steps = json
                         .steps
                         .iter()
@@ -123,11 +142,24 @@ fn main() {
                         .collect();
                     track.dev = json.midi_dev.clone();
                     track.chan = json.channel.clone();
+                    sections.write().unwrap().push(track);
                 }
                 Ok(Err(e)) => error!("invalid json returned from server. {e}"),
                 Err(e) => error!("refreshing seqeunce failed with error, {e}"),
             }
         }
+    } else {
+        let track = Track::default();
+
+        if let Err(e) = client
+            .post(format!("http://{BASE_URL}/sequence/new"))
+            .json(&track.name.clone())
+            .send()
+        {
+            error!("adding track failed with error {e}");
+        }
+
+        sections.write().unwrap().push(track);
     }
 
     // dioxus::launch(App);
@@ -1611,6 +1643,31 @@ fn RightCol(
                         },
 
                         "Shorter"
+                    }
+                }
+            }
+            br {}
+            hr {}
+            br {}
+            div {
+                div {
+                    id: "track-size-change-title",
+                    class: "super-center full-width text-yellow",
+
+                    "Set Track Type:"
+                }
+                div {
+                    class: "button button-w-border super-center",
+                    onclick: move |_| async move {
+                        let is_drum = sections.read().read().unwrap()[*displaying.read().read().unwrap()].is_drum;
+
+                        sections.write().write().unwrap()[*displaying.read().read().unwrap()].is_drum = !is_drum;
+                    },
+
+                    if sections.read().read().unwrap()[*displaying.read().read().unwrap()].is_drum {
+                        "melodic"
+                    } else {
+                        "drums"
                     }
                 }
             }
