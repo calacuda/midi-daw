@@ -525,7 +525,7 @@ async fn change_len_by(
     args: Json<ChangeLenByBody>,
 ) -> HttpResponse {
     let msg = SequencerControlCmd::ChangeLenBy {
-        name: args.sequence.clone(),
+        sequence: args.sequence.clone(),
         amt: args.amt.clone(),
     };
 
