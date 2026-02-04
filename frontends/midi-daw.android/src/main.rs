@@ -1303,7 +1303,7 @@ fn LeftCol(
 
                         if let Err(e) = client
                             .post(format!("http://{BASE_URL}/sequence/new"))
-                            .json(&track.name.clone())
+                            .json(&name)
                             .send().await
                         {
                             error!("adding sequence failed with error {e}");
@@ -1490,8 +1490,8 @@ fn RightCol(
 
                         // connect to API and stop playback for this track
                         if let Err(e) = client
-                            .post(format!("http://{BASE_URL}/sequence/stop-one"))
-                            .json(&track_name)
+                            .post(format!("http://{BASE_URL}/sequence/queue-stop"))
+                            .json(&vec![track_name])
                             .send().await
                         {
                             error!("playing sequence failed with error {e}");

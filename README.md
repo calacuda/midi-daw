@@ -44,5 +44,6 @@ these are listen in no particular order.
 <!-- - [ ] augment websocket-message-bus/http-api with mqtt. -->
 - [x] make the sequencer run server-side to minimizes latency.
 - [ ] add stop-all button to app
-- [ ] add queue-stop functionality to server
-- [ ] add queue-stop button to app
+- [x] add queue-stop functionality to server
+- [x] add queue-stop button to app
+- [ ] add step count hilighting to the app
