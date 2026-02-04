@@ -47,3 +47,7 @@ these are listen in no particular order.
 - [x] add queue-stop functionality to server
 - [x] add queue-stop button to app
 - [ ] add step count hilighting to the app
+- [ ] add saving/loading of sequences
+  - [ ] saving
+  - [ ] loading
+  - [ ] rm-ing of saved data

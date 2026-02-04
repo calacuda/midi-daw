@@ -273,6 +273,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                         sequences.remove(&name);
                         queued_sequences.retain(|n| n != &name);
                         playing_sequences.retain(|n| n != &name);
+                        queued_stop_sequences.retain(|stop_name| stop_name != &name);
 
                         if sequences.is_empty()
                             || (playing_sequences.is_empty() && queued_sequences.is_empty())
@@ -281,6 +282,8 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                         }
                     }
                     SequencerControlCmd::Play(names) => names.into_iter().for_each(|name| {
+                        queued_stop_sequences.retain(|stop_name| stop_name != &name);
+
                         if sequences.contains_key(&name) {
                             queued_sequences.push(name);
                         } else {
