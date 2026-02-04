@@ -386,7 +386,7 @@ async fn stop_sequence(
 }
 
 #[post("/sequence/stop-these")]
-async fn stop_some_sequence(
+async fn stop_some_sequences(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<Vec<String>>,
 ) -> HttpResponseBuilder {
@@ -406,6 +406,22 @@ async fn stop_all_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
 ) -> HttpResponseBuilder {
     let msg = SequencerControlCmd::StopAll;
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok(),
+        Err(e) => {
+            error!("{e}");
+            HttpResponse::InternalServerError()
+        }
+    }
+}
+
+#[post("/sequence/queue-stop")]
+async fn queue_stop_sequences(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    seq_name: Json<Vec<String>>,
+) -> HttpResponseBuilder {
+    let msg = SequencerControlCmd::QueueStop(seq_name.0);
 
     match seq_coms.send(msg) {
         Ok(_) => HttpResponse::Ok(),
@@ -686,8 +702,9 @@ pub async fn run(
                 .service(pause_sequence)
                 .service(pause_all_sequence)
                 .service(stop_sequence)
-                .service(stop_some_sequence)
+                .service(stop_some_sequences)
                 .service(stop_all_sequence)
+                .service(queue_stop_sequences)
                 .service(add_note)
                 .service(rm_note)
                 .service(set_dev)

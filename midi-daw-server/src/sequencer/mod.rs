@@ -53,6 +53,7 @@ pub enum SequencerControlCmd {
     PlayAll,
     Stop(Vec<SequenceName>),
     StopAll,
+    QueueStop(Vec<SequenceName>),
     Pause(Vec<SequenceName>),
     PauseAll,
     AddNote {
@@ -104,6 +105,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
 
     let mut sequences: AllSequences = FxHashMap::default();
     let mut queued_sequences: Vec<SequenceName> = Vec::default();
+    let mut queued_stop_sequences: Vec<SequenceName> = Vec::default();
     let mut playing_sequences: Vec<SequenceName> = Vec::default();
     let mut jh_s = Vec::default();
 
@@ -119,6 +121,21 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                 if i % 16. == 0. || playing_sequences.is_empty() {
                     playing_sequences.append(&mut queued_sequences);
                 }
+
+                playing_sequences.retain(|name| {
+                    if let Some(sequence) = sequences.get(name) {
+                        if i as usize % sequence.steps.len() == 0 {
+                            let res = !queued_stop_sequences.contains(name);
+                            // queued_stop_sequences.retain(|stop_name| stop_name != name);
+                            res
+                        } else {
+                            true
+                        }
+                    } else {
+                        true
+                    }
+                });
+                queued_stop_sequences.retain(|stop_name| playing_sequences.contains(stop_name));
 
                 // send midi messages from playing sequences
                 let play_messages: Vec<MidiReqBody> = playing_sequences
@@ -287,6 +304,9 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
                         queued_sequences.clear();
                         playing_sequences.clear();
                         counter = 0.;
+                    }
+                    SequencerControlCmd::QueueStop(names) => {
+                        queued_stop_sequences.append(&mut names.clone());
                     }
                     SequencerControlCmd::Pause(_names) => warn!("not implemented yet"),
                     SequencerControlCmd::PauseAll => warn!("not implemented yet"),

@@ -42,4 +42,7 @@ these are listen in no particular order.
 - [x] add an optional "setup" function that must run before a decorated function with looping enabled can start looping
 - [x] create virtual midi-outs
 <!-- - [ ] augment websocket-message-bus/http-api with mqtt. -->
-- [ ] make the sequencer run server-side to minimizes latency.
+- [x] make the sequencer run server-side to minimizes latency.
+- [ ] add stop-all button to app
+- [ ] add queue-stop functionality to server
+- [ ] add queue-stop button to app
