@@ -1,16 +1,9 @@
 #![feature(never_type)]
 use crate::{
-    playback::{
-        BASE_URL,
-        // MessageToPlayer,
-        // playback
-    },
+    playback::BASE_URL,
     tracks::{Track, TrackerCmd},
 };
-// use crossbeam::channel::{
-//     // Sender,
-//     unbounded,
-// };
+// use crossbeam::channel::{Receiver, Sender, unbounded};
 use dioxus::prelude::*;
 use midi_daw_types::{
     AddNoteBody, ChangeLenByBody, GetSequenceQuery, MidiChannel, RenameSequenceBody, RmNoteBody,
@@ -18,9 +11,10 @@ use midi_daw_types::{
 };
 use std::{
     sync::{Arc, RwLock},
-    // thread::spawn,
+    thread::spawn,
 };
 use tracing::*;
+use tungstenite::connect;
 
 pub mod less_then;
 pub mod playback;
@@ -32,6 +26,7 @@ pub type SectionsUID = usize;
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const N_STEPS: usize = 16;
+const COUNTER: GlobalSignal<f64> = Signal::global(|| 0.);
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum MiddleColView {
@@ -65,6 +60,7 @@ fn main() {
     // let sections = Arc::new(RwLock::new(vec![melodic, drums]));
     let sections = Arc::new(RwLock::new(Vec::<Track>::default()));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
+    // let (send, sync_pulse) = unbounded::<f64>();
 
     // this is here to remind me of some technique, but what? google the docs for this function.
     // #[cfg(android)]
@@ -76,50 +72,11 @@ fn main() {
         .map(|res| res.json().ok())
         .ok()
         .flatten();
-
-    // for track in sections.write().unwrap().iter_mut() {
-    //     if names
-    //         .as_ref()
-    //         .is_none_or(|names| !names.contains(&track.name))
-    //     {
-    //         if let Err(e) = client
-    //             .post(format!("http://{BASE_URL}/sequence/new"))
-    //             .json(&track.name.clone())
-    //             .send()
-    //         {
-    //             error!("adding track failed with error {e}");
-    //         }
-    //
-    //         if track.is_drum {
-    //             if let Err(e) = client
-    //                 .post(format!("http://{BASE_URL}/sequence/set-channel"))
-    //                 .json(&SetChannelBody::new(track.name.clone(), track.chan.clone()))
-    //                 .send()
-    //             {
-    //                 error!("setting channel failed with error {e}");
-    //             }
-    //         }
-    //     } else {
-    //         match client
-    //             .get(format!("http://{BASE_URL}/sequence"))
-    //             .query(&GetSequenceQuery::new(track.name.clone()))
-    //             .send()
-    //             .map(|res| res.json::<Sequence>())
-    //         {
-    //             Ok(Ok(json)) => {
-    //                 track.steps = json
-    //                     .steps
-    //                     .iter()
-    //                     .map(|step| tracks::Step::from(step.clone()))
-    //                     .collect();
-    //                 track.dev = json.midi_dev.clone();
-    //                 track.chan = json.channel.clone();
-    //             }
-    //             Ok(Err(e)) => error!("invalid json returned from server. {e}"),
-    //             Err(e) => error!("refreshing seqeunce failed with error, {e}"),
-    //         }
-    //     }
-    // }
+    let _jh = spawn({
+        move || {
+            sync_pulse_reader();
+        }
+    });
 
     if let Some(mut names) = names
         && !names.is_empty()
@@ -169,7 +126,52 @@ fn main() {
         .with_context(sections.clone())
         .with_context(displaying_uuid.clone())
         // .with_context(send)
+        // .with_context(sync_pulse)
+        // .with_context(send)
         .launch(App);
+}
+
+// fn sync_pulse_reader(tx: Sender<f64>) -> () {
+fn sync_pulse_reader() -> () {
+    // let bpq = 24;
+    let (mut socket, response) = match connect(format!("ws://{BASE_URL}/message-bus")) {
+        Ok(val) => val,
+        Err(e) => {
+            error!("{e}");
+            return;
+        }
+    };
+
+    if response.status() != 101 {
+        error!(
+            "failed to connect to message-bus. failure detected based on responce code. (was {}, expected 101.)",
+            response.status()
+        );
+        return;
+    }
+
+    info!("connected... {}", response.status());
+
+    loop {
+        let Ok(msg) = socket.read() else {
+            return;
+        };
+
+        match msg {
+            tungstenite::Message::Binary(msg) if msg.len() == 8 => {
+                let counter = f64::from_ne_bytes([
+                    msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7],
+                ]);
+                info!("counter: {counter}");
+
+                // if let Err(e) = tx.send(counter) {
+                //     error!("{e}");
+                // }
+                COUNTER.set(counter);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[component]
@@ -177,8 +179,11 @@ fn App() -> Element {
     let middle_view = use_signal(|| MiddleColView::Section);
     let sections = use_context::<Arc<RwLock<Vec<Track>>>>();
     let displaying_uuid = use_context::<Arc<RwLock<usize>>>();
+    // let send = use_context::<Sender<f64>>();
+    // let sync_pusle = use_context::<Receiver<f64>>();
 
     let sections = use_signal(|| sections);
+    // let counter = use_signal(|| 0.0);
     let displaying_uuid = use_signal(|| displaying_uuid);
     let playing_sections = use_signal(|| Vec::default());
 
@@ -916,7 +921,15 @@ fn SectionDisplay(
 
                             // Line Number
                             div {
-                                class: "lin-number",
+                                class: {
+                                    let mut class = "lin-number".into();
+
+                                    if COUNTER() % (N_STEPS as f64) == i as f64 {
+                                        class = format!("{class} text-red");
+                                    }
+
+                                    class
+                                },
                                 // "{i:->2X}"
                                 "{i + 1:->3}"
                             }

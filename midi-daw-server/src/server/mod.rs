@@ -29,7 +29,7 @@ use tracing::log::*;
 use tracing_actix_web::TracingLogger;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-mod message_bus;
+pub mod message_bus;
 mod note;
 
 pub type MidiOut = Sender<(String, midi_msg::MidiMsg)>;
@@ -556,77 +556,77 @@ async fn change_len_by(
     }
 }
 
-/// sends a message to the message bus every note
-pub fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
-    // TODO: make this a client running in a syncronouse std::thread
-    let mut sn = 0;
-    let id = uuid::Uuid::new_v4();
-    let msgs: Vec<String> = vec![
-        "1", "1e", "1&", "1a", "2", "2e", "2&", "2a", "3", "3e", "3&", "3a", "4", "4e", "4&", "4a",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect();
-
-    loop {
-        // start a sleep thread to sleep for sleep_time.
-        let sleep_thread = std::thread::spawn({
-            // calculate sleep_time based on BPQ & tempo.
-            let tempo = unwrap_rw_lock(&tempo, 99.);
-            let sleep_time = Duration::from_secs_f64((60.0 / tempo) / 4.);
-
-            move || {
-                std::thread::sleep(sleep_time);
-            }
-        });
-
-        let message: String = msgs[sn].clone();
-
-        data.send_message(id, &message);
-        // debug!("{message}");
-
-        sn += 1;
-        sn %= 16;
-
-        // if let Ok(tempo) = tempo.read() {
-        // let sleep_time = (*tempo / 60.0) * 2.0 / 16.0;
-        // sleep(Duration::from_secs_f64(sleep_time)).await
-        // }
-        // time sync
-        if let Err(e) = sleep_thread.join() {
-            error!(
-                "joinning sleep thread in midi_out thread resultd in error; {e:?}. this likely means that the sending of sync pulses took longer then the sync step duration"
-            );
-        }
-    }
-}
-
-/// sends a message to the message bus every step
-pub fn sync_step_notif(data: MbServerHandle, tempo: web::Data<Tempo>, bpq: web::Data<BPQ>) -> ! {
-    let conn = uuid::Uuid::new_v4();
-
-    loop {
-        // start a sleep thread to sleep for sleep_time.
-        let sleep_thread = std::thread::spawn({
-            // calculate sleep_time based on BPQ & tempo.
-            let (tempo, beats) = (unwrap_rw_lock(&tempo, 99.), unwrap_rw_lock(&bpq, 24.));
-            let sleep_time = Duration::from_secs_f64((60.0 / tempo) / 4. / beats);
-
-            move || {
-                std::thread::sleep(sleep_time);
-            }
-        });
-
-        data.send_binary(conn, Vec::new().into());
-
-        // time syncRenameSequenceBody
-        if let Err(e) = sleep_thread.join() {
-            error!(
-                "joinning sleep thread in midi_out thread resultd in error; {e:?}. this likely means that the sending of sync pulses took longer then the sync step duration"
-            );
-        }
-    }
-}
+// /// sends a message to the message bus every note
+// pub fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
+//     // TODO: make this a client running in a syncronouse std::thread
+//     let mut sn = 0;
+//     let id = uuid::Uuid::new_v4();
+//     let msgs: Vec<String> = vec![
+//         "1", "1e", "1&", "1a", "2", "2e", "2&", "2a", "3", "3e", "3&", "3a", "4", "4e", "4&", "4a",
+//     ]
+//     .into_iter()
+//     .map(String::from)
+//     .collect();
+//
+//     loop {
+//         // start a sleep thread to sleep for sleep_time.
+//         let sleep_thread = std::thread::spawn({
+//             // calculate sleep_time based on BPQ & tempo.
+//             let tempo = unwrap_rw_lock(&tempo, 99.);
+//             let sleep_time = Duration::from_secs_f64((60.0 / tempo) / 4.);
+//
+//             move || {
+//                 std::thread::sleep(sleep_time);
+//             }
+//         });
+//
+//         let message: String = msgs[sn].clone();
+//
+//         data.send_message(id, &message);
+//         // debug!("{message}");
+//
+//         sn += 1;
+//         sn %= 16;
+//
+//         // if let Ok(tempo) = tempo.read() {
+//         // let sleep_time = (*tempo / 60.0) * 2.0 / 16.0;
+//         // sleep(Duration::from_secs_f64(sleep_time)).await
+//         // }
+//         // time sync
+//         if let Err(e) = sleep_thread.join() {
+//             error!(
+//                 "joinning sleep thread in midi_out thread resultd in error; {e:?}. this likely means that the sending of sync pulses took longer then the sync step duration"
+//             );
+//         }
+//     }
+// }
+//
+// /// sends a message to the message bus every step
+// pub fn sync_step_notif(data: MbServerHandle, tempo: web::Data<Tempo>, bpq: web::Data<BPQ>) -> ! {
+//     let conn = uuid::Uuid::new_v4();
+//
+//     loop {
+//         // start a sleep thread to sleep for sleep_time.
+//         let sleep_thread = std::thread::spawn({
+//             // calculate sleep_time based on BPQ & tempo.
+//             let (tempo, beats) = (unwrap_rw_lock(&tempo, 99.), unwrap_rw_lock(&bpq, 24.));
+//             let sleep_time = Duration::from_secs_f64((60.0 / tempo) / 4. / beats);
+//
+//             move || {
+//                 std::thread::sleep(sleep_time);
+//             }
+//         });
+//
+//         data.send_binary(conn, Vec::new().into());
+//
+//         // time syncRenameSequenceBody
+//         if let Err(e) = sleep_thread.join() {
+//             error!(
+//                 "joinning sleep thread in midi_out thread resultd in error; {e:?}. this likely means that the sending of sync pulses took longer then the sync step duration"
+//             );
+//         }
+//     }
+// }
 
 pub async fn run(
     tempo: Tempo,
@@ -634,6 +634,8 @@ pub async fn run(
     midi_out: MidiOut,
     new_dev_tx: Sender<MidiDev>,
     sequencer_tx: Sender<SequencerControlCmd>,
+    mb_server: MbServer,
+    server_tx: MbServerHandle,
 ) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
     let bpq = web::Data::new(bpq);
@@ -642,7 +644,6 @@ pub async fn run(
     let seq_tx = web::Data::new(sequencer_tx);
     let virtual_devs = web::Data::new(Mutex::new(FxHashSet::<String>::default()));
     // let msg_event_addr = web::Data::new(MbMessageEvent.start());
-    let (mb_server, server_tx) = MbServer::new();
 
     let _chat_server = spawn(mb_server.run());
 
@@ -659,19 +660,19 @@ pub async fn run(
         .without_time()
         .init();
 
-    let _clock_notif_jh = std::thread::spawn({
-        let tempo = tempo.clone();
-        let server_tx = server_tx.clone();
-
-        move || clock_notif(server_tx, tempo)
-    });
-    let _sync_step_jh = std::thread::spawn({
-        let tempo = tempo.clone();
-        let bpq = bpq.clone();
-        let server_tx = server_tx.clone();
-
-        move || sync_step_notif(server_tx, tempo, bpq)
-    });
+    // let _clock_notif_jh = std::thread::spawn({
+    //     let tempo = tempo.clone();
+    //     let server_tx = server_tx.clone();
+    //
+    //     move || clock_notif(server_tx, tempo)
+    // });
+    // let _sync_step_jh = std::thread::spawn({
+    //     let tempo = tempo.clone();
+    //     let bpq = bpq.clone();
+    //     let server_tx = server_tx.clone();
+    //
+    //     move || sync_step_notif(server_tx, tempo, bpq)
+    // });
 
     HttpServer::new({
         let server_tx = web::Data::new(server_tx);
@@ -685,6 +686,7 @@ pub async fn run(
                 .app_data(new_dev_tx.clone())
                 .app_data(virtual_devs.clone())
                 .app_data(seq_tx.clone())
+                .app_data(bpq.clone())
                 .service(midi)
                 .service(midi_pool_exec)
                 .service(get_devs)

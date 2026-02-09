@@ -14,7 +14,7 @@ use midi_daw_types::{
 use tokio::spawn;
 use tracing::*;
 
-use crate::midi::out::unwrap_rw_lock;
+use crate::{midi::out::unwrap_rw_lock, server::message_bus::MbServerHandle};
 
 pub type AllSequences = FxHashMap<SequenceName, Sequence>;
 
@@ -86,7 +86,12 @@ pub enum SequencerControlCmd {
 }
 
 #[tokio::main]
-pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<SequencerControlCmd>) {
+pub async fn sequencer_start(
+    tempo: Tempo,
+    bpq: BPQ,
+    controls: Receiver<SequencerControlCmd>,
+    mb_sender: MbServerHandle,
+) {
     // let url = Uri::new("/tmp/hyperlocal.sock", "/").into();
 
     let mk_timer = || {
@@ -108,6 +113,7 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
     let mut queued_stop_sequences: Vec<SequenceName> = Vec::default();
     let mut playing_sequences: Vec<SequenceName> = Vec::default();
     let mut jh_s = Vec::default();
+    let conn = uuid::Uuid::new_v4();
 
     loop {
         if sleep_thread.is_finished() {
@@ -196,6 +202,8 @@ pub async fn sequencer_start(tempo: Tempo, bpq: BPQ, controls: Receiver<Sequence
             if !(playing_sequences.is_empty() && queued_sequences.is_empty()) {
                 counter += 1.;
                 counter %= f64::MAX;
+
+                mb_sender.send_binary(conn, counter.to_ne_bytes().to_vec().into());
             } else {
                 counter = 0.;
             }

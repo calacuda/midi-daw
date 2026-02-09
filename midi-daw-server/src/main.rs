@@ -1,6 +1,7 @@
 use crate::{
     midi::{dev::new_midi_dev, out::midi_out},
     sequencer::sequencer_start,
+    server::message_bus::MbServer,
 };
 use crossbeam::channel::unbounded;
 use std::{
@@ -26,6 +27,7 @@ pub async fn main() -> std::io::Result<()> {
     let (new_midi_dev_tx, new_midi_dev_rx) = unbounded();
     let (sequencer_control_tx, sequencer_control_rx) = unbounded();
     // let (from_sequence_tx, from_sequencer_rx) = unbounded();
+    let (mb_server, server_tx) = MbServer::new();
 
     let (_jh_1, _jh_2, _jh_3) = {
         // start midi output thread.
@@ -47,10 +49,11 @@ pub async fn main() -> std::io::Result<()> {
 
         // start sequencer
         let sequencer_jh = spawn({
+            let server_tx = server_tx.clone();
             let tempo = tempo.clone();
             let bpq = bpq.clone();
 
-            move || sequencer_start(tempo, bpq, sequencer_control_rx)
+            move || sequencer_start(tempo, bpq, sequencer_control_rx, server_tx)
         });
 
         (midi_out_jh, midi_dev_jh, sequencer_jh)
@@ -63,6 +66,8 @@ pub async fn main() -> std::io::Result<()> {
         midi_msg_out_tx,
         new_midi_dev_tx,
         sequencer_control_tx,
+        mb_server,
+        server_tx,
     )
     .await
 }

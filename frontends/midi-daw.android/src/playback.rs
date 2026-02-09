@@ -32,7 +32,7 @@ pub enum MessageToPlayer {
 //     let (send, sync_pulse) = unbounded();
 //     let _sync_pulse_jh = spawn(move || {
 //         loop {
-//             sync_puse_reader(send.clone());
+//             sync_pulse_reader(send.clone());
 //             sleep(Duration::from_secs(1));
 //         }
 //     });
@@ -147,7 +147,7 @@ pub enum MessageToPlayer {
 //     }
 // }
 
-pub fn sync_puse_reader(tx: Sender<()>) -> () {
+pub fn sync_pulse_reader(tx: Sender<()>) -> () {
     // let bpq = 24;
     let (mut socket, response) = match connect(format!("ws://{BASE_URL}/message-bus")) {
         Ok(val) => val,
