@@ -685,7 +685,6 @@ pub async fn run(
                 .app_data(new_dev_tx.clone())
                 .app_data(virtual_devs.clone())
                 .app_data(seq_tx.clone())
-                .app_data(bpq.clone())
                 .service(midi)
                 .service(midi_pool_exec)
                 .service(get_devs)

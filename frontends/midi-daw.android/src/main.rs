@@ -930,7 +930,7 @@ fn SectionDisplay(
                                 class: {
                                     let mut class = "lin-number".into();
 
-                                    if counter() % 16. == i as f64 {
+                                    if counter() as usize % (sections().read().unwrap()[*displaying().read().unwrap()].steps.len()) == i {
                                         // info!("i is {i}");
 
                                         class = format!("{class} text-red");

@@ -46,9 +46,9 @@ these are listen in no particular order.
 - [ ] add stop-all button to app
 - [x] add queue-stop functionality to server
 - [x] add queue-stop button to app
-- [ ] add step count hilighting to the app
-  - [ ] connect with websocket
-  - [ ] get step
+- [x] add step count hilighting to the app
+  - [x] connect with websocket
+  - [x] get step
 - [ ] add saving/loading of sequences
   - [ ] saving
   - [ ] loading
