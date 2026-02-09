@@ -1,5 +1,5 @@
 use crate::{
-    midi::{MidiDev, dev::fmt_dev_name, out::unwrap_rw_lock},
+    midi::{MidiDev, dev::fmt_dev_name},
     sequencer::SequencerControlCmd,
     server::{
         message_bus::{MbServer, MbServerHandle},
@@ -20,7 +20,6 @@ use midi_daw_types::{
 };
 pub use midi_daw_types::{BPQ, Tempo};
 use midir::MidiOutput;
-use std::time::Duration;
 use tokio::{
     sync::{Mutex, oneshot},
     task::spawn_local,

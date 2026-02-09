@@ -1,16 +1,16 @@
-use crossbeam::channel::{
-    // Receiver,
-    Sender,
-    // unbounded
-};
+// use crossbeam::channel::{
+// Receiver,
+// Sender,
+// unbounded
+// };
 // use midi_daw_types::{MidiReqBody, NoteDuration};
 // use std::{
 //     sync::{Arc, RwLock},
 //     thread::{sleep, spawn},
 //     time::Duration,
 // };
-use tracing::*;
-use tungstenite::connect;
+// use tracing::*;
+// use tungstenite::connect;
 
 // use crate::tracks::Track;
 
@@ -147,52 +147,52 @@ pub enum MessageToPlayer {
 //     }
 // }
 
-pub fn sync_pulse_reader(tx: Sender<()>) -> () {
-    // let bpq = 24;
-    let (mut socket, response) = match connect(format!("ws://{BASE_URL}/message-bus")) {
-        Ok(val) => val,
-        Err(e) => {
-            error!("{e}");
-            return;
-        }
-    };
-
-    if response.status() != 101 {
-        error!(
-            "failed to connect to message-bus. failure detected based on responce code. (was {}, expected 101.)",
-            response.status()
-        );
-        return;
-    }
-
-    info!("connected... {}", response.status());
-
-    // let mut pulses = 0;
-    let beats: Vec<String> = vec![
-        "1", "1e", "1&", "1a", "2", "2e", "2&", "2a", "3", "3e", "3&", "3a", "4", "4e", "4&", "4a",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect();
-
-    loop {
-        let Ok(msg) = socket.read() else {
-            return;
-        };
-
-        // if pulses % bpq == 0 {
-        //     // info!("pulse");
-        //     _ = tx.send(());
-        // }
-
-        match msg {
-            // tungstenite::Message::Binary(_) => pulses += 1,
-            tungstenite::Message::Text(msg) => {
-                if beats.contains(&msg.to_string()) {
-                    _ = tx.send(());
-                }
-            }
-            _ => {}
-        }
-    }
-}
+// pub fn sync_pulse_reader(tx: Sender<()>) -> () {
+//     // let bpq = 24;
+//     let (mut socket, response) = match connect(format!("ws://{BASE_URL}/message-bus")) {
+//         Ok(val) => val,
+//         Err(e) => {
+//             error!("{e}");
+//             return;
+//         }
+//     };
+//
+//     if response.status() != 101 {
+//         error!(
+//             "failed to connect to message-bus. failure detected based on responce code. (was {}, expected 101.)",
+//             response.status()
+//         );
+//         return;
+//     }
+//
+//     info!("connected... {}", response.status());
+//
+//     // let mut pulses = 0;
+//     let beats: Vec<String> = vec![
+//         "1", "1e", "1&", "1a", "2", "2e", "2&", "2a", "3", "3e", "3&", "3a", "4", "4e", "4&", "4a",
+//     ]
+//     .into_iter()
+//     .map(String::from)
+//     .collect();
+//
+//     loop {
+//         let Ok(msg) = socket.read() else {
+//             return;
+//         };
+//
+//         // if pulses % bpq == 0 {
+//         //     // info!("pulse");
+//         //     _ = tx.send(());
+//         // }
+//
+//         match msg {
+//             // tungstenite::Message::Binary(_) => pulses += 1,
+//             tungstenite::Message::Text(msg) => {
+//                 if beats.contains(&msg.to_string()) {
+//                     _ = tx.send(());
+//                 }
+//             }
+//             _ => {}
+//         }
+//     }
+// }

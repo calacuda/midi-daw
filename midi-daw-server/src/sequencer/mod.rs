@@ -197,13 +197,13 @@ pub async fn sequencer_start(
                     jh_s.retain(|jh| !jh.is_finished());
                     // break;
                 }
+
+                mb_sender.send_binary(conn, counter.to_ne_bytes().to_vec().into());
             }
 
             if !(playing_sequences.is_empty() && queued_sequences.is_empty()) {
                 counter += 1.;
                 counter %= f64::MAX;
-
-                mb_sender.send_binary(conn, counter.to_ne_bytes().to_vec().into());
             } else {
                 counter = 0.;
             }

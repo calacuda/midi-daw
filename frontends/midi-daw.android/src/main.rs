@@ -3,18 +3,16 @@ use crate::{
     playback::BASE_URL,
     tracks::{Track, TrackerCmd},
 };
-// use crossbeam::channel::{Receiver, Sender, unbounded};
-use dioxus::prelude::*;
+use dioxus::{core::spawn, prelude::*};
+use futures_util::StreamExt;
 use midi_daw_types::{
     AddNoteBody, ChangeLenByBody, GetSequenceQuery, MidiChannel, RenameSequenceBody, RmNoteBody,
     Sequence, SetChannelBody, SetDevBody,
 };
-use std::{
-    sync::{Arc, RwLock},
-    thread::spawn,
-};
+use std::sync::{Arc, RwLock};
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::*;
-use tungstenite::connect;
 
 pub mod less_then;
 pub mod playback;
@@ -26,7 +24,6 @@ pub type SectionsUID = usize;
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const N_STEPS: usize = 16;
-const COUNTER: GlobalSignal<f64> = Signal::global(|| 0.);
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum MiddleColView {
@@ -60,7 +57,6 @@ fn main() {
     // let sections = Arc::new(RwLock::new(vec![melodic, drums]));
     let sections = Arc::new(RwLock::new(Vec::<Track>::default()));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
-    // let (send, sync_pulse) = unbounded::<f64>();
 
     // this is here to remind me of some technique, but what? google the docs for this function.
     // #[cfg(android)]
@@ -72,11 +68,6 @@ fn main() {
         .map(|res| res.json().ok())
         .ok()
         .flatten();
-    let _jh = spawn({
-        move || {
-            sync_pulse_reader();
-        }
-    });
 
     if let Some(mut names) = names
         && !names.is_empty()
@@ -125,16 +116,16 @@ fn main() {
     dioxus::LaunchBuilder::new()
         .with_context(sections.clone())
         .with_context(displaying_uuid.clone())
+        // .with_context(counter)
         // .with_context(send)
         // .with_context(sync_pulse)
         // .with_context(send)
         .launch(App);
 }
 
-// fn sync_pulse_reader(tx: Sender<f64>) -> () {
-fn sync_pulse_reader() -> () {
+async fn sync_pulse_reader(tx: UnboundedSender<f64>) -> () {
     // let bpq = 24;
-    let (mut socket, response) = match connect(format!("ws://{BASE_URL}/message-bus")) {
+    let (socket, response) = match connect_async(format!("ws://{BASE_URL}/message-bus")).await {
         Ok(val) => val,
         Err(e) => {
             error!("{e}");
@@ -152,26 +143,29 @@ fn sync_pulse_reader() -> () {
 
     info!("connected... {}", response.status());
 
-    loop {
-        let Ok(msg) = socket.read() else {
-            return;
-        };
+    let (_, socket) = socket.split();
 
-        match msg {
-            tungstenite::Message::Binary(msg) if msg.len() == 8 => {
-                let counter = f64::from_ne_bytes([
-                    msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7],
-                ]);
-                info!("counter: {counter}");
+    // loop {
+    socket
+        .for_each(|msg| async {
+            match msg {
+                Ok(Message::Binary(msg)) if msg.len() == 8 => {
+                    let counter = f64::from_ne_bytes([
+                        msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7],
+                    ]);
 
-                // if let Err(e) = tx.send(counter) {
-                //     error!("{e}");
-                // }
-                COUNTER.set(counter);
+                    if let Err(e) = tx.send(counter) {
+                        error!("counter send error: {e}");
+                    } else {
+                        info!(counter);
+                    }
+                }
+                _ => {}
             }
-            _ => {}
-        }
-    }
+        })
+        .await;
+
+    // }
 }
 
 #[component]
@@ -181,9 +175,9 @@ fn App() -> Element {
     let displaying_uuid = use_context::<Arc<RwLock<usize>>>();
     // let send = use_context::<Sender<f64>>();
     // let sync_pusle = use_context::<Receiver<f64>>();
+    // let counter = use_context::<SyncSignal<f64>>();
 
     let sections = use_signal(|| sections);
-    // let counter = use_signal(|| 0.0);
     let displaying_uuid = use_signal(|| displaying_uuid);
     let playing_sections = use_signal(|| Vec::default());
 
@@ -756,14 +750,25 @@ fn MiddleCol(
     displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
     choosing_device: Signal<bool>,
+    // counter: Signal<f64>,
 ) -> Element {
     // let is_drum_track = use_signal(|| sections.read()[displaying()].is_drum);
+    let mut counter = use_signal(|| 0.0);
+    let (tx, mut sync_pulse) = unbounded_channel::<f64>();
+    let _thread_jh = spawn(async move { sync_pulse_reader(tx).await });
+    let _recv_jh = spawn(async move {
+        loop {
+            if let Some(c) = sync_pulse.recv().await {
+                counter.set(c);
+            }
+        }
+    });
 
     rsx! {
         div {
             id: "middle-main",
             if middle_view() == MiddleColView::Section && !sections.read().read().unwrap()[*displaying().read().unwrap()].is_drum {
-                SectionDisplay { middle_view, sections, displaying, edit_cell, choosing_device }
+                SectionDisplay { middle_view, sections, displaying, edit_cell, choosing_device, counter }
             } else if middle_view() == MiddleColView::Section && sections.read().read().unwrap()[*displaying().read().unwrap()].is_drum {
                 DrumSectionDisplay { middle_view, sections, displaying }
             } else if middle_view() == MiddleColView::Pattern {}
@@ -886,6 +891,7 @@ fn SectionDisplay(
     displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
     choosing_device: Signal<bool>,
+    counter: Signal<f64>,
 ) -> Element {
     // info!("regular section view");
 
@@ -924,7 +930,9 @@ fn SectionDisplay(
                                 class: {
                                     let mut class = "lin-number".into();
 
-                                    if COUNTER() % (N_STEPS as f64) == i as f64 {
+                                    if counter() % 16. == i as f64 {
+                                        // info!("i is {i}");
+
                                         class = format!("{class} text-red");
                                     }
 
