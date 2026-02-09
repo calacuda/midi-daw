@@ -198,7 +198,9 @@ pub async fn sequencer_start(
                     // break;
                 }
 
-                mb_sender.send_binary(conn, counter.to_ne_bytes().to_vec().into());
+                if !(playing_sequences.is_empty() && queued_sequences.is_empty()) {
+                    mb_sender.send_binary(conn, i.to_ne_bytes().to_vec().into());
+                }
             }
 
             if !(playing_sequences.is_empty() && queued_sequences.is_empty()) {
