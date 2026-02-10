@@ -123,7 +123,7 @@ pub enum SequencerControlCmd {
         /// the sequence name to load
         sequence: String,
     },
-    ///
+    /// rm a project from storage.
     RmSavedProject {
         /// Sequence name to rm
         sequence: String,
@@ -458,28 +458,22 @@ pub async fn sequencer_start(
                         if let Some(mut data_dir) = xdg_dirs.data_home {
                             data_dir.push("midi-daw");
 
-                            if let Ok(dir_contents) = read_dir(data_dir).await {
+                            if let Ok(mut dir_contents) = read_dir(data_dir).await {
                                 let mut contents = Vec::default();
 
                                 while let Some(f_name) = dir_contents.next().await {
                                     if let Ok(fname) = f_name {
-                                        // let fname = fname.await;
-
                                         if let Ok(ftype) = fname.file_type().await
                                             && ftype.is_file()
                                         {
                                             contents.push(
-                                                fname
-                                                    .file_name()
-                                                    // .await
-                                                    .to_string_lossy()
-                                                    .to_string(),
+                                                fname.file_name().to_string_lossy().to_string(),
                                             )
                                         }
                                     }
                                 }
 
-                                if let Err(e) = responder.send(contents) {
+                                if let Err(e) = responder.send(contents.clone()) {
                                     error!(
                                         "attempts to respond to front end failed with error: {e:?}"
                                     );
@@ -504,8 +498,8 @@ pub async fn sequencer_start(
                             data_dir.push(format!("{}.json", sequence));
 
                             // read file from disk
-                            if let Ok(file) = File::open(data_dir).await {
-                                let reader = BufReader::new(file);
+                            if let Ok(file) = File::open(&data_dir).await {
+                                let mut reader = BufReader::new(file);
 
                                 let mut json_text = String::new();
                                 let mut last_f_len = json_text.len();
@@ -513,13 +507,14 @@ pub async fn sequencer_start(
                                 let mut f_len = json_text.len();
 
                                 while last_f_len != f_len {
+                                    last_f_len = f_len;
                                     reader.read_line(&mut json_text);
-                                    let mut f_len = json_text.len();
+                                    f_len = json_text.len();
                                 }
 
                                 // parse JSON
                                 if let Ok(json) = serde_json::from_str::<Sequence>(&json_text) {
-                                    sequences.insert(json.name, json.clone());
+                                    sequences.insert(json.name.clone(), json.clone());
                                     info!("restored sequnce, '{}', from disk", json.name);
                                 } else {
                                     error!("parsing stored json failed.");
@@ -565,6 +560,46 @@ pub async fn sequencer_start(
                             );
                         }
                     }
+                    SequencerControlCmd::SaveProject { project_name } => {}
+                    SequencerControlCmd::ListSavedProjects { responder } => {
+                        let xdg_dirs = BaseDirectories::new();
+
+                        if let Some(mut data_dir) = xdg_dirs.data_home {
+                            data_dir.push("midi-daw");
+
+                            if let Ok(mut dir_contents) = read_dir(data_dir).await {
+                                let mut contents = Vec::default();
+
+                                while let Some(f_name) = dir_contents.next().await {
+                                    if let Ok(fname) = f_name {
+                                        if let Ok(ftype) = fname.file_type().await
+                                            && ftype.is_dir()
+                                        {
+                                            contents.push(
+                                                fname.file_name().to_string_lossy().to_string(),
+                                            )
+                                        }
+                                    }
+                                }
+
+                                if let Err(e) = responder.send(contents.clone()) {
+                                    error!(
+                                        "attempts to respond to front end failed with error: {e:?}"
+                                    );
+                                } else {
+                                    info!("listed projects {:?}", contents);
+                                }
+                            } else {
+                                error!("failed to read saved files in data directory.");
+                            }
+                        } else {
+                            error!(
+                                "the '$HOME' env var could not be found. so no xdg dir could be set"
+                            );
+                        }
+                    }
+                    SequencerControlCmd::LoadSavedProject { sequence } => {}
+                    SequencerControlCmd::RmSavedProject { sequence } => {}
                 }
             }
         }
