@@ -54,3 +54,8 @@ these are listen in no particular order.
   - [ ] listing
   - [ ] loading
   - [ ] rm-ing of saved data
+- [ ] add saving/loading/listing/rm-ing of entire-projects
+  - [ ] saving
+  - [ ] listing
+  - [ ] loading
+  - [ ] rm-ing of saved data
