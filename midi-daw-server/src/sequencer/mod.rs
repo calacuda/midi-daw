@@ -3,7 +3,7 @@ use std::time::Duration;
 use actix::dev::OneshotSender;
 use async_std::{
     fs::{File, create_dir_all, read_dir},
-    io::WriteExt,
+    io::{BufReadExt, BufReader, WriteExt},
 };
 use crossbeam::channel::Receiver;
 use futures_lite::stream::StreamExt;
@@ -485,6 +485,46 @@ pub async fn sequencer_start(
                                 }
                             } else {
                                 error!("failed to read saved files in data directory.");
+                            }
+                        } else {
+                            error!(
+                                "the '$HOME' env var could not be found. so no xdg dir could be set"
+                            );
+                        }
+                    }
+                    SequencerControlCmd::LoadSequence { sequence } => {
+                        // get file path
+                        let xdg_dirs = BaseDirectories::new();
+
+                        if let Some(mut data_dir) = xdg_dirs.data_home {
+                            data_dir.push("midi-daw");
+                            data_dir.push(format!("{}.json", sequence));
+
+                            // read file from disk
+                            if let Ok(file) = File::open(data_dir).await {
+                                let reader = BufReader::new(file);
+
+                                let mut json_text = String::new();
+                                let mut last_f_len = json_text.len();
+                                reader.read_line(&mut json_text);
+                                let mut f_len = json_text.len();
+
+                                while last_f_len != f_len {
+                                    reader.read_line(&mut json_text);
+                                    let mut f_len = json_text.len();
+                                }
+
+                                // parse JSON
+                                if let Ok(json) = serde_json::from_str::<Sequence>(&json_text) {
+                                    sequences.insert(json.name, json);
+                                } else {
+                                    error!("parsing stored json failed.");
+                                }
+                            } else {
+                                error!(
+                                    "failed to open file. does, '{}', exist?",
+                                    data_dir.to_string_lossy()
+                                );
                             }
                         } else {
                             error!(
