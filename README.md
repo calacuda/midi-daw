@@ -53,9 +53,11 @@ these are listen in no particular order.
   - [x] saving
   - [x] listing
   - [x] loading
-  - [ ] rm-ing of saved data
+  - [x] rm-ing of saved data
+  - [ ] mk api end-points
 - [ ] add saving/loading/listing/rm-ing of entire-projects
   - [ ] saving
   - [ ] listing
   - [ ] loading
   - [ ] rm-ing of saved data
+  - [ ] mk api end-points
