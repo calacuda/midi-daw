@@ -52,7 +52,7 @@ these are listen in no particular order.
 - [ ] add saving/loading/listing/rm-ing of sequences
   - [x] saving
   - [x] listing
-  - [ ] loading
+  - [x] loading
   - [ ] rm-ing of saved data
 - [ ] add saving/loading/listing/rm-ing of entire-projects
   - [ ] saving
