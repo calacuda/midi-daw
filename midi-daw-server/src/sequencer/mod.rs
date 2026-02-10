@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use actix::dev::OneshotSender;
 use async_std::{
-    fs::{File, create_dir_all, read_dir},
+    fs::{File, create_dir_all, read_dir, remove_file},
     io::{BufReadExt, BufReader, WriteExt},
 };
 use crossbeam::channel::Receiver;
@@ -447,6 +447,7 @@ pub async fn sequencer_start(
                     SequencerControlCmd::SaveSequence { sequence } => {
                         if let Some(seq) = sequences.get(&sequence) {
                             save_seqeunce(seq, &sequence).await;
+                            // logging handled in above function
                         } else {
                             error!("sequence not found");
                         }
@@ -482,6 +483,8 @@ pub async fn sequencer_start(
                                     error!(
                                         "attempts to respond to front end failed with error: {e:?}"
                                     );
+                                } else {
+                                    info!("listed seqeunces {:?}", contents);
                                 }
                             } else {
                                 error!("failed to read saved files in data directory.");
@@ -516,13 +519,43 @@ pub async fn sequencer_start(
 
                                 // parse JSON
                                 if let Ok(json) = serde_json::from_str::<Sequence>(&json_text) {
-                                    sequences.insert(json.name, json);
+                                    sequences.insert(json.name, json.clone());
+                                    info!("restored sequnce, '{}', from disk", json.name);
                                 } else {
                                     error!("parsing stored json failed.");
                                 }
                             } else {
                                 error!(
                                     "failed to open file. does, '{}', exist?",
+                                    data_dir.to_string_lossy()
+                                );
+                            }
+                        } else {
+                            error!(
+                                "the '$HOME' env var could not be found. so no xdg dir could be set"
+                            );
+                        }
+                    }
+                    SequencerControlCmd::RmSavedSequence { sequence } => {
+                        // get file path
+                        let xdg_dirs = BaseDirectories::new();
+
+                        if let Some(mut data_dir) = xdg_dirs.data_home {
+                            data_dir.push("midi-daw");
+                            data_dir.push(format!("{}.json", sequence));
+
+                            if data_dir.exists() {
+                                if let Err(e) = remove_file(&data_dir).await {
+                                    error!(
+                                        "removing, '{}', failed with error, {e}",
+                                        data_dir.to_string_lossy()
+                                    );
+                                } else {
+                                    info!("seqeunce file removed");
+                                }
+                            } else {
+                                warn!(
+                                    "the sequence file path: '{}' doesn't exist, can't remove",
                                     data_dir.to_string_lossy()
                                 );
                             }
