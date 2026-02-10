@@ -31,3 +31,4 @@ tracing-actix-web = "0.7.19"
 tracing-bunyan-formatter = "0.3.10"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "tracing"] }
 uuid = { version = "1.17.0", features = ["v4"] }
+xdg = { version = "3.0.0", features = ["serde"] }

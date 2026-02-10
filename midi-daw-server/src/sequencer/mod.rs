@@ -1,6 +1,10 @@
 use std::time::Duration;
 
 use actix::dev::OneshotSender;
+use async_std::{
+    fs::{File, create_dir_all},
+    io::WriteExt,
+};
 use crossbeam::channel::Receiver;
 use fx_hash::FxHashMap;
 use http_body_util::Full;
@@ -13,6 +17,7 @@ use midi_daw_types::{
 };
 use tokio::spawn;
 use tracing::*;
+use xdg::BaseDirectories;
 
 use crate::{midi::out::unwrap_rw_lock, server::message_bus::MbServerHandle};
 
@@ -82,6 +87,12 @@ pub enum SequencerControlCmd {
     ChangeLenBy {
         sequence: SequenceName,
         amt: isize,
+    },
+    SaveSequence {
+        /// the sequence name to save
+        sequence: SequenceName,
+        /// the file name to save to (the default save path is assumed.)
+        f_name: String,
     },
 }
 
@@ -394,6 +405,56 @@ pub async fn sequencer_start(
                                 (0..amt.abs()).for_each(|_| {
                                     seq.steps.pop();
                                 });
+                            }
+                        } else {
+                            error!("sequence not found");
+                        }
+                    }
+                    SequencerControlCmd::SaveSequence { sequence, f_name } => {
+                        if let Some(seq) = sequences.get(&sequence) {
+                            match serde_json::to_string_pretty(seq) {
+                                Ok(json) => {
+                                    let xdg_dirs = BaseDirectories::new();
+
+                                    if let Some(mut data_dir) = xdg_dirs.data_home {
+                                        data_dir.push("midi-daw");
+
+                                        if !data_dir.exists() {
+                                            if let Err(e) = create_dir_all(&data_dir).await {
+                                                error!("creating data dir failed with error, {e}");
+                                            }
+                                        }
+
+                                        data_dir.push(format!("{f_name}.json"));
+
+                                        match File::create(data_dir).await {
+                                            Ok(mut file) => {
+                                                match file.write_all(json.as_bytes()).await {
+                                                    Ok(_) => info!(
+                                                        "saved '{sequence}' to file {f_name}."
+                                                    ),
+                                                    Err(e) => {
+                                                        error!(
+                                                            "writing seqeunce data to file failed with an error, {e}"
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                error!(
+                                                    "creating file to save sequence to failed with an error, {e}"
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        error!(
+                                            "the '$HOME' env var could not be found. so no xdg dir could be set"
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("attept to json-ify, failed with error, {e}");
+                                }
                             }
                         } else {
                             error!("sequence not found");
