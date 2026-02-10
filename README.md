@@ -50,6 +50,6 @@ these are listen in no particular order.
   - [x] connect with websocket
   - [x] get step
 - [ ] add saving/loading of sequences
-  - [ ] saving
+  - [x] saving
   - [ ] loading
   - [ ] rm-ing of saved data
