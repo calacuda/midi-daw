@@ -49,7 +49,8 @@ these are listen in no particular order.
 - [x] add step count hilighting to the app
   - [x] connect with websocket
   - [x] get step
-- [ ] add saving/loading of sequences
+- [ ] add saving/loading/listing/rm-ing of sequences
   - [x] saving
+  - [ ] listing
   - [ ] loading
   - [ ] rm-ing of saved data
