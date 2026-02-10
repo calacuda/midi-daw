@@ -2,10 +2,11 @@ use std::time::Duration;
 
 use actix::dev::OneshotSender;
 use async_std::{
-    fs::{File, create_dir_all},
+    fs::{File, create_dir_all, read_dir},
     io::WriteExt,
 };
 use crossbeam::channel::Receiver;
+use futures_lite::stream::StreamExt;
 use fx_hash::FxHashMap;
 use http_body_util::Full;
 use hyper::{Method, Request, body::Bytes};
@@ -88,11 +89,44 @@ pub enum SequencerControlCmd {
         sequence: SequenceName,
         amt: isize,
     },
+    /// saves a sequence to disk
     SaveSequence {
         /// the sequence name to save
         sequence: SequenceName,
-        /// the file name to save to (the default save path is assumed.)
-        f_name: String,
+    },
+    /// lists sequences that have been saved to disk that are not a part of a project
+    ListSavedSequences {
+        /// will send back the base file names without the parent directory
+        responder: OneshotSender<Vec<String>>,
+    },
+    /// loads a sequence from disk
+    LoadSequence {
+        /// the sequence name to load
+        sequence: SequenceName,
+    },
+    ///
+    RmSavedSequence {
+        /// Sequence name to rm
+        sequence: SequenceName,
+    },
+    /// saves all seqeunces into a sub folder of the data dir. the base file name will be based on the sequences name
+    SaveProject {
+        project_name: String,
+    },
+    /// lists only the projects that have been saved (not their sequences)
+    ListSavedProjects {
+        /// will send back the base file names without the parent directory
+        responder: OneshotSender<Vec<String>>,
+    },
+    /// loads a Project and its sequences from disk
+    LoadSavedProject {
+        /// the sequence name to load
+        sequence: String,
+    },
+    ///
+    RmSavedProject {
+        /// Sequence name to rm
+        sequence: String,
     },
 }
 
@@ -410,58 +444,100 @@ pub async fn sequencer_start(
                             error!("sequence not found");
                         }
                     }
-                    SequencerControlCmd::SaveSequence { sequence, f_name } => {
+                    SequencerControlCmd::SaveSequence { sequence } => {
                         if let Some(seq) = sequences.get(&sequence) {
-                            match serde_json::to_string_pretty(seq) {
-                                Ok(json) => {
-                                    let xdg_dirs = BaseDirectories::new();
-
-                                    if let Some(mut data_dir) = xdg_dirs.data_home {
-                                        data_dir.push("midi-daw");
-
-                                        if !data_dir.exists() {
-                                            if let Err(e) = create_dir_all(&data_dir).await {
-                                                error!("creating data dir failed with error, {e}");
-                                            }
-                                        }
-
-                                        data_dir.push(format!("{f_name}.json"));
-
-                                        match File::create(data_dir).await {
-                                            Ok(mut file) => {
-                                                match file.write_all(json.as_bytes()).await {
-                                                    Ok(_) => info!(
-                                                        "saved '{sequence}' to file {f_name}."
-                                                    ),
-                                                    Err(e) => {
-                                                        error!(
-                                                            "writing seqeunce data to file failed with an error, {e}"
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            Err(e) => {
-                                                error!(
-                                                    "creating file to save sequence to failed with an error, {e}"
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        error!(
-                                            "the '$HOME' env var could not be found. so no xdg dir could be set"
-                                        );
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("attept to json-ify, failed with error, {e}");
-                                }
-                            }
+                            save_seqeunce(seq, &sequence).await;
                         } else {
                             error!("sequence not found");
                         }
                     }
+                    SequencerControlCmd::ListSavedSequences { responder } => {
+                        let xdg_dirs = BaseDirectories::new();
+
+                        if let Some(mut data_dir) = xdg_dirs.data_home {
+                            data_dir.push("midi-daw");
+
+                            if let Ok(dir_contents) = read_dir(data_dir).await {
+                                let mut contents = Vec::default();
+
+                                while let Some(f_name) = dir_contents.next().await {
+                                    if let Ok(fname) = f_name {
+                                        // let fname = fname.await;
+
+                                        if let Ok(ftype) = fname.file_type().await
+                                            && ftype.is_file()
+                                        {
+                                            contents.push(
+                                                fname
+                                                    .file_name()
+                                                    // .await
+                                                    .to_string_lossy()
+                                                    .to_string(),
+                                            )
+                                        }
+                                    }
+                                }
+
+                                if let Err(e) = responder.send(contents) {
+                                    error!(
+                                        "attempts to respond to front end failed with error: {e:?}"
+                                    );
+                                }
+                            } else {
+                                error!("failed to read saved files in data directory.");
+                            }
+                        } else {
+                            error!(
+                                "the '$HOME' env var could not be found. so no xdg dir could be set"
+                            );
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+async fn save_seqeunce(seq: &Sequence, sequence_name: &str) {
+    match serde_json::to_string_pretty(seq) {
+        Ok(json) => {
+            let xdg_dirs = BaseDirectories::new();
+
+            if let Some(mut data_dir) = xdg_dirs.data_home {
+                data_dir.push("midi-daw");
+
+                if !data_dir.exists() {
+                    if let Err(e) = create_dir_all(&data_dir).await {
+                        error!("creating data dir failed with error, {e}");
+                    }
+                }
+
+                data_dir.push(format!("{}.json", seq.name));
+
+                match File::create(&data_dir).await {
+                    Ok(mut file) => match file.write_all(json.as_bytes()).await {
+                        Ok(_) => info!("saved '{sequence_name}' to file {}.", seq.name),
+                        Err(e) => {
+                            error!(
+                                "writing seqeunce data from seqeunce, {}, to file, {}, failed with an error, {e}",
+                                seq.name,
+                                data_dir
+                                    .file_name()
+                                    .map(|name| name.to_string_lossy().to_string())
+                                    .unwrap_or(format!("{}.json", seq.name))
+                            )
+                        }
+                    },
+                    Err(e) => {
+                        error!("creating file to save sequence to failed with an error, {e}")
+                    }
+                }
+            } else {
+                error!("the '$HOME' env var could not be found. so no xdg dir could be set");
+            }
+        }
+        Err(e) => {
+            error!("attept to json-ify, failed with error, {e}");
         }
     }
 }
