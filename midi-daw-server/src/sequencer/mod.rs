@@ -502,22 +502,26 @@ pub async fn sequencer_start(
                                 let mut reader = BufReader::new(file);
 
                                 let mut json_text = String::new();
-                                let mut last_f_len = json_text.len();
-                                reader.read_line(&mut json_text);
-                                let mut f_len = json_text.len();
+                                if reader.read_to_string(&mut json_text).await.is_ok() {
+                                    // let mut last_f_len = json_text.len();
+                                    // reader.read_line(&mut json_text);
+                                    // let mut f_len = json_text.len();
+                                    //
+                                    // while last_f_len != f_len {
+                                    //     last_f_len = f_len;
+                                    //     reader.read_line(&mut json_text);
+                                    //     f_len = json_text.len();
+                                    // }
 
-                                while last_f_len != f_len {
-                                    last_f_len = f_len;
-                                    reader.read_line(&mut json_text);
-                                    f_len = json_text.len();
-                                }
-
-                                // parse JSON
-                                if let Ok(json) = serde_json::from_str::<Sequence>(&json_text) {
-                                    sequences.insert(json.name.clone(), json.clone());
-                                    info!("restored sequnce, '{}', from disk", json.name);
+                                    // parse JSON
+                                    if let Ok(json) = serde_json::from_str::<Sequence>(&json_text) {
+                                        sequences.insert(json.name.clone(), json.clone());
+                                        info!("restored sequnce, '{}', from disk", json.name);
+                                    } else {
+                                        error!("parsing stored json failed.");
+                                    }
                                 } else {
-                                    error!("parsing stored json failed.");
+                                    error!("reading file failed.");
                                 }
                             } else {
                                 error!(
