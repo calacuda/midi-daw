@@ -673,22 +673,27 @@ pub async fn sequencer_start(
 
                                 let mut json_text = String::new();
                                 // let mut last_f_len = json_text.len();
-                                reader.read_to_string(&mut json_text);
-                                // let mut f_len = json_text.len();
-                                //
-                                // while last_f_len != f_len {
-                                //     last_f_len = f_len;
-                                //     reader.read_line(&mut json_text);
-                                //     f_len = json_text.len();
-                                // }
+                                if reader.read_to_string(&mut json_text).await.is_ok() {
+                                    // let mut f_len = json_text.len();
+                                    //
+                                    // while last_f_len != f_len {
+                                    //     last_f_len = f_len;
+                                    //     reader.read_line(&mut json_text);
+                                    //     f_len = json_text.len();
+                                    // }
 
-                                // parse JSON
-                                if let Ok(json) = serde_json::from_str::<AllSequences>(&json_text) {
-                                    sequences.extend(json.clone().into_iter());
-                                    info!("restored project, '{}', from disk", project_name);
+                                    // parse JSON
+                                    if let Ok(json) =
+                                        serde_json::from_str::<AllSequences>(&json_text)
+                                    {
+                                        sequences.extend(json.clone().into_iter());
+                                        info!("restored project, '{}', from disk", project_name);
+                                    } else {
+                                        warn!("{json_text}");
+                                        error!("parsing stored json failed.");
+                                    }
                                 } else {
-                                    warn!("{json_text}");
-                                    error!("parsing stored json failed.");
+                                    error!("failed to read file");
                                 }
                             } else {
                                 error!(
