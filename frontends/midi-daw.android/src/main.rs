@@ -1662,7 +1662,7 @@ fn RightCol(
                 .name
                 .clone();
 
-            // TODO: send make sequence longer
+            // send make sequence longer
             if let Err(e) = client
                 .post(format!("http://{BASE_URL}/sequence/change-len-by"))
                 .json(&ChangeLenByBody::new(track_name.clone(), amt))
@@ -1952,27 +1952,39 @@ fn RightCol(
             hr {}
             br {}
             div {
-                id: "file-tab",
-                class: "full-width row super-center",
+                // id: "track-size-change",
+                class: "super-center full-width",
 
                 div {
-                    class: "button button-w-border super-center",
-                    onclick: move |_| {
-                        // bring up save menu
-                        *save_menu.write() = SaveMenuState::Save;
-                    },
+                    id: "track-size-change-title",
+                    class: "super-center full-width text-yellow",
 
-                    "Save"
+                    "File:"
                 }
 
                 div {
-                    class: "button button-w-border super-center",
-                    onclick: move |_| async move {
-                        // bring up load menu
-                        *save_menu.write() = SaveMenuState::Load;
-                    },
+                    id: "file-tab",
+                    class: "super-center full-width row",
 
-                    "Load"
+                    div {
+                        class: "button button-w-border super-center full-width",
+                        onclick: move |_| {
+                            // bring up save menu
+                            *save_menu.write() = SaveMenuState::Save;
+                        },
+
+                        "Save"
+                    }
+
+                    div {
+                        class: "button button-w-border super-center full-width",
+                        onclick: move |_| async move {
+                            // bring up load menu
+                            *save_menu.write() = SaveMenuState::Load;
+                        },
+
+                        "Load"
+                    }
                 }
             }
         }

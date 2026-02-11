@@ -432,6 +432,15 @@ div {
 	margin-left: 3.125%;
 }
 
+#file-tab {
+	height: 5%;
+	justify-content: space-between;
+}
+
+#file-tab>*+* {
+	margin-left: 3.125%;
+}
+
 #row-light {
 	background-color: #585b70;
 }
