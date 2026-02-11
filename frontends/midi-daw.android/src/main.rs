@@ -305,7 +305,7 @@ fn LoadMenu(
     save_menu: Signal<SaveMenuState>,
     sections: Signal<Arc<RwLock<Vec<Track>>>>,
 ) -> Element {
-    let mut projects = use_signal(|| None);
+    let mut projects: Signal<Option<Result<Vec<String>, String>>> = use_signal(|| None);
     let _coroutine_handle = use_coroutine(move |_: UnboundedReceiver<()>| async move {
         info!("get projects");
         let url = format!("http://{BASE_URL}/project/list-saved");
@@ -316,8 +316,11 @@ fn LoadMenu(
             info!("project req {:?}", req);
             // Vec::new()
 
-            if let Ok(dev_list) = req.json::<Vec<String>>().await {
+            if let Ok(mut dev_list) = req.json::<Vec<String>>().await {
                 info!("projects {:?}", dev_list);
+                dev_list
+                    .iter_mut()
+                    .for_each(|name| name.truncate(name.len() - 5));
                 // dev_list
                 projects.write().replace(Ok(dev_list));
             } else {
@@ -367,17 +370,23 @@ fn LoadMenu(
                         // send load request
                         info!("loading a project");
 
+                        let mut name = project_name.read().clone();
+
+                        if name.ends_with(".json") {
+                            name.truncate(name.len() - 5);
+                        }
+
                         let client = reqwest::Client::new();
 
                         if let Err(e) = client
                             .post(format!("http://{BASE_URL}/project/load"))
-                            .json(&project_name.read().clone())
+                            .json(&name)
                             .send().await
                         {
                             error!("Loading project failed with error {e}");
                         }
 
-                        // TODO: reload known sequences
+                        // reload known sequences
                         match client
                             .get(format!("http://{BASE_URL}/sequence/names"))
                             .send().await {

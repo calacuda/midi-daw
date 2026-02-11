@@ -566,7 +566,7 @@ pub async fn sequencer_start(
                         }
                     }
                     SequencerControlCmd::SaveProject { project_name } => {
-                        match serde_json::to_string_pretty(&sequences) {
+                        match serde_json::to_string(&sequences) {
                             Ok(json) => {
                                 let xdg_dirs = BaseDirectories::new();
 
@@ -687,6 +687,7 @@ pub async fn sequencer_start(
                                     sequences.extend(json.clone().into_iter());
                                     info!("restored project, '{}', from disk", project_name);
                                 } else {
+                                    warn!("{json_text}");
                                     error!("parsing stored json failed.");
                                 }
                             } else {
@@ -744,7 +745,7 @@ pub async fn sequencer_start(
 }
 
 async fn save_seqeunce(seq: &Sequence, sequence_name: &str) {
-    match serde_json::to_string_pretty(seq) {
+    match serde_json::to_string(seq) {
         Ok(json) => {
             let xdg_dirs = BaseDirectories::new();
 
