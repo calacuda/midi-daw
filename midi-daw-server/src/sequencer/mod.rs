@@ -257,7 +257,6 @@ pub async fn sequencer_start(
         } else {
             while let Ok(msg) = controls.try_recv() {
                 // do msg thing
-
                 match msg {
                     SequencerControlCmd::GetSequence {
                         sequence,
@@ -365,6 +364,7 @@ pub async fn sequencer_start(
                     }
                     SequencerControlCmd::QueueStop(names) => {
                         queued_stop_sequences.append(&mut names.clone());
+                        queued_sequences.retain(|name| !names.contains(name));
                     }
                     SequencerControlCmd::Pause(_names) => warn!("not implemented yet"),
                     SequencerControlCmd::PauseAll => warn!("not implemented yet"),
