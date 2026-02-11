@@ -39,6 +39,13 @@ pub enum Colums {
     Cmd2,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum SaveMenuState {
+    Save,
+    Load,
+    Off,
+}
+
 fn main() {
     // Init logger
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
@@ -186,6 +193,8 @@ fn App() -> Element {
     let choosing_device = use_signal(|| false);
     // let known_midi_devs: Signal<Arc<[String]>> = use_signal(|| Vec::new().into());
     let known_midi_devs: Signal<Vec<String>> = use_signal(|| Vec::new());
+    let project_name: Signal<String> = use_signal(|| String::new());
+    let save_menu = use_signal(|| SaveMenuState::Off);
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
@@ -207,11 +216,246 @@ fn App() -> Element {
                 if *choosing_device.read() && middle_view() == MiddleColView::Section {
                     MidiDevChooser { sections, displaying: displaying_uuid, choosing_device, known_midi_devs }
                 }
+
+                if *save_menu.read() == SaveMenuState::Save && middle_view() == MiddleColView::Section {
+                    SaveMenu { project_name, save_menu }
+                } else if *save_menu.read() == SaveMenuState::Load && middle_view() == MiddleColView::Section {
+                    LoadMenu { project_name, save_menu, sections }
+                }
             }
             div {
                 id: "right-col",
                 // PlayTone {  }
-                RightCol { middle_view, sections, displaying: displaying_uuid, playing_sections, known_midi_devs, choosing_device }
+                RightCol { middle_view, sections, displaying: displaying_uuid, playing_sections, known_midi_devs, choosing_device, save_menu }
+            }
+        }
+    }
+}
+
+#[component]
+fn SaveMenu(project_name: Signal<String>, save_menu: Signal<SaveMenuState>) -> Element {
+    rsx! {
+        div {
+            class: "sub-menu",
+
+            div {
+                class: "row",
+
+                div {
+                    class: "x-large midi-scroll-item super-center text-yellow",
+                    "File -> Save-As"
+                }
+
+                div {
+                    class: "button midi-scroll-item super-center text-red",
+                    onclick: move |_| {
+                        *save_menu.write() = SaveMenuState::Off;
+                    },
+
+                    "Exit"
+                }
+
+                div {
+                    class: "button midi-scroll-item super-center text-red",
+                    onclick: move |_| async move {
+                        // send save request
+                        info!("sending save request");
+
+                        let client = reqwest::Client::new();
+
+                        if let Err(e) = client
+                            .post(format!("http://{BASE_URL}/project/save"))
+                            .json(&project_name.read().clone())
+                            .send().await
+                        {
+                            error!("changing midi device failed with error {e}");
+                        } else {
+                            *save_menu.write() = SaveMenuState::Off;
+                        }
+                    },
+
+                    "Save"
+                }
+            }
+
+            hr {}
+
+            input {
+                id: "rename-field",
+                name: "rename-field",
+                autofocus: "value",
+                r#type: "text",
+                value: "{project_name}",
+                onmounted: async move |cx| {
+                    if let Err(_e) = cx.set_focus(true).await {
+                        // error!("attempt to set focus to the rename section input field failed with: {e}")
+                    }
+                },
+                oninput: move |event| {
+                    project_name.set(event.value());
+                },
+            }
+        }
+    }
+}
+
+#[component]
+fn LoadMenu(
+    project_name: Signal<String>,
+    save_menu: Signal<SaveMenuState>,
+    sections: Signal<Arc<RwLock<Vec<Track>>>>,
+) -> Element {
+    let mut projects = use_signal(|| None);
+    let _coroutine_handle = use_coroutine(move |_: UnboundedReceiver<()>| async move {
+        info!("get projects");
+        let url = format!("http://{BASE_URL}/project/list-saved");
+        info!("{url}");
+        let client = reqwest::Client::new();
+
+        if let Ok(req) = client.get(url).send().await {
+            info!("project req {:?}", req);
+            // Vec::new()
+
+            if let Ok(dev_list) = req.json::<Vec<String>>().await {
+                info!("projects {:?}", dev_list);
+                // dev_list
+                projects.write().replace(Ok(dev_list));
+            } else {
+                error!(
+                    "returned project list was expected to be json but failed to parse as such."
+                );
+                // Vec::new()
+                projects.write().replace(Err(
+                    "Expected JSON from the API, but did not recieve JSON.".into(),
+                ));
+            }
+        } else {
+            error!("failed to make get request to get a list of projects.");
+            // Vec::new()
+            projects.write().replace(Err(format!(
+                "The GET request to retrieve the projects list failed with an error."
+            )));
+        };
+    });
+
+    rsx! {
+        document::Link { rel: "stylesheet", href: asset!("/assets/loading-dots.css") }
+
+        div {
+            class: "sub-menu",
+
+            div {
+                class: "row",
+
+                div {
+                    class: "x-large midi-scroll-item super-center text-yellow",
+                    "File -> Open"
+                }
+
+                div {
+                    class: "button midi-scroll-item super-center text-red",
+                    onclick: move |_| {
+                        *save_menu.write() = SaveMenuState::Off;
+                    },
+
+                    "Exit"
+                }
+
+                div {
+                    class: "button midi-scroll-item super-center text-red",
+                    onclick: move |_| async move {
+                        // send load request
+                        info!("loading a project");
+
+                        let client = reqwest::Client::new();
+
+                        if let Err(e) = client
+                            .post(format!("http://{BASE_URL}/project/load"))
+                            .json(&project_name.read().clone())
+                            .send().await
+                        {
+                            error!("Loading project failed with error {e}");
+                        }
+
+                        // TODO: reload known sequences
+                        match client
+                            .get(format!("http://{BASE_URL}/sequence/names"))
+                            .send().await {
+                            Ok(res) => match res.json::<Vec<String>>().await {
+                                Ok(names) => {
+                                    names.into_iter().for_each(|name| {
+                                        let mut track = Track::default();
+                                        track.name = name;
+
+                                        sections.write().write().unwrap().push(track);
+                                    });
+                                }
+                                Err(e) => {
+                                    error!("expected JSON. didnt get it, {e}");
+                                }
+                            }
+                            Err(e) => {
+                                error!("client web request failed: {e}");
+                            }
+                        }
+
+                        *save_menu.write() = SaveMenuState::Off;
+                    },
+
+                    "Load"
+                }
+            }
+
+            hr {}
+
+            div {
+                id: "midi-scroll-list",
+
+                div {
+                    id: "midi-scroll-div",
+
+                    {
+                        match projects.read().to_owned() {
+                            Some(Ok(projects)) => rsx! {
+                                for project in projects {
+                                    div {
+                                        class: "button midi-scroll-item super-center",
+                                        onclick: move |_| {
+                                            *project_name.write() = project.clone();
+                                        },
+
+                                        if project.clone() == project_name.read().clone() {
+                                            "* {project.clone()} *"
+                                        } else {
+                                            {project.clone()}
+                                        }
+                                    }
+                                }
+                            },
+                            Some(Err(message)) => rsx! {
+                                div {
+                                    class: "midi-scroll-item text-red",
+
+                                    {message}
+                                }
+                            },
+                            None => rsx! {
+                                div {
+                                    class: "midi-scroll-item text-green super-center",
+
+                                    "LOADING"
+
+                                    div {
+                                        class: "loading-container",
+                                        span { class: "dot" }
+                                        span { class: "dot" }
+                                        span { class: "dot" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1373,6 +1617,7 @@ fn RightCol(
     playing_sections: Signal<Vec<usize>>,
     known_midi_devs: Signal<Vec<String>>,
     choosing_device: Signal<bool>,
+    save_menu: Signal<SaveMenuState>,
 ) -> Element {
     // let com_mpsc = use_context::<Sender<MessageToPlayer>>();
 
@@ -1692,6 +1937,33 @@ fn RightCol(
                     } else {
                         "drums"
                     }
+                }
+            }
+            br {}
+            hr {}
+            br {}
+            div {
+                id: "file-tab",
+                class: "full-width row super-center",
+
+                div {
+                    class: "button button-w-border super-center",
+                    onclick: move |_| {
+                        // bring up save menu
+                        *save_menu.write() = SaveMenuState::Save;
+                    },
+
+                    "Save"
+                }
+
+                div {
+                    class: "button button-w-border super-center",
+                    onclick: move |_| async move {
+                        // bring up load menu
+                        *save_menu.write() = SaveMenuState::Load;
+                    },
+
+                    "Load"
                 }
             }
         }

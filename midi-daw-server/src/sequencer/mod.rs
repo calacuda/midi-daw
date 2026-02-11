@@ -633,7 +633,7 @@ pub async fn sequencer_start(
                                 while let Some(f_name) = dir_contents.next().await {
                                     if let Ok(fname) = f_name {
                                         if let Ok(ftype) = fname.file_type().await
-                                            && ftype.is_dir()
+                                            && ftype.is_file()
                                         {
                                             contents.push(
                                                 fname.file_name().to_string_lossy().to_string(),
