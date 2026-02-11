@@ -555,6 +555,210 @@ async fn change_len_by(
     }
 }
 
+// SaveSequence {
+//     /// the sequence name to save
+//     sequence: SequenceName,
+// },
+
+#[post("/sequence/save-one")]
+async fn save_one_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<String>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::SaveSequence { sequence: args.0 };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
+// /// lists sequences that have been saved to disk that are not a part of a project
+// ListSavedSequences {
+//     /// will send back the base file names without the parent directory
+//     responder: OneshotSender<Vec<String>>,
+// },
+
+#[get("/sequence/list-saved")]
+async fn get_saved_sequence(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> HttpResponse {
+    let (responder, mut recv_er) = oneshot::channel();
+
+    let msg = SequencerControlCmd::ListSavedSequences { responder };
+
+    match seq_coms.send(msg) {
+        Ok(_) => loop {
+            if let Ok(res) = recv_er.try_recv() {
+                return HttpResponse::Ok().json(res);
+            }
+        },
+
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
+// /// loads a sequence from disk
+// LoadSequence {
+//     /// the sequence name to load
+//     sequence: SequenceName,
+// },
+
+#[post("/sequence/load-one")]
+async fn load_one_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<String>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::LoadSequence { sequence: args.0 };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
+// ///
+// RmSavedSequence {
+//     /// Sequence name to rm
+//     sequence: SequenceName,
+// },
+
+#[post("/sequence/rm-one")]
+async fn rm_one_sequence(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<String>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::RmSequence { name: args.0 };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
+// /// saves all seqeunces into a sub folder of the data dir. the base file name will be based on the sequences name
+// SaveProject {
+//     project_name: String,
+// },
+
+#[post("/project/save")]
+async fn save_project(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<String>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::SaveProject {
+        project_name: args.0,
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
+// /// lists only the projects that have been saved (not their sequences)
+// ListSavedProjects {
+//     /// will send back the base file names without the parent directory
+//     responder: OneshotSender<Vec<String>>,
+// },
+
+#[get("/project/list-saved")]
+async fn get_saved_projects(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> HttpResponse {
+    let (responder, mut recv_er) = oneshot::channel();
+
+    let msg = SequencerControlCmd::ListSavedProjects { responder };
+
+    match seq_coms.send(msg) {
+        Ok(_) => loop {
+            if let Ok(res) = recv_er.try_recv() {
+                return HttpResponse::Ok().json(res);
+            }
+        },
+
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
+// /// loads a Project and its sequences from disk
+// LoadSavedProject {
+//     /// the sequence name to load
+//     project_name: String,
+// },
+
+#[post("/project/load")]
+async fn load_project(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<String>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::LoadSavedProject {
+        project_name: args.0,
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
+// /// rm a project from storage.
+// RmSavedProject {
+//     /// Sequence name to rm
+//     project_name: String,
+// },
+
+#[post("/project/rm")]
+async fn rm_one_project(
+    seq_coms: web::Data<Sender<SequencerControlCmd>>,
+    args: Json<String>,
+) -> HttpResponse {
+    let msg = SequencerControlCmd::RmSavedProject {
+        project_name: args.0,
+    };
+
+    match seq_coms.send(msg) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending control message to sequencer failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
 // /// sends a message to the message bus every note
 // pub fn clock_notif(data: MbServerHandle, tempo: web::Data<Tempo>) -> ! {
 //     // TODO: make this a client running in a syncronouse std::thread
@@ -612,7 +816,7 @@ async fn change_len_by(
 //             let sleep_time = Duration::from_secs_f64((60.0 / tempo) / 4. / beats);
 //
 //             move || {
-//                 std::thread::sleep(sleep_time);
+//       data_dir.push("projects");          std::thread::sleep(sleep_time);
 //             }
 //         });
 //
@@ -711,6 +915,14 @@ pub async fn run(
                 .service(rename_sequence)
                 .service(set_channel)
                 .service(change_len_by)
+                .service(save_one_sequence)
+                .service(get_saved_sequence)
+                .service(load_one_sequence)
+                .service(rm_one_sequence)
+                .service(save_project)
+                .service(get_saved_projects)
+                .service(load_project)
+                .service(rm_one_project)
                 .service(message_bus::message_bus)
         }
     })

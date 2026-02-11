@@ -121,12 +121,12 @@ pub enum SequencerControlCmd {
     /// loads a Project and its sequences from disk
     LoadSavedProject {
         /// the sequence name to load
-        sequence: String,
+        project_name: String,
     },
     /// rm a project from storage.
     RmSavedProject {
         /// Sequence name to rm
-        sequence: String,
+        project_name: String,
     },
 }
 
@@ -537,7 +537,12 @@ pub async fn sequencer_start(
 
                         if let Some(mut data_dir) = xdg_dirs.data_home {
                             data_dir.push("midi-daw");
-                            data_dir.push(format!("{}.json", sequence));
+
+                            if !sequence.ends_with(".json") {
+                                data_dir.push(format!("{}.json", sequence));
+                            } else {
+                                data_dir.push(sequence);
+                            }
 
                             if data_dir.exists() {
                                 if let Err(e) = remove_file(&data_dir).await {
@@ -560,12 +565,67 @@ pub async fn sequencer_start(
                             );
                         }
                     }
-                    SequencerControlCmd::SaveProject { project_name } => {}
+                    SequencerControlCmd::SaveProject { project_name } => {
+                        match serde_json::to_string_pretty(&sequences) {
+                            Ok(json) => {
+                                let xdg_dirs = BaseDirectories::new();
+
+                                if let Some(mut data_dir) = xdg_dirs.data_home {
+                                    data_dir.push("midi-daw");
+                                    data_dir.push("projects");
+
+                                    if !data_dir.exists() {
+                                        if let Err(e) = create_dir_all(&data_dir).await {
+                                            error!("creating data dir failed with error, {e}");
+                                        }
+                                    }
+
+                                    data_dir.push(format!("{}.json", project_name));
+                                    match File::create(&data_dir).await {
+                                        Ok(mut file) => match file.write_all(json.as_bytes()).await
+                                        {
+                                            Ok(_) => info!(
+                                                "saved '{project_name}' to file {}.json.",
+                                                project_name
+                                            ),
+                                            Err(e) => {
+                                                error!(
+                                                    "writing seqeunce data from project to file, {}, failed with an error, {e}",
+                                                    data_dir
+                                                        .file_name()
+                                                        .map(|name| name
+                                                            .to_string_lossy()
+                                                            .to_string())
+                                                        .unwrap_or(format!(
+                                                            "{}.json",
+                                                            project_name
+                                                        ))
+                                                )
+                                            }
+                                        },
+                                        Err(e) => {
+                                            error!(
+                                                "creating file to save sequence to failed with an error, {e}"
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    error!(
+                                        "the '$HOME' env var could not be found. so no xdg dir could be set"
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                error!("attept to json-ify, failed with error, {e}");
+                            }
+                        }
+                    }
                     SequencerControlCmd::ListSavedProjects { responder } => {
                         let xdg_dirs = BaseDirectories::new();
 
                         if let Some(mut data_dir) = xdg_dirs.data_home {
                             data_dir.push("midi-daw");
+                            data_dir.push("projects");
 
                             if let Ok(mut dir_contents) = read_dir(data_dir).await {
                                 let mut contents = Vec::default();
@@ -598,8 +658,85 @@ pub async fn sequencer_start(
                             );
                         }
                     }
-                    SequencerControlCmd::LoadSavedProject { sequence } => {}
-                    SequencerControlCmd::RmSavedProject { sequence } => {}
+                    SequencerControlCmd::LoadSavedProject { project_name } => {
+                        // get file path
+                        let xdg_dirs = BaseDirectories::new();
+
+                        if let Some(mut data_dir) = xdg_dirs.data_home {
+                            data_dir.push("midi-daw");
+                            data_dir.push("projects");
+                            data_dir.push(format!("{}.json", project_name));
+
+                            // read file from disk
+                            if let Ok(file) = File::open(&data_dir).await {
+                                let mut reader = BufReader::new(file);
+
+                                let mut json_text = String::new();
+                                let mut last_f_len = json_text.len();
+                                reader.read_line(&mut json_text);
+                                let mut f_len = json_text.len();
+
+                                while last_f_len != f_len {
+                                    last_f_len = f_len;
+                                    reader.read_line(&mut json_text);
+                                    f_len = json_text.len();
+                                }
+
+                                // parse JSON
+                                if let Ok(json) = serde_json::from_str::<AllSequences>(&json_text) {
+                                    sequences.extend(json.clone().into_iter());
+                                    info!("restored project, '{}', from disk", project_name);
+                                } else {
+                                    error!("parsing stored json failed.");
+                                }
+                            } else {
+                                error!(
+                                    "failed to open file. does, '{}', exist?",
+                                    data_dir.to_string_lossy()
+                                );
+                            }
+                        } else {
+                            error!(
+                                "the '$HOME' env var could not be found. so no xdg dir could be set"
+                            );
+                        }
+                    }
+                    SequencerControlCmd::RmSavedProject { project_name } => {
+                        // get file path
+                        let xdg_dirs = BaseDirectories::new();
+
+                        if let Some(mut data_dir) = xdg_dirs.data_home {
+                            data_dir.push("midi-daw");
+                            data_dir.push("projects");
+                            // data_dir.push(format!("{}.json", project_name));
+
+                            if !project_name.ends_with(".json") {
+                                data_dir.push(format!("{}.json", project_name));
+                            } else {
+                                data_dir.push(project_name);
+                            }
+
+                            if data_dir.exists() {
+                                if let Err(e) = remove_file(&data_dir).await {
+                                    error!(
+                                        "removing, '{}', failed with error, {e}",
+                                        data_dir.to_string_lossy()
+                                    );
+                                } else {
+                                    info!("seqeunce file removed");
+                                }
+                            } else {
+                                warn!(
+                                    "the project file path: '{}' doesn't exist, can't remove",
+                                    data_dir.to_string_lossy()
+                                );
+                            }
+                        } else {
+                            error!(
+                                "the '$HOME' env var could not be found. so no xdg dir could be set"
+                            );
+                        }
+                    }
                 }
             }
         }

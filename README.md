@@ -49,15 +49,15 @@ these are listen in no particular order.
 - [x] add step count hilighting to the app
   - [x] connect with websocket
   - [x] get step
-- [ ] add saving/loading/listing/rm-ing of sequences
+- [x] add saving/loading/listing/rm-ing of sequences
   - [x] saving
   - [x] listing
   - [x] loading
   - [x] rm-ing of saved data
-  - [ ] mk api end-points
-- [ ] add saving/loading/listing/rm-ing of entire-projects
-  - [ ] saving
+  - [x] mk api end-points
+- [x] add saving/loading/listing/rm-ing of entire-projects
+  - [x] saving
   - [x] listing
-  - [ ] loading
-  - [ ] rm-ing of saved data
-  - [ ] mk api end-points
+  - [x] loading
+  - [x] rm-ing of saved data
+  - [x] mk api end-points
