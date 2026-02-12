@@ -131,70 +131,71 @@ fn main() {
 }
 
 async fn sync_pulse_reader(tx: UnboundedSender<usize>) -> () {
-    // let bpq = 24;
-    let (socket, response) = match connect_async(format!("ws://{BASE_URL}/message-bus")).await {
-        Ok(val) => val,
-        Err(e) => {
-            error!("{e}");
+    loop {
+        let (socket, response) = match connect_async(format!("ws://{BASE_URL}/message-bus")).await {
+            Ok(val) => val,
+            Err(e) => {
+                error!("{e}");
+                return;
+            }
+        };
+
+        if response.status() != 101 {
+            error!(
+                "failed to connect to message-bus. failure detected based on responce code. (was {}, expected 101.)",
+                response.status()
+            );
             return;
         }
-    };
 
-    if response.status() != 101 {
-        error!(
-            "failed to connect to message-bus. failure detected based on responce code. (was {}, expected 101.)",
-            response.status()
-        );
-        return;
-    }
+        info!("connected... {}", response.status());
 
-    info!("connected... {}", response.status());
+        let (_, socket) = socket.split();
 
-    let (_, socket) = socket.split();
-
-    // loop {
-    socket
-        .for_each(|msg| async {
-            match msg {
-                // Ok(Message::Binary(msg)) if msg.len() == 8 => {
-                //     let counter = f64::from_ne_bytes([
-                //         msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7],
-                //     ]);
-                //
-                //     if let Err(e) = tx.send(counter) {
-                //         error!("counter send error: {e}");
-                //     } else {
-                //         info!(counter);
-                //     }
-                // }
-                Ok(Message::Binary(msg)) => {
-                    if let Ok(msg) = MsgFromServer::from_bytes(&msg.to_vec()) {
-                        match msg {
-                            MsgFromServer::Step {
-                                pulse_count: _,
-                                step_n,
-                                step_type: _,
-                                bpq: _,
-                            } => {
-                                if let Err(e) = tx.send(step_n) {
-                                    error!("counter send error: {e}");
-                                } else {
-                                    // info!("counter is {step_n}");
+        // loop {
+        socket
+            .for_each(|msg| async {
+                match msg {
+                    // Ok(Message::Binary(msg)) if msg.len() == 8 => {
+                    //     let counter = f64::from_ne_bytes([
+                    //         msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7],
+                    //     ]);
+                    //
+                    //     if let Err(e) = tx.send(counter) {
+                    //         error!("counter send error: {e}");
+                    //     } else {
+                    //         info!(counter);
+                    //     }
+                    // }
+                    Ok(Message::Binary(msg)) => {
+                        if let Ok(msg) = MsgFromServer::from_bytes(&msg.to_vec()) {
+                            match msg {
+                                MsgFromServer::Step {
+                                    pulse_count: _,
+                                    step_n,
+                                    step_type: _,
+                                    bpq: _,
+                                } => {
+                                    if let Err(e) = tx.send(step_n) {
+                                        error!("counter send error: {e}");
+                                    } else {
+                                        // info!("counter is {step_n}");
+                                    }
                                 }
-                            }
-                            MsgFromServer::SyncPulseReset() => {
-                                if let Err(e) = tx.send(0) {
-                                    error!("counter send error: {e}");
+                                MsgFromServer::SyncPulseReset() => {
+                                    if let Err(e) = tx.send(0) {
+                                        error!("counter send error: {e}");
+                                    }
                                 }
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
-            }
-        })
-        .await;
+            })
+            .await;
+    }
 
     // }
 }
