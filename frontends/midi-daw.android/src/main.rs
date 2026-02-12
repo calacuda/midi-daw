@@ -179,7 +179,7 @@ async fn sync_pulse_reader(tx: UnboundedSender<usize>) -> () {
                                 if let Err(e) = tx.send(step_n) {
                                     error!("counter send error: {e}");
                                 } else {
-                                    // info!(counter);
+                                    // info!("counter is {step_n}");
                                 }
                             }
                             MsgFromServer::SyncPulseReset() => {
