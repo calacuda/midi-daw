@@ -784,6 +784,94 @@ impl ChangeLenByBody {
     }
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Clone, Debug)]
+pub enum MsgFromServer {
+    /// a single sync pulse
+    SyncPulse {
+        /// the number of pulses
+        pulse_count: usize,
+        /// the last beat to occur
+        after_beat: usize,
+        /// the next beat that will happen
+        before_beat: usize,
+    },
+    /// a musical beat happened
+    Beat {
+        /// the pulse count when the beat happened
+        pulse_count: usize,
+        /// the beat number
+        beat: usize,
+        /// the type of note this beat represents. (ie: sizteenth-note, quarter-note, etc)
+        beat_type: NoteDuration,
+        /// the number of beats in a quarter note
+        bpq: f64,
+    },
+    /// a step of the sequencer has occured
+    Step {
+        /// the number of steps since last reset
+        step_n: usize,
+    },
+    /// indicates that the sync pulse counter has reset to zero because nothing was playing
+    SyncPulseReset(),
+    /// the described sequence will stop after after_steps amount of time. in other words in other
+    /// words the sequence has been queued to stop
+    SeqeunceWillStop {
+        /// the sequence that will stop
+        sequence_name: SequenceName,
+        /// the number of beats it will it stop after
+        after_steps: usize,
+    },
+    /// the described sequence stopped
+    SeqeunceStoped {
+        /// the sequence that stopped
+        sequence_name: SequenceName,
+        /// the beat count this sequence stopped at
+        step_n: usize,
+    },
+    /// the described seqeunce will start after after_steps. in other words the sequence has been
+    /// queued to start
+    SeqeunceWillStart {
+        /// the sequnece
+        sequence_name: SequenceName,
+        /// the number of steps after which this sequence will start
+        after_steps: usize,
+    },
+    /// a sequence has started
+    SeqeunceStarted {
+        /// the sequnece
+        sequence_name: SequenceName,
+    },
+}
+
+impl MsgFromServer {
+    // pub fn new(sequence: String, amt: isize) -> Self {
+    //     Self { sequence, amt }
+    // }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl MsgFromServer {
+    // #[new]
+    // fn new_py(sequence: String, amt: isize) -> Self {
+    //     Self::new(sequence, amt)
+    // }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
 // impl Into<Channel> for MidiChannel {
 //     fn into(self) -> Channel {
 //         match self {
