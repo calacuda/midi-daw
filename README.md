@@ -61,6 +61,6 @@ these are listen in no particular order.
   - [x] loading
   - [x] rm-ing of saved data
   - [x] mk api end-points
-- [ ] add message bus notifications enum for common events, sent as binary messages and encoded with the bincode (v2.0.1) crate
-  - [ ] change android app to use the new message format
+- [x] add message bus notifications enum for common events, sent as binary messages and encoded with the bincode (v2.0.1) crate
+  - [x] change android app to use the new message format
 - [x] add BPQ setting & getting api end points
