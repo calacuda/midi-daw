@@ -61,3 +61,5 @@ these are listen in no particular order.
   - [x] loading
   - [x] rm-ing of saved data
   - [x] mk api end-points
+- [ ] add message bus notifications enum for common events, sent as binary messages and encoded with the bincode (v2.0.1) crate
+- [ ] add BPQ setting & getting api end points
