@@ -880,12 +880,10 @@ impl MsgFromServer {
     }
 
     pub fn to_bytes(self) -> Result<Vec<u8>, EncodeError> {
-        let mut buf = Vec::default();
-
-        match bincode::encode_into_slice(&self, &mut buf, get_bincode_conf()) {
-            Ok(_length) => Ok(buf),
+        match bincode::encode_to_vec(&self, get_bincode_conf()) {
+            Ok(data) => Ok(data),
             Err(e) => {
-                warn!("attempt to decode bytes to MsgFromServer failed with error, {e}");
+                warn!("attempt to encode bytes of MsgFromServer failed with error, {e}");
                 Err(e)
             }
         }
