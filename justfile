@@ -8,6 +8,7 @@ _new-tmux-dev-session SESSION:
   @just _new-window "{{SESSION}}" "Data Types" "cd midi-daw-types && nv src/lib.rs src/automation/{mod.rs,**/{mod.rs,*.rs}}"
   @just _new-window "{{SESSION}}" "Edit Py" "cd python-lib && nv midi_daw/{main.py,__init__.py}"
   @just _new-window "{{SESSION}}" "Run" "cd python-lib"
+  @just _new-window "{{SESSION}}" "Run Server" "cd midi-daw-server"
   @just _new-window "{{SESSION}}" "Misc" ""
   @just _new-window "{{SESSION}}" "Git" "git status"
   # @just _new-window "{{SESSION}}" "py-front" "cd ./frontends/midi-daw.knulli/ && nv midi-daw.pygame"
