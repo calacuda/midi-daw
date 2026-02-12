@@ -33,6 +33,9 @@ mod note;
 
 pub type MidiOut = Sender<(String, midi_msg::MidiMsg)>;
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash)]
+pub struct BPQMarker;
+
 #[post("/midi")]
 async fn midi(
     tempo: web::Data<Tempo>,
@@ -137,6 +140,28 @@ async fn get_tempo(tempo: web::Data<Tempo>) -> HttpResponse {
     if let Ok(tempo) = tempo.read() {
         if let Ok(tempo_json) = serde_json::to_string(&*tempo) {
             return HttpResponse::Ok().body(tempo_json);
+        }
+    }
+
+    HttpResponse::InternalServerError().finish()
+}
+
+#[post("/bpq")]
+async fn set_bpq(bpq: web::Data<(BPQMarker, BPQ)>, req_body: Json<f64>) -> HttpResponseBuilder {
+    // let mut tempo = tempo.write().await;
+    if let Ok(mut bpq) = bpq.1.write() {
+        *bpq = *req_body;
+    }
+
+    HttpResponse::Ok()
+}
+
+#[get("/bpq")]
+async fn get_bpq(bpq: web::Data<(BPQMarker, BPQ)>) -> HttpResponse {
+    // let tempo = tempo.read().await;
+    if let Ok(bpq) = bpq.1.read() {
+        if let Ok(bpq_json) = serde_json::to_string(&*bpq) {
+            return HttpResponse::Ok().body(bpq_json);
         }
     }
 
@@ -841,7 +866,7 @@ pub async fn run(
     server_tx: MbServerHandle,
 ) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
-    let bpq = web::Data::new(bpq);
+    // let bpq = web::Data::new(bpq);
     let midi_out = web::Data::new(midi_out);
     let new_dev_tx = web::Data::new(new_dev_tx);
     let seq_tx = web::Data::new(sequencer_tx);
@@ -884,6 +909,7 @@ pub async fn run(
             App::new()
                 .wrap(TracingLogger::default())
                 .app_data(tempo.clone())
+                .app_data(web::Data::new((BPQMarker, bpq.clone())))
                 .app_data(midi_out.clone())
                 .app_data(server_tx.clone())
                 .app_data(new_dev_tx.clone())
@@ -894,6 +920,8 @@ pub async fn run(
                 .service(get_devs)
                 .service(get_tempo)
                 .service(set_tempo)
+                .service(get_bpq)
+                .service(set_bpq)
                 .service(rest)
                 .service(new_dev)
                 .service(new_sequence)
