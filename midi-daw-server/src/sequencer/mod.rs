@@ -3,7 +3,7 @@ use std::time::Duration;
 use actix::dev::OneshotSender;
 use async_std::{
     fs::{File, create_dir_all, read_dir, remove_file},
-    io::{BufReadExt, BufReader, ReadExt, WriteExt},
+    io::{BufReader, ReadExt, WriteExt},
 };
 use crossbeam::channel::Receiver;
 use futures_lite::stream::StreamExt;
