@@ -6,8 +6,8 @@ use crate::{
 use dioxus::{core::spawn, prelude::*};
 use futures_util::StreamExt;
 use midi_daw_types::{
-    AddNoteBody, ChangeLenByBody, GetSequenceQuery, MidiChannel, RenameSequenceBody, RmNoteBody,
-    Sequence, SetChannelBody, SetDevBody,
+    AddNoteBody, ChangeLenByBody, GetSequenceQuery, MidiChannel, MsgFromServer, RenameSequenceBody,
+    RmNoteBody, Sequence, SetChannelBody, SetDevBody,
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
@@ -130,7 +130,7 @@ fn main() {
         .launch(App);
 }
 
-async fn sync_pulse_reader(tx: UnboundedSender<f64>) -> () {
+async fn sync_pulse_reader(tx: UnboundedSender<usize>) -> () {
     // let bpq = 24;
     let (socket, response) = match connect_async(format!("ws://{BASE_URL}/message-bus")).await {
         Ok(val) => val,
@@ -156,15 +156,39 @@ async fn sync_pulse_reader(tx: UnboundedSender<f64>) -> () {
     socket
         .for_each(|msg| async {
             match msg {
-                Ok(Message::Binary(msg)) if msg.len() == 8 => {
-                    let counter = f64::from_ne_bytes([
-                        msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7],
-                    ]);
-
-                    if let Err(e) = tx.send(counter) {
-                        error!("counter send error: {e}");
-                    } else {
-                        info!(counter);
+                // Ok(Message::Binary(msg)) if msg.len() == 8 => {
+                //     let counter = f64::from_ne_bytes([
+                //         msg[0], msg[1], msg[2], msg[3], msg[4], msg[5], msg[6], msg[7],
+                //     ]);
+                //
+                //     if let Err(e) = tx.send(counter) {
+                //         error!("counter send error: {e}");
+                //     } else {
+                //         info!(counter);
+                //     }
+                // }
+                Ok(Message::Binary(msg)) => {
+                    if let Ok(msg) = MsgFromServer::from_bytes(&msg.to_vec()) {
+                        match msg {
+                            MsgFromServer::Step {
+                                pulse_count: _,
+                                step_n,
+                                step_type: _,
+                                bpq: _,
+                            } => {
+                                if let Err(e) = tx.send(step_n) {
+                                    error!("counter send error: {e}");
+                                } else {
+                                    // info!(counter);
+                                }
+                            }
+                            MsgFromServer::SyncPulseReset() => {
+                                if let Err(e) = tx.send(0) {
+                                    error!("counter send error: {e}");
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 }
                 _ => {}
@@ -1006,8 +1030,8 @@ fn MiddleCol(
     // counter: Signal<f64>,
 ) -> Element {
     // let is_drum_track = use_signal(|| sections.read()[displaying()].is_drum);
-    let mut counter = use_signal(|| 0.0);
-    let (tx, mut sync_pulse) = unbounded_channel::<f64>();
+    let mut counter = use_signal(|| 0);
+    let (tx, mut sync_pulse) = unbounded_channel();
     let _thread_jh = spawn(async move { sync_pulse_reader(tx).await });
     let _recv_jh = spawn(async move {
         loop {
@@ -1144,7 +1168,7 @@ fn SectionDisplay(
     displaying: Signal<Arc<RwLock<usize>>>,
     edit_cell: Signal<Option<(usize, Colums)>>,
     choosing_device: Signal<bool>,
-    counter: Signal<f64>,
+    counter: Signal<usize>,
 ) -> Element {
     // info!("regular section view");
 
@@ -1183,7 +1207,7 @@ fn SectionDisplay(
                                 class: {
                                     let mut class = "lin-number".into();
 
-                                    if counter() as usize % (sections().read().unwrap()[*displaying().read().unwrap()].steps.len()) == i {
+                                    if counter() % (sections().read().unwrap()[*displaying().read().unwrap()].steps.len()) == i {
                                         // info!("i is {i}");
 
                                         class = format!("{class} text-red");

@@ -1,10 +1,15 @@
 #[cfg(feature = "pyo3")]
 use crate::automation::{Automation, AutomationConf, AutomationTypes, lfo::LfoConfig};
+use bincode::{
+    Decode, Encode,
+    error::{DecodeError, EncodeError},
+};
 use midi_msg::Channel;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::warn;
 
 pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
 
@@ -253,7 +258,9 @@ impl MidiChannel {
 // }
 
 #[cfg_attr(feature = "pyo3", pyclass(name = "NoteLen"))]
-#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash)]
+#[derive(
+    Serialize, Deserialize, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash,
+)]
 pub enum NoteDuration {
     // how_many: u8
     Wn(u8),
@@ -785,16 +792,16 @@ impl ChangeLenByBody {
 }
 
 #[cfg_attr(feature = "pyo3", pyclass)]
-#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Clone, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, PartialOrd, Clone, Debug)]
 pub enum MsgFromServer {
     /// a single sync pulse
     SyncPulse {
         /// the number of pulses
         pulse_count: usize,
         /// the last beat to occur
-        after_beat: usize,
+        after_step: usize,
         /// the next beat that will happen
-        before_beat: usize,
+        before_step: usize,
     },
     /// a musical beat happened
     Beat {
@@ -809,45 +816,80 @@ pub enum MsgFromServer {
     },
     /// a step of the sequencer has occured
     Step {
+        /// the pulse count when the beat happened
+        pulse_count: usize,
         /// the number of steps since last reset
         step_n: usize,
+        /// the type of note this beat represents. (ie: sizteenth-note, quarter-note, etc)
+        step_type: NoteDuration,
+        /// the number of beats in a quarter note
+        bpq: f64,
     },
     /// indicates that the sync pulse counter has reset to zero because nothing was playing
     SyncPulseReset(),
     /// the described sequence will stop after after_steps amount of time. in other words in other
     /// words the sequence has been queued to stop
-    SeqeunceWillStop {
+    SequenceWillStop {
         /// the sequence that will stop
         sequence_name: SequenceName,
         /// the number of beats it will it stop after
         after_steps: usize,
     },
     /// the described sequence stopped
-    SeqeunceStoped {
+    SequenceStoped {
         /// the sequence that stopped
         sequence_name: SequenceName,
         /// the beat count this sequence stopped at
         step_n: usize,
     },
-    /// the described seqeunce will start after after_steps. in other words the sequence has been
+    /// the described sequence will start after after_steps. in other words the sequence has been
     /// queued to start
-    SeqeunceWillStart {
+    SequenceWillStart {
         /// the sequnece
         sequence_name: SequenceName,
         /// the number of steps after which this sequence will start
         after_steps: usize,
     },
     /// a sequence has started
-    SeqeunceStarted {
+    SequenceStarted {
         /// the sequnece
         sequence_name: SequenceName,
     },
+}
+
+impl TryFrom<Vec<u8>> for MsgFromServer {
+    type Error = DecodeError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::decode_from_slice(&value, get_bincode_conf()).map(|(data, _)| data)
+    }
 }
 
 impl MsgFromServer {
     // pub fn new(sequence: String, amt: isize) -> Self {
     //     Self { sequence, amt }
     // }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        match bincode::decode_from_slice(&bytes, get_bincode_conf()) {
+            Ok(decoded) => Ok(decoded.0),
+            Err(e) => Err(format!(
+                "attempt to decode bytes to MsgFromServer failed with error, {e}"
+            )),
+        }
+    }
+
+    pub fn to_bytes(self) -> Result<Vec<u8>, EncodeError> {
+        let mut buf = Vec::default();
+
+        match bincode::encode_into_slice(&self, &mut buf, get_bincode_conf()) {
+            Ok(_length) => Ok(buf),
+            Err(e) => {
+                warn!("attempt to decode bytes to MsgFromServer failed with error, {e}");
+                Err(e)
+            }
+        }
+    }
 
     pub fn json(&self) -> String {
         let Ok(res) = serde_json::to_string(self) else {
@@ -861,10 +903,11 @@ impl MsgFromServer {
 #[cfg(feature = "pyo3")]
 #[pymethods]
 impl MsgFromServer {
-    // #[new]
-    // fn new_py(sequence: String, amt: isize) -> Self {
-    //     Self::new(sequence, amt)
-    // }
+    #[pyo3(name = "from_bytes")]
+    #[staticmethod]
+    fn from_bytes_py(bytes: Vec<u8>) -> Option<Self> {
+        Self::from_bytes(&bytes).ok()
+    }
 
     #[pyo3(name = "json")]
     fn json_py(&self) -> String {
@@ -918,6 +961,10 @@ impl From<MidiChannel> for Channel {
     }
 }
 
+pub fn get_bincode_conf() -> bincode::config::Configuration {
+    bincode::config::standard()
+}
+
 #[cfg(feature = "pyo3")]
 /// A Python module implemented in Rust.
 #[pymodule]
@@ -927,6 +974,16 @@ fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MidiMsg>()?;
     m.add_class::<NoteDuration>()?;
     m.add_class::<MidiReqBody>()?;
+    m.add_class::<AddNoteBody>()?;
+    m.add_class::<RmNoteBody>()?;
+    m.add_class::<SetDevBody>()?;
+    m.add_class::<GetSequenceQuery>()?;
+    m.add_class::<RenameSequenceBody>()?;
+    m.add_class::<SetChannelBody>()?;
+    m.add_class::<Sequence>()?;
+    m.add_class::<ChangeLenByBody>()?;
+    m.add_class::<MsgFromServer>()?;
+    // m.add_class::<>()?;
 
     m.add_class::<Automation>()?;
     m.add_class::<AutomationTypes>()?;

@@ -13,11 +13,12 @@ use hyper::{Method, Request, body::Bytes};
 use hyper_util::client::legacy::Client;
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 use midi_daw_types::{
-    BPQ, MidiChannel, MidiMsg, MidiReqBody, NoteDuration, Sequence, SequenceName, Tempo,
-    UDS_SERVER_PATH,
+    BPQ, MidiChannel, MidiMsg, MidiReqBody, MsgFromServer, NoteDuration, Sequence, SequenceName,
+    Tempo, UDS_SERVER_PATH,
 };
 use tokio::spawn;
 use tracing::*;
+use uuid::Uuid;
 use xdg::BaseDirectories;
 
 use crate::{midi::out::unwrap_rw_lock, server::message_bus::MbServerHandle};
@@ -109,7 +110,7 @@ pub enum SequencerControlCmd {
         /// Sequence name to rm
         sequence: SequenceName,
     },
-    /// saves all seqeunces into a sub folder of the data dir. the base file name will be based on the sequences name
+    /// saves all sequences into a sub folder of the data dir. the base file name will be based on the sequences name
     SaveProject {
         project_name: String,
     },
@@ -170,15 +171,32 @@ pub async fn sequencer_start(
                 // info!("i % 16 = {}", i as usize % 16);
 
                 if i % 16. == 0. || playing_sequences.is_empty() {
+                    queued_sequences.iter().for_each(|name| {
+                        let msg = MsgFromServer::SequenceStarted {
+                            sequence_name: name.clone(),
+                        };
+                        send_msg(&mb_sender, &conn, msg);
+                    });
+
                     playing_sequences.append(&mut queued_sequences);
                 }
 
                 playing_sequences.retain(|name| {
                     if let Some(sequence) = sequences.get(name) {
                         if i as usize % sequence.steps.len() == 0 {
-                            let res = !queued_stop_sequences.contains(name);
+                            let res = queued_stop_sequences.contains(name);
                             // queued_stop_sequences.retain(|stop_name| stop_name != name);
-                            res
+
+                            if res {
+                                let msg = MsgFromServer::SequenceStoped {
+                                    sequence_name: name.clone(),
+                                    step_n: i as usize,
+                                };
+
+                                send_msg(&mb_sender, &conn, msg);
+                            }
+
+                            !res
                         } else {
                             true
                         }
@@ -244,15 +262,36 @@ pub async fn sequencer_start(
                 }
 
                 if !(playing_sequences.is_empty() && queued_sequences.is_empty()) {
-                    mb_sender.send_binary(conn, i.to_ne_bytes().to_vec().into());
+                    // mb_sender.send_binary(conn, i.to_ne_bytes().to_vec().into());
+                    let msg_struct = MsgFromServer::Step {
+                        pulse_count: counter as usize,
+                        step_n: i as usize,
+                        step_type: NoteDuration::Sn(1),
+                        bpq: unwrap_rw_lock(&bpq, 24.),
+                    };
+
+                    send_msg(&mb_sender, &conn, msg_struct);
                 }
             }
 
             if !(playing_sequences.is_empty() && queued_sequences.is_empty()) {
+                let i = counter / (unwrap_rw_lock(&bpq, 24.) / 4.);
+                let (after_step, before_step) = (i.floor() as usize, i.ceil() as usize);
+
+                let msg = MsgFromServer::SyncPulse {
+                    pulse_count: counter as usize,
+                    after_step,
+                    before_step,
+                };
+                send_msg(&mb_sender, &conn, msg);
+
                 counter += 1.;
                 counter %= f64::MAX;
             } else {
                 counter = 0.;
+                let msg = MsgFromServer::SyncPulseReset();
+
+                send_msg(&mb_sender, &conn, msg);
             }
         } else {
             while let Ok(msg) = controls.try_recv() {
@@ -339,32 +378,82 @@ pub async fn sequencer_start(
                         queued_stop_sequences.retain(|stop_name| stop_name != &name);
 
                         if sequences.contains_key(&name) {
-                            queued_sequences.push(name);
+                            queued_sequences.push(name.clone());
+
+                            let i = (counter / (unwrap_rw_lock(&bpq, 24.) / 4.)) as usize;
+                            let msg = MsgFromServer::SequenceWillStart {
+                                sequence_name: name.clone(),
+                                after_steps: 16 - (i % 16),
+                            };
+
+                            send_msg(&mb_sender, &conn, msg);
                         } else {
                             error!("unknown sequence, \"{name}\"");
                         }
                     }),
                     SequencerControlCmd::PlayAll => {
-                        sequences
-                            .keys()
-                            .for_each(|name| queued_sequences.push(name.clone()));
+                        sequences.keys().for_each(|name| {
+                            let msg = MsgFromServer::SequenceStarted {
+                                sequence_name: name.clone(),
+                            };
+
+                            send_msg(&mb_sender, &conn, msg);
+                            queued_sequences.push(name.clone());
+                        });
                     }
                     SequencerControlCmd::Stop(names) => {
+                        names.iter().for_each(|name| {
+                            let msg = MsgFromServer::SequenceStoped {
+                                sequence_name: name.clone(),
+                                step_n: (counter / (unwrap_rw_lock(&bpq, 24.) / 4.)) as usize,
+                            };
+
+                            send_msg(&mb_sender, &conn, msg);
+                        });
+
                         queued_sequences.retain(|name| !names.contains(name));
                         playing_sequences.retain(|name| !names.contains(name));
 
                         if playing_sequences.is_empty() && queued_sequences.is_empty() {
                             counter = 0.;
+                            let msg = MsgFromServer::SyncPulseReset();
+
+                            send_msg(&mb_sender, &conn, msg);
                         }
                     }
                     SequencerControlCmd::StopAll => {
+                        playing_sequences.iter().for_each(|name| {
+                            let msg = MsgFromServer::SequenceStoped {
+                                sequence_name: name.clone(),
+                                step_n: (counter / (unwrap_rw_lock(&bpq, 24.) / 4.)) as usize,
+                            };
+
+                            send_msg(&mb_sender, &conn, msg);
+                        });
+
                         queued_sequences.clear();
                         playing_sequences.clear();
                         counter = 0.;
+
+                        let msg = MsgFromServer::SyncPulseReset();
+
+                        send_msg(&mb_sender, &conn, msg);
                     }
                     SequencerControlCmd::QueueStop(names) => {
                         queued_stop_sequences.append(&mut names.clone());
                         queued_sequences.retain(|name| !names.contains(name));
+
+                        playing_sequences.iter().for_each(|name| {
+                            if names.contains(name) {
+                                let i = (counter / (unwrap_rw_lock(&bpq, 24.) / 4.)) as usize;
+                                let msg = MsgFromServer::SequenceWillStop {
+                                    sequence_name: name.clone(),
+                                    after_steps: 16 - (i % 16),
+                                };
+
+                                send_msg(&mb_sender, &conn, msg);
+                            }
+                        });
                     }
                     SequencerControlCmd::Pause(_names) => warn!("not implemented yet"),
                     SequencerControlCmd::PauseAll => warn!("not implemented yet"),
@@ -446,7 +535,7 @@ pub async fn sequencer_start(
                     }
                     SequencerControlCmd::SaveSequence { sequence } => {
                         if let Some(seq) = sequences.get(&sequence) {
-                            save_seqeunce(seq, &sequence).await;
+                            save_sequence(seq, &sequence).await;
                             // logging handled in above function
                         } else {
                             error!("sequence not found");
@@ -478,7 +567,7 @@ pub async fn sequencer_start(
                                         "attempts to respond to front end failed with error: {e:?}"
                                     );
                                 } else {
-                                    info!("listed seqeunces {:?}", contents);
+                                    info!("listed sequences {:?}", contents);
                                 }
                             } else {
                                 error!("failed to read saved files in data directory.");
@@ -555,7 +644,7 @@ pub async fn sequencer_start(
                                         data_dir.to_string_lossy()
                                     );
                                 } else {
-                                    info!("seqeunce file removed");
+                                    info!("sequence file removed");
                                 }
                             } else {
                                 warn!(
@@ -594,7 +683,7 @@ pub async fn sequencer_start(
                                             ),
                                             Err(e) => {
                                                 error!(
-                                                    "writing seqeunce data from project to file, {}, failed with an error, {e}",
+                                                    "writing sequence data from project to file, {}, failed with an error, {e}",
                                                     data_dir
                                                         .file_name()
                                                         .map(|name| name
@@ -733,7 +822,7 @@ pub async fn sequencer_start(
                                         data_dir.to_string_lossy()
                                     );
                                 } else {
-                                    info!("seqeunce file removed");
+                                    info!("sequence file removed");
                                 }
                             } else {
                                 warn!(
@@ -753,7 +842,7 @@ pub async fn sequencer_start(
     }
 }
 
-async fn save_seqeunce(seq: &Sequence, sequence_name: &str) {
+async fn save_sequence(seq: &Sequence, sequence_name: &str) {
     match serde_json::to_string(seq) {
         Ok(json) => {
             let xdg_dirs = BaseDirectories::new();
@@ -774,7 +863,7 @@ async fn save_seqeunce(seq: &Sequence, sequence_name: &str) {
                         Ok(_) => info!("saved '{sequence_name}' to file {}.", seq.name),
                         Err(e) => {
                             error!(
-                                "writing seqeunce data from seqeunce, {}, to file, {}, failed with an error, {e}",
+                                "writing sequence data from sequence, {}, to file, {}, failed with an error, {e}",
                                 seq.name,
                                 data_dir
                                     .file_name()
@@ -794,5 +883,13 @@ async fn save_seqeunce(seq: &Sequence, sequence_name: &str) {
         Err(e) => {
             error!("attept to json-ify, failed with error, {e}");
         }
+    }
+}
+
+fn send_msg(mb_sender: &MbServerHandle, conn: &Uuid, msg_struct: MsgFromServer) {
+    if let Ok(msg) = msg_struct.to_bytes() {
+        mb_sender.send_binary(conn.clone(), msg.into());
+    } else {
+        error!("failed to send msg to msg bus");
     }
 }

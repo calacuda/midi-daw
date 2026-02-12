@@ -13,6 +13,7 @@ actix-broker = "0.4.4"
 actix-web = "4.11.0"
 actix-ws = "0.3.0"
 async-std = { version = "1.13.1", features = ["async-attributes", "async-process", "futures-core"] }
+bincode = "2.0.1"
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 futures = "0.3.31"
 futures-lite = "2.6.1"
