@@ -2,7 +2,11 @@
 
   live coding rewrite
 
-A python library that is desined to support live coding musical preformances. There are two main ways of utilising this library. The first is best suited for a [tmux](https://github.com/tmux/tmux/wiki) & terminal text editor based approach (see [recomended editors](#recomended-editors)). This aproach involves setting the MIDI output device for the whole file; meaning that all midi out put for the whole file gets sent to that output. The other aproach involves using decorators to define the midi output device and channel per function. This approach is best suited for a situation where all code is in a single file, or for when using [Jupyter notebook](https://jupyter.org/).
+A python library that is desined to support live coding musical preformances. There are a few main ways of utilising this library.
+
+1. The first is best suited for a [tmux](https://github.com/tmux/tmux/wiki) & terminal text editor based approach (see [recomended editors](#recomended-editors)). This involves setting the MIDI output device for the whole file; meaning that all midi out put for the whole file gets sent to that output. 
+2. Using decorators to define the midi output device and channel per function. This is best suited for a situation where all code is in a single file, or for when using [Jupyter notebook](https://jupyter.org/).
+3. Set it up as a web-server and control it via an andoroid app. (see: `./frontends/midi-daw.android/` for more on that.)
 
 # Recomended Editors
 
