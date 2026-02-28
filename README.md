@@ -1,7 +1,5 @@
 # midi-daw
 
-  live coding rewrite
-
 A python library that is desined to support live coding musical preformances. There are a few main ways of utilizing this library.
 
 1. The first is best suited for a [tmux](https://github.com/tmux/tmux/wiki) & terminal text editor based approach (see [recomended editors](#recomended-editors)). This involves setting the MIDI output device for the whole file; meaning that all midi out put for the whole file gets sent to that output. 
