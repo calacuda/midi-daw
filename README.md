@@ -28,7 +28,7 @@ The main midi-daw program runs as a webserver accessable from the local network 
 4. server side sequencer.
 5. android app for control.
 6. control from multiple devices at once.
-8. saving and loading sessions and tracks.
+7. saving and loading sessions and tracks.
 
 ## TODO
 
