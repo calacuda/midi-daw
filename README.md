@@ -4,9 +4,9 @@ A python library that is desined to support live coding musical preformances. Th
 
 1. The first is best suited for a [tmux](https://github.com/tmux/tmux/wiki) & terminal text editor based approach (see [recomended editors](#recomended-editors)). This involves setting the MIDI output device for the whole file; meaning that all midi out put for the whole file gets sent to that output. 
 2. Using decorators to define the midi output device and channel per function. This is best suited for a situation where all code is in a single file, or for when using [Jupyter notebook](https://jupyter.org/).
-3. Set it up as a web-server and control it via an andoroid app. (see: `./frontends/midi-daw.android/` for more on that..)
+3. Control it via an andoroid app. (see: `./frontends/midi-daw.android/` for more on that..)
 
-# Recomended Editors
+## Recomended Editors
 
 these are listen in no particular order.
 
@@ -16,7 +16,11 @@ these are listen in no particular order.
 - [micro](https://micro-editor.github.io/)
 - [Jupyter Notebook](https://jupyter.org/)
 
-# TODO
+## How it Works
+
+The main midi-daw program runs as a webserver accessable from the local network and a [Unix Domain Socket](https://en.wikipedia.org/wiki/Unix_domain_socket). This webserver serves an API that allows for sending MIDI messages to specific usb, or vitual, MIDI devices, and the play-back/edditing of sequences. The user can then use an android app or python code to control the sequences, or direct playback. The android app can be used to create sequences in a tracker like interface for melodic tracks, or a drum sequencer interface for drum tracks.
+
+## TODO
 
 - [x] when using decorators create a way to name the thread that a function defines, based on the funtion name.
 - [x] name the file based midi threads based on file name
