@@ -18,7 +18,17 @@ these are listen in no particular order.
 
 ## How it Works
 
-The main midi-daw program runs as a webserver accessable from the local network and a [Unix Domain Socket](https://en.wikipedia.org/wiki/Unix_domain_socket). This webserver serves an API that allows for sending MIDI messages to specific usb, or vitual, MIDI devices, and the play-back/edditing of sequences. The user can then use an android app or python code to control the sequences, or direct playback. The android app can be used to create sequences in a tracker like interface for melodic tracks, or a drum sequencer interface for drum tracks.
+The main midi-daw program runs as a webserver accessable from the local network and a [Unix Domain Socket](https://en.wikipedia.org/wiki/Unix_domain_socket). This webserver serves an API that allows for sending MIDI messages to specific usb, or vitual, MIDI devices, and play-back/edditing of sequences. The user can then use an android app or python code to control the sequences, or direct playback. The android app can be used to create sequences in a tracker like interface for melodic tracks, or a drum sequencer interface for drum tracks.
+
+## Features
+
+1. python library for music creation with code.
+2. auto detect new midi devices.
+3. virtual midi device creation.
+4. server side sequencer.
+5. android app for control.
+6. control from multiple devices at once.
+8. saving and loading sessions and tracks.
 
 ## TODO
 
