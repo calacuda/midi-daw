@@ -80,3 +80,4 @@ The main midi-daw program runs as a webserver accessable from the local network 
 - [x] add message bus notifications enum for common events, sent as binary messages and encoded with the bincode (v2.0.1) crate
   - [x] change android app to use the new message format
 - [x] add BPQ setting & getting api end points
+- [ ] set up the server as a wifi access point to remove the need for a travel router
