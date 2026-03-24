@@ -7,6 +7,9 @@ _:
 serve:
   ~/.cargo/bin/dx serve --platform android --device HA244HYM --port 8888
 
+check:
+  ~/.cargo/bin/dx check --platform android 
+
 build:
   ~/.cargo/bin/dx build --release --platform android --device HA244HYM
 
