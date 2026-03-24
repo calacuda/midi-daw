@@ -1,0 +1,19 @@
+_: 
+  @just -l
+
+build:
+  RUSTFLAGS='-C link-arg=-lc++_shared -C link-arg=-landroid' ~/.cargo/bin/dx build --platform android --verbose --trace
+
+serve:
+  RUSTFLAGS='-C link-arg=-lc++_shared -C link-arg=-landroid' ~/.cargo/bin/dx serve --platform android
+
+test-remote:
+  ~/.cargo/bin/dx serve --platform web
+
+check:
+  ~/.cargo/bin/dx check --platform web
+  ~/.cargo/bin/dx check --platform desktop
+
+test-loc:
+  ~/.cargo/bin/dx serve --platform desktop
+

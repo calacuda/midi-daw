@@ -1,0 +1,67 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace="{{ application_id }}"
+    compileSdk = 33
+    defaultConfig {
+        applicationId = "{{ application_id }}"
+        minSdk = 24
+        targetSdk = 33
+        versionCode = 1
+        versionName = "1.0"
+        externalNativeBuild {
+            cmake {
+                // arguments += listOf("-DANDROID_STL=c++_static")
+            }
+        }
+    }
+    {{#if android_bundle}}
+    signingConfigs {
+        create("release") {
+            storeFile = file("../../../../../../../{{ android_bundle.jks_file }}")
+            storePassword = "{{ android_bundle.jks_password }}"
+            keyAlias = "{{ android_bundle.key_alias }}"
+            keyPassword = "{{ android_bundle.key_password }}"
+        }
+    }
+    {{/if}}
+    buildTypes {
+        getByName("debug") {
+            isDebuggable = true
+            isJniDebuggable = true
+            isMinifyEnabled = false
+            packaging {
+                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
+                jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
+                jniLibs.keepDebugSymbols.add("*/x86/*.so")
+                jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
+            }
+        }
+        getByName("release") {
+            isMinifyEnabled = true
+            {{#if android_bundle}}
+            signingConfig = signingConfigs.getByName("release")
+            {{/if}}
+            proguardFiles(
+                *fileTree(".") { include("**/*.pro") }
+                    .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
+                    .toList().toTypedArray()
+            )
+        }
+    }
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+}
+
+dependencies {
+    implementation("androidx.webkit:webkit:1.6.1")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.8.0")
+}
