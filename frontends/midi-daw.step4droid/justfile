@@ -7,7 +7,7 @@ build:
 serve:
   RUSTFLAGS='-C link-arg=-lc++_shared -C link-arg=-landroid' ~/.cargo/bin/dx serve --platform android
 
-test-remote:
+test-web:
   ~/.cargo/bin/dx serve --platform web
 
 check:
@@ -15,5 +15,5 @@ check:
   ~/.cargo/bin/dx check --platform desktop
 
 test-loc:
-  ~/.cargo/bin/dx serve --platform desktop
+  WEBKIT_DISABLE_COMPOSITING_MODE=1 ~/.cargo/bin/dx serve --platform desktop -r
 

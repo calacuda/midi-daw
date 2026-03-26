@@ -1,5 +1,6 @@
 #![feature(never_type)]
 use crate::{
+    api::api_post,
     playback::BASE_URL,
     tracks::{Track, TrackerCmd},
 };
@@ -11,9 +12,10 @@ use midi_daw_types::{
 };
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite_wasm::{Message, connect as connect_async};
 use tracing::*;
 
+pub mod api;
 pub mod less_then;
 pub mod playback;
 pub mod tracks;
@@ -46,35 +48,52 @@ pub enum SaveMenuState {
     Off,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum HintMessage {
+    Hint(String),
+    Regular(String),
+}
+
 fn main() {
     // Init logger
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
 
-    // let drums = Track::new(
-    //     Some("Drum-Track".into()),
-    //     1,
-    //     "Midi Through:0".into(),
-    //     true,
-    //     Some(16),
-    // );
-    // // drums.chan = MidiChannel::Ch10;
-    // let mut melodic = Track::default();
-    // melodic.dev = " Midi Through:0".into();
-    // melodic.name = "Melodic-1".into();
-    // let sections = Arc::new(RwLock::new(vec![melodic, drums]));
     let sections = Arc::new(RwLock::new(Vec::<Track>::default()));
     let displaying_uuid = Arc::new(RwLock::new(0usize));
 
+    prepare(sections.clone());
+
+    // dioxus::launch(App);
+    dioxus::LaunchBuilder::new()
+        .with_context(sections.clone())
+        .with_context(displaying_uuid.clone())
+        .launch(App);
+}
+
+// #[cfg_attr(feature = "web", tokio::main(flavor = "current_thread"))]
+// // #[tokio::main]
+// #[cfg_attr(not(feature = "web"), tokio::main)]
+fn prepare(sections: Arc<RwLock<Vec<Track>>>) {
     // this is here to remind me of some technique, but what? google the docs for this function.
     // #[cfg(android)]
     // jni_sys::call_android_function();
+
+    info!("start: prepare");
+
     let client = reqwest::blocking::Client::new();
-    let names: Option<Vec<String>> = client
+    let names: Option<Vec<String>> = if let Ok(res) = client
         .get(format!("http://{BASE_URL}/sequence/names"))
         .send()
-        .map(|res| res.json().ok())
-        .ok()
-        .flatten();
+        // .await
+        .map(|res| res.json())
+    {
+        res.ok()
+    } else {
+        error!("api call failed");
+        None
+    };
+
+    sections.write().unwrap().clear();
 
     if let Some(mut names) = names
         && !names.is_empty()
@@ -86,22 +105,25 @@ fn main() {
                 .get(format!("http://{BASE_URL}/sequence"))
                 .query(&GetSequenceQuery::new(name.clone()))
                 .send()
+                // .await
                 .map(|res| res.json::<Sequence>())
             {
-                Ok(Ok(json)) => {
-                    let mut track = Track::default();
-                    track.name = name.clone();
+                Ok(res) => match res {
+                    Ok(json) => {
+                        let mut track = Track::default();
+                        track.name = name.clone();
 
-                    track.steps = json
-                        .steps
-                        .iter()
-                        .map(|step| tracks::Step::from(step.clone()))
-                        .collect();
-                    track.dev = json.midi_dev.clone();
-                    track.chan = json.channel.clone();
-                    sections.write().unwrap().push(track);
-                }
-                Ok(Err(e)) => error!("invalid json returned from server. {e}"),
+                        track.steps = json
+                            .steps
+                            .iter()
+                            .map(|step| tracks::Step::from(step.clone()))
+                            .collect();
+                        track.dev = json.midi_dev.clone();
+                        track.chan = json.channel.clone();
+                        sections.write().unwrap().push(track);
+                    }
+                    Err(e) => error!("invalid json returned from server. {e}"),
+                },
                 Err(e) => error!("refreshing seqeunce failed with error, {e}"),
             }
         }
@@ -112,6 +134,7 @@ fn main() {
             .post(format!("http://{BASE_URL}/sequence/new"))
             .json(&track.name.clone())
             .send()
+        // .await
         {
             error!("adding track failed with error {e}");
         }
@@ -119,20 +142,13 @@ fn main() {
         sections.write().unwrap().push(track);
     }
 
-    // dioxus::launch(App);
-    dioxus::LaunchBuilder::new()
-        .with_context(sections.clone())
-        .with_context(displaying_uuid.clone())
-        // .with_context(counter)
-        // .with_context(send)
-        // .with_context(sync_pulse)
-        // .with_context(send)
-        .launch(App);
+    // info!("sequences => {sections:?}");
+    info!("prepare complete");
 }
 
 async fn sync_pulse_reader(tx: UnboundedSender<usize>) -> () {
     loop {
-        let (socket, response) = match connect_async(format!("ws://{BASE_URL}/message-bus")).await {
+        let socket = match connect_async(format!("ws://{BASE_URL}/message-bus")).await {
             Ok(val) => val,
             Err(e) => {
                 error!("{e}");
@@ -140,15 +156,15 @@ async fn sync_pulse_reader(tx: UnboundedSender<usize>) -> () {
             }
         };
 
-        if response.status() != 101 {
-            error!(
-                "failed to connect to message-bus. failure detected based on responce code. (was {}, expected 101.)",
-                response.status()
-            );
-            return;
-        }
-
-        info!("connected... {}", response.status());
+        // if response.status() != 101 {
+        //     error!(
+        //         "failed to connect to message-bus. failure detected based on responce code. (was {}, expected 101.)",
+        //         response.status()
+        //     );
+        //     return;
+        // }
+        //
+        // info!("connected... {}", response.status());
 
         let (_, socket) = socket.split();
 
@@ -205,53 +221,186 @@ fn App() -> Element {
     let middle_view = use_signal(|| MiddleColView::Section);
     let sections = use_context::<Arc<RwLock<Vec<Track>>>>();
     let displaying_uuid = use_context::<Arc<RwLock<usize>>>();
-    // let send = use_context::<Sender<f64>>();
-    // let sync_pusle = use_context::<Receiver<f64>>();
-    // let counter = use_context::<SyncSignal<f64>>();
+
+    // spawn(prepare(sections.clone()));
 
     let sections = use_signal(|| sections);
     let displaying_uuid = use_signal(|| displaying_uuid);
-    let playing_sections = use_signal(|| Vec::default());
+    let playing_sections: Signal<Vec<usize>> = use_signal(|| Vec::default());
 
     // used to give context to the edit note/velocity/cmd-1/cmd-2
     let edit_cell = use_signal(|| None::<(usize, Colums)>);
     let choosing_device = use_signal(|| false);
-    // let known_midi_devs: Signal<Arc<[String]>> = use_signal(|| Vec::new().into());
     let known_midi_devs: Signal<Vec<String>> = use_signal(|| Vec::new());
     let project_name: Signal<String> = use_signal(|| String::new());
     let save_menu = use_signal(|| SaveMenuState::Off);
+    let hint_message = use_signal(|| None);
+    // info!("app inited");
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
 
-        main {
+        div {
+            id: "left-side-bar",
+            class: "side-bar",
+        }
+
+        div {
+            id: "main-section",
+
             div {
-                id: "left-col",
-                LeftCol { middle_view, sections, displaying: displaying_uuid, edit_cell, playing_sections }
-            }
-            div {
-                id: "middle-col",
-                MiddleCol { middle_view, sections, displaying: displaying_uuid, edit_cell, choosing_device }
+                id: "hint-bar",
 
-                if edit_cell.read().is_some() && middle_view() == MiddleColView::Section {
-                    EditSectionMenu { sections, displaying: displaying_uuid, edit_cell }
-                }
-
-                if *choosing_device.read() && middle_view() == MiddleColView::Section {
-                    MidiDevChooser { sections, displaying: displaying_uuid, choosing_device, known_midi_devs }
-                }
-
-                if *save_menu.read() == SaveMenuState::Save && middle_view() == MiddleColView::Section {
-                    SaveMenu { project_name, save_menu }
-                } else if *save_menu.read() == SaveMenuState::Load && middle_view() == MiddleColView::Section {
-                    LoadMenu { project_name, save_menu, sections }
+                match hint_message() {
+                    Some(HintMessage::Hint(msg)) => format!("Hint: {msg}"),
+                    Some(HintMessage::Regular(msg)) => msg,
+                    None => String::new(),
                 }
             }
+
             div {
-                id: "right-col",
-                // PlayTone {  }
-                RightCol { middle_view, sections, displaying: displaying_uuid, playing_sections, known_midi_devs, choosing_device, save_menu }
+                id: "under-hint",
+
+                div {
+                    id: "mod-boxes",
+
+                    "mod-boxes"
+                }
+
+                div {
+                    id: "piano-display",
+
+                    "piano-display"
+                }
+
+                StepButtons { sections, displaying_uuid }
+            }
+        }
+
+        div {
+            id: "right-side-bar",
+            class: "side-bar",
+        }
+    }
+}
+
+#[component]
+fn StepButtons(
+    sections: ReadSignal<Arc<RwLock<Vec<Track>>>>,
+    displaying_uuid: Signal<Arc<RwLock<usize>>>,
+) -> Element {
+    let seq_names = use_memo(move || {
+        sections
+            .read()
+            .read()
+            .unwrap()
+            .iter()
+            .map(|seq| {
+                // rsx! {
+                //     div {
+                //         class: "button-w-border section-button",
+
+                seq.name.clone()
+                //     }
+                // }
+            })
+            .collect::<Vec<String>>()
+    });
+
+    rsx! {
+        div {
+            id: "main-bottom",
+            class: "row",
+
+            div {
+                id: "sequences",
+                class: "col",
+
+                // scrollable list of seqeunces
+                // "scrollable list of seqeunces"
+                for (i, section) in seq_names.iter().enumerate() {
+                    div {
+                        class: "button-w-border section-button",
+                        onclick: move |_| {
+                            *displaying_uuid.write().write().unwrap() = i;
+                        },
+
+                        "{section}"
+                    }
+                }
+                // {seq_names}
+            }
+
+            div {
+                id: "step-buttons",
+                class: "col",
+
+                div {
+                    class: "half-height full-width row step-buttons-part",
+
+                    for i in 0..8 {
+                        StepButton { sections, displaying_uuid, i }
+                    }
+                }
+
+                div {
+                    class: "half-height full-width row step-buttons-part",
+
+                    for i in 8..16 {
+                        StepButton { sections, displaying_uuid, i }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn StepButton(
+    sections: ReadSignal<Arc<RwLock<Vec<Track>>>>,
+    displaying_uuid: ReadSignal<Arc<RwLock<usize>>>,
+    i: usize,
+) -> Element {
+    let mut note_display = use_signal(|| String::new());
+
+    use_effect(move || {
+        info!("rerunning note_display");
+
+        note_display.set(if let Ok(seqs) = sections.read().read() {
+            info!("{} sequences found", seqs.len());
+
+            if let Some(seq) = seqs.get(*displaying_uuid.read().read().unwrap()) {
+                info!("seq => {:?}", seq.name);
+                // String::new()
+                seq.steps[i]
+                    .note
+                    .get(0)
+                    .map(display_midi_note)
+                    .unwrap_or(String::new())
+            } else {
+                warn!("unwknown sequence");
+                String::new()
+            }
+        } else {
+            error!("failed to read sequences");
+            String::new()
+        });
+    });
+
+    rsx! {
+        div {
+            class: "button-w-border step-button",
+
+            div {
+                class: "note-display",
+
+                {note_display}
+            }
+
+            // LED
+            div {
+                class: "led super-center"
             }
         }
     }
@@ -286,12 +435,13 @@ fn SaveMenu(project_name: Signal<String>, save_menu: Signal<SaveMenuState>) -> E
                         // send save request
                         info!("sending save request");
 
-                        let client = reqwest::Client::new();
+                        // let client = reqwest::Client::new();
 
-                        if let Err(e) = client
-                            .post(format!("http://{BASE_URL}/project/save"))
-                            .json(&project_name.read().clone())
-                            .send().await
+                        if let Err(e) = api_post("project/save", &project_name.read().clone()).await
+                            // client
+                            // .post(format!("http://{BASE_URL}/project/save"))
+                            // .json()
+                            // .send().await
                         {
                             error!("changing midi device failed with error {e}");
                         } else {

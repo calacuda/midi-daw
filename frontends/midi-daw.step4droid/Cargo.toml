@@ -7,7 +7,7 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-android-usbser = "0.2.3"
+# android-usbser = "0.2.3"
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel", "nightly"] }
 dioxus =  { version = "0.7", features = [] }
 dioxus-logger = "0.7"
@@ -26,22 +26,21 @@ tracing = "0.1.41"
 strum = { version = "0.27.2", features = ["derive"] }
 strum_macros = "0.27.2"
 midi-daw-types = { version = "0.1.0", path = "../../midi-daw-types", default-features = false }
-tokio-tungstenite = { version = "0.28.0", features = ["handshake"] }
-# reqwest = { version = "0.12.24", features = ["blocking", "json", "rustls-tls", "rustls-tls-no-provider"], default-features = false }
+# tokio-tungstenite = { version = "0.28.0", features = ["handshake"] }
+tokio-tungstenite-wasm = "0.8"
+reqwest = { version = "0.12.24", features = ["blocking", "json", "rustls-tls", "rustls-tls-no-provider"], default-features = false }
 serde_json = "1.0.145"
 futures-util = "0.3.31"
-tokio = { version = "1.49.0", features = ["sync"] }
-# biquad = "0.5.0"
-
+tokio = { version = "1.50.0", features = ["macros", "sync"], default-features = false }
+serde = { version = "1.0.228", features = ["derive"] }
+getrandom = { version = "0.3.4", optional = true }
 
 [features]
 default = ["mobile"]
-web = ["dioxus/web"]
-desktop = ["dioxus/desktop"]
-mobile = ["dioxus/mobile"]
-
-[profile.dev.package."stepper-synth"]
-opt-level = 3
+web = ["dioxus/web", "getrandom", "getrandom/wasm_js", "tokio/rt"]
+desktop = ["dioxus/desktop", "tokio/rt-multi-thread"]
+mobile = ["dioxus/mobile", "tokio/rt-multi-thread"]
+getrandom = ["dep:getrandom"]
 
 [profile.wasm-dev]
 inherits = "dev"
@@ -52,6 +51,3 @@ inherits = "dev"
 
 [profile.android-dev]
 inherits = "dev"
-
-[profile.android-dev.package."step4droid"]
-opt-level = 3
