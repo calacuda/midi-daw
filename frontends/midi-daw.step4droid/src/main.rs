@@ -268,11 +268,7 @@ fn App() -> Element {
                     "mod-boxes"
                 }
 
-                div {
-                    id: "piano-display",
-
-                    "piano-display"
-                }
+                PianoDisplay { sections, displaying_uuid }
 
                 StepButtons { sections, displaying_uuid }
             }
@@ -281,6 +277,247 @@ fn App() -> Element {
         div {
             id: "right-side-bar",
             class: "side-bar",
+        }
+    }
+}
+
+#[component]
+fn PianoDisplay(
+    sections: ReadSignal<Arc<RwLock<Vec<Track>>>>,
+    displaying_uuid: Signal<Arc<RwLock<usize>>>,
+) -> Element {
+    rsx! {
+        div {
+            id: "piano",
+            class: "row",
+
+            // "piano-display"
+            for octave in 0..7 {
+                PianoOctave { sections, displaying_uuid, octave }
+            }
+        }
+    }
+}
+
+#[component]
+fn PianoOctave(
+    sections: ReadSignal<Arc<RwLock<Vec<Track>>>>,
+    displaying_uuid: Signal<Arc<RwLock<usize>>>,
+    octave: usize,
+) -> Element {
+    rsx! {
+        div {
+            class: "piano-octave",
+
+            div {
+                class: "white-keys",
+
+                for note_offset in [0, 2, 4, 5, 7, 9, 11] {
+                    WhiteKey {sections, displaying_uuid, octave, note_offset}
+                }
+            }
+
+            div {
+                class: "black-keys",
+
+                for note_offset in 0..12 {
+                    BlackKey {sections, displaying_uuid, octave, note_offset}
+                }
+
+            }
+        }
+    }
+}
+
+#[component]
+fn WhiteKey(
+    sections: ReadSignal<Arc<RwLock<Vec<Track>>>>,
+    displaying_uuid: Signal<Arc<RwLock<usize>>>,
+    octave: usize,
+    note_offset: usize,
+    // TODO: add this back when step counter is implemented
+
+    // step_i: usize,
+    // TODO: add this back when cursor is implemented
+
+    // cursor_position: less_then::UsizeLessThan<16>,
+) -> Element {
+    // TODO: add this back when step counter is implemented
+
+    // let selected = use_signal(|| {
+    //     // let dis =
+    //     displaying_uuid
+    //         .read()
+    //         .read()
+    //         .map(|dis| {
+    //             let dis = dis.clone();
+    //             // this_track_playing
+    //             //     &&
+    //             sections
+    //                 .read()
+    //                 .read()
+    //                 .map(|gaurd| {
+    //                     gaurd.clone()[dis].steps[step_i]
+    //                         .note
+    //                         .get(0)
+    //                         .map(|note| *note as usize == 12 * octave + note_offset)
+    //                 })
+    //                 .ok()
+    //                 .flatten()
+    //         })
+    //         .ok()
+    //         .flatten()
+    //         .unwrap_or(false)
+    // });
+
+    // TODO: add this back when cursor is implemented
+
+    // let cursor_on = use_signal(|| {
+    //     // let dis =
+    //     displaying_uuid
+    //         .read()
+    //         .read()
+    //         .map(|dis| {
+    //             let dis = dis.clone();
+    //             // this_track_playing
+    //             //     &&
+    //             sections
+    //                 .read()
+    //                 .read()
+    //                 .map(|gaurd| {
+    //                     gaurd.clone()[dis].steps[cursor_position.0]
+    //                         .note
+    //                         .get(0)
+    //                         .map(|note| *note as usize == 12 * octave + note_offset)
+    //                 })
+    //                 .ok()
+    //                 .flatten()
+    //         })
+    //         .ok()
+    //         .flatten()
+    //         .unwrap_or(false)
+    // });
+
+    rsx! {
+        div {
+            class: {
+                #[allow(unused_mut)]
+                let mut class = vec!["white-key"];
+
+                // TODO: add this back when step counter is implemented
+
+                // if selected() {
+                //     class.push("this-key-pressed");
+                // }
+
+                // TODO: add this back when cursor is implemented
+
+                // highlight this a different color based on the note of the step the cursor is
+                // hovering over
+                // if cursor_on() {
+                //     class.push("this-has-cursor");
+                // }
+
+                class.join(" ")
+            },
+        }
+    }
+}
+
+#[component]
+fn BlackKey(
+    sections: ReadSignal<Arc<RwLock<Vec<Track>>>>,
+    displaying_uuid: Signal<Arc<RwLock<usize>>>,
+    octave: usize,
+    note_offset: usize,
+    // TODO: add this back when step counter is implemented
+
+    // step_i: usize,
+    // TODO: add this back when cursor is implemented
+
+    // cursor_position: less_then::UsizeLessThan<16>,
+) -> Element {
+    // TODO: add this back when step counter is implemented
+
+    // let selected = use_signal(|| {
+    //     // let dis =
+    //     displaying_uuid
+    //         .read()
+    //         .read()
+    //         .map(|dis| {
+    //             let dis = dis.clone();
+    //             // this_track_playing
+    //             //     &&
+    //             sections
+    //                 .read()
+    //                 .read()
+    //                 .map(|gaurd| {
+    //                     gaurd.clone()[dis].steps[step_i]
+    //                         .note
+    //                         .get(0)
+    //                         .map(|note| *note as usize == 12 * octave + note_offset)
+    //                 })
+    //                 .ok()
+    //                 .flatten()
+    //         })
+    //         .ok()
+    //         .flatten()
+    //         .unwrap_or(false)
+    // });
+
+    // TODO: add this back when cursor is implemented
+
+    // let cursor_on = use_signal(|| {
+    //     // let dis =
+    //     displaying_uuid
+    //         .read()
+    //         .read()
+    //         .map(|dis| {
+    //             let dis = dis.clone();
+    //             // this_track_playing
+    //             //     &&
+    //             sections
+    //                 .read()
+    //                 .read()
+    //                 .map(|gaurd| {
+    //                     gaurd.clone()[dis].steps[cursor_position.0]
+    //                         .note
+    //                         .get(0)
+    //                         .map(|note| *note as usize == 12 * octave + note_offset)
+    //                 })
+    //                 .ok()
+    //                 .flatten()
+    //         })
+    //         .ok()
+    //         .flatten()
+    //         .unwrap_or(false)
+    // });
+
+    rsx! {
+        div {
+            class: {
+                let mut class = vec!["black-key"];
+
+                if [1, 3, 6, 8, 10].contains(&note_offset) {
+                    class.push("invisible");
+                }
+
+                // TODO: add this back when step counter is implemented
+
+                // if selected() {
+                //     class.push("this-key-pressed");
+                // }
+
+                // TODO: add this back when cursor is implemented
+
+                // highlight this a different color based on the note of the step the cursor is
+                // hovering over
+                // if cursor_on() {
+                //     class.push("this-has-cursor");
+                // }
+
+                class.join(" ")
+            },
         }
     }
 }
