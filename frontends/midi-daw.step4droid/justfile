@@ -15,5 +15,5 @@ check:
   ~/.cargo/bin/dx check --platform desktop
 
 test-loc:
-  WEBKIT_DISABLE_COMPOSITING_MODE=1 ~/.cargo/bin/dx serve --platform desktop -r
+  WEBKIT_DISABLE_COMPOSITING_MODE=1 ~/.cargo/bin/dx serve --platform desktop
 
