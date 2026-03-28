@@ -11,6 +11,7 @@ By: Calacuda | MIT License | Epoch: Jul 25, 2025
 
 # import asyncio
 import logging
+import multiprocessing
 import threading
 from copy import copy
 from functools import partial
@@ -28,6 +29,8 @@ from websockets.sync.client import unix_connect
 requests_unixsocket.monkeypatch()
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+multiprocessing.set_start_method("fork", force=True)  # or 'spawn'
 
 MIDI_TARGET = MidiTarget()
 
@@ -216,6 +219,7 @@ def note(
         # midi_cmd = MidiMsg.PlayNote
         def midi_cmd(note):
             return MidiMsg.PlayNote(note, vel, duration)
+
     else:
         midi_cmd = MidiMsg.StopNote
 
@@ -297,21 +301,24 @@ def find_dev(dev_name) -> str:
         return one[0]
 
 
-def wait_for(event):
+def wait_for(func):
     """used to wait or block on event"""
     unix_socket_path = UDS_SERVER_PATH
     socket = unix_socket_path.replace("/", "%2F")
     uri = f"ws://{socket}/message-bus"
 
     def check_one(mb_event):
-        return mb_event == event
+        # return mb_event == event
+        return func(mb_event)
 
     def check_many(mb_event):
-        return mb_event in event
+        # return mb_event in event
+        # TODO: write this
+        return False
 
     check = None
 
-    if hasattr(event, "__contains__") and not isinstance(event, str):
+    if hasattr(func, "__contains__") and not isinstance(func, str):
         check = check_many
     else:
         check = check_one
@@ -321,7 +328,8 @@ def wait_for(event):
         recv = recv.replace('"', "")
 
         while not check(recv):
-            recv = ws.recv()
+            recv = ws.recv().decode("ascii")
+            # print(f"recv {recv}")
             recv = recv.replace('"', "")
 
         log.debug("event recved")

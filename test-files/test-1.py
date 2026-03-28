@@ -8,7 +8,16 @@ print(devs)
 
 
 def start_event():
-    wait_for("1")
+    counter = 0
+
+    def count_in(event):
+        nonlocal counter
+        counter += 1
+        # print(counter)
+
+        return counter % 16 == 0
+
+    wait_for(count_in)
 
 
 def chord_prog_1():
@@ -53,6 +62,7 @@ def wait_time():
 
 @play_on("VITAL", channel=Ch1, block=False, loop=-1, setup=start_event)
 def chords():
+    # print("started")
     note(["b3", "d4", "f#4", "a4", "c#5"], qn(), vel=80)
     note(["a#3", "C#4", "D3", "f4", "g#4"], sn(), vel=80)
     note(["f#3", "a#4", "c#4", "d#3", "e4"], sn(), vel=80)
@@ -103,8 +113,8 @@ def drums():
 
 
 chords()
-drums()
-bass()
+# drums()
+# bass()
 # lead()
 
 sleep(5)
