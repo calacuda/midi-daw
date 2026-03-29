@@ -1,4 +1,4 @@
-#![feature(never_type)]
+// #![feature(never_type)]
 use crate::{
     playback::BASE_URL,
     tracks::{Track, TrackerCmd},
