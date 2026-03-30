@@ -57,6 +57,7 @@ The main midi-daw program runs as a webserver accessable from the local network 
       - [ ] ar
 - [x] make automations run server-side
 - [ ] update python lib to connect to the jacks client and do automation stuff per sample
+- [ ] add server endpoints for automation
 - [x] add an optional "setup" function that must run before a decorated function with looping enabled can start looping
 - [x] create virtual midi-outs
 - [x] make the sequencer run server-side to minimizes latency.
