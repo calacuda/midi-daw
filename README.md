@@ -45,7 +45,7 @@ The main midi-daw program runs as a webserver accessable from the local network 
   - [x] tempo get/set
   - [x] add listing of midi devices
 - [x] enable sending data to api backend from python
-- [ ] automation (both Realtime and once per midi-syncpulse)
+- [ ] automation (both Realtime and once per midi-sync-pulse)
   - [ ] LFO
       - [x] wavetable
       - [x] sin
