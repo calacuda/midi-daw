@@ -22,6 +22,7 @@ http-body-util = "0.1.3"
 hyper = { version = "1.8.1", features = ["client", "http1"] }
 hyper-util = { version = "0.1.19", features = ["client", "http1", "tokio"] }
 hyperlocal = { version = "0.9.1", features = ["hyper-util"] }
+jack = { version = "0.13.5", features = ["controller"] }
 midi-daw-types = { version = "0.1.0", path = "../midi-daw-types", default-features = false }
 midi-msg = "0.8.0"
 midir = "0.10.1"

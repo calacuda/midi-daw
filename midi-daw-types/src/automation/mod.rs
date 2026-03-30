@@ -1,23 +1,30 @@
+use std::sync::{Arc, RwLock};
+
+use bincode::{Decode, Encode};
 use enum_dispatch::enum_dispatch;
 use hound::{SampleFormat, WavReader};
-use lfo::{Lfo, wavetable};
+use lfo::{Lfo, sin_wave, wavetable};
 #[cfg(feature = "pyo3")]
 use pyo3::{exceptions::PyValueError, prelude::*};
 use serde::{Deserialize, Serialize};
 
-use crate::automation::lfo::wavetable::WaveTable;
+use crate::automation::lfo::{sin_wave::SinLfo, wavetable::WaveTable};
 
 // pub mod envelope;
 pub mod lfo;
 
+pub static AUTOMATIONS_PER_SECOND: f64 = 48_000.0;
+
 #[enum_dispatch]
 pub trait AutomationTrait /*: PyClass */ {
     // fn automation_type(&self) -> impl Into<String>;
-    fn sub_type(&self) -> impl Into<String>;
+    fn sub_type(&self) -> String;
     /// used to update the state of the automation
     fn update(&mut self);
     /// used to get the last value of automation
     fn get_value(&self) -> f64;
+    /// checks if the lfo has finished and should stop processing
+    fn done(&self) -> bool;
     fn step(&mut self) -> f64 {
         self.update();
         self.get_value()
@@ -35,7 +42,7 @@ pub enum AutomationTypes {
 
 // #[pyclass]
 #[cfg_attr(feature = "pyo3", pyclass)]
-#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Clone, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, PartialOrd, Clone, Debug)]
 pub enum AutomationConf {
     Lfo(lfo::LfoConfig),
     // EnvelopeGen(envelope::EnvConfig),
@@ -86,37 +93,47 @@ impl TryFrom<AutomationConf> for AutomationTypes {
 
                 // set WaveTable frequency to freq
                 Ok(AutomationTypes::Lfo(lfo::Lfo::WaveTable(wavetable)))
-            } // AutomationConf::EnvelopeGen() => {}
+            }
+            AutomationConf::Lfo(lfo::LfoConfig::Sin {
+                freq,
+                one_shot,
+                bipolar,
+                hifi,
+            }) => Ok(AutomationTypes::Lfo(lfo::Lfo::Sin(SinLfo::new(
+                freq, one_shot, bipolar, hifi,
+            )))), // AutomationConf::EnvelopeGen() => {}
         }
     }
 }
 
 // #[pyclass]
 #[cfg_attr(feature = "pyo3", pyclass)]
-#[derive(PartialEq, PartialOrd, Clone, Debug)]
+#[derive(Debug)]
 pub struct Automation {
     automation: AutomationTypes,
+    out_port: jack::Port<jack::AudioOut>,
+    // pub jack_client: ,
 }
 
 // #[pymethods]
-#[cfg_attr(feature = "pyo3", pymethods)]
+// #[cfg_attr(feature = "pyo3", pymethods)]
 impl Automation {
-    #[cfg(feature = "pyo3")]
-    #[new]
-    fn new(conf: AutomationConf) -> PyResult<Self> {
-        let automation = match AutomationTypes::try_from(conf) {
-            Ok(automation) => automation,
-            Err(e) => {
-                eprintln!("making automation failed with error: {e}");
-                return Err(PyErr::new::<PyValueError, _>(e.to_string()));
-            }
-        };
-
-        Ok(Self { automation })
-    }
-
-    #[cfg(not(feature = "pyo3"))]
-    pub fn new(conf: AutomationConf) -> Result<Self, String> {
+    // #[cfg(feature = "pyo3")]
+    // #[new]
+    // pub fn new(conf: AutomationConf) -> PyResult<Self> {
+    //     let automation = match AutomationTypes::try_from(conf) {
+    //         Ok(automation) => automation,
+    //         Err(e) => {
+    //             eprintln!("making automation failed with error: {e}");
+    //             return Err(PyErr::new::<PyValueError, _>(e.to_string()));
+    //         }
+    //     };
+    //
+    //     Ok(Self { automation })
+    // }
+    //
+    // #[cfg(not(feature = "pyo3"))]
+    pub fn new(conf: AutomationConf, name: &str) -> Result<(Self, jack::Client), String> {
         let automation = match AutomationTypes::try_from(conf) {
             Ok(automation) => automation,
             Err(e) => {
@@ -125,7 +142,23 @@ impl Automation {
             }
         };
 
-        Ok(Self { automation })
+        // 1. Open a client
+        let (client, _status) =
+            jack::Client::new(&"midi-daw", jack::ClientOptions::default()).unwrap();
+
+        // 2. Register port
+        let out_port = client
+            .register_port(&name, jack::AudioOut::default())
+            .unwrap();
+
+        Ok((
+            Self {
+                automation,
+                out_port,
+                // jack_client: client,
+            },
+            client,
+        ))
     }
 
     pub fn step(&mut self) -> f64 {
@@ -134,9 +167,13 @@ impl Automation {
 
     pub fn get_repr(&self) -> String {
         match self.automation.clone() {
-            AutomationTypes::Lfo(lfo) => format!("lfo:{}", lfo.sub_type().into()),
-            // AutomationTypes::EnvelopeGen(env) => format!("env:{}", env.sub_type().into()),
+            AutomationTypes::Lfo(lfo) => format!("lfo:{}", lfo.sub_type()),
+            // AutomationTypes::EnvelopeGen(env) => format!("env:{}", env.sub_type()),
         }
+    }
+
+    pub fn done(&self) -> bool {
+        self.automation.done()
     }
 
     // fn automation_type(&self) -> String {
@@ -145,5 +182,54 @@ impl Automation {
 
     pub fn sub_type(&self) -> String {
         self.automation.sub_type().into()
+    }
+}
+
+pub enum AutomationNotification {
+    Done,
+}
+
+impl jack::contrib::controller::ControlledProcessorTrait for Automation {
+    type Command = ();
+    type Notification = AutomationNotification;
+
+    fn buffer_size(
+        &mut self,
+        _client: &jack::Client,
+        _size: jack::Frames,
+        _channels: &mut jack::contrib::controller::ProcessorChannels<
+            Self::Command,
+            Self::Notification,
+        >,
+    ) -> jack::Control {
+        jack::Control::Continue
+    }
+
+    fn process(
+        &mut self,
+        _client: &jack::Client,
+        scope: &jack::ProcessScope,
+        channels: &mut jack::contrib::controller::ProcessorChannels<
+            Self::Command,
+            Self::Notification,
+        >,
+    ) -> jack::Control {
+        let name = self.out_port.name().unwrap();
+        let out = self.out_port.as_mut_slice(scope);
+
+        for sample in out.iter_mut() {
+            // let x = self.frequency * self.time * 2.0 * PI;
+            // *sample = (x.sin() as f32) * gain;
+            // self.time += self.frame_t;
+            *sample = self.automation.step() as f32;
+
+            if self.automation.done() {
+                if let Err(_e) = channels.try_notify(AutomationNotification::Done) {
+                    eprintln!("failed to notify controller that {}, is done...", name);
+                }
+            }
+        }
+
+        jack::Control::Continue
     }
 }

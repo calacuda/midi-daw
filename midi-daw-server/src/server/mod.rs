@@ -15,8 +15,8 @@ use crossbeam::channel::Sender;
 use futures::future::join_all;
 use fx_hash::FxHashSet;
 use midi_daw_types::{
-    AddNoteBody, ChangeLenByBody, GetSequenceQuery, MidiMsg, MidiReqBody, NoteDuration,
-    RenameSequenceBody, RmNoteBody, SetChannelBody, SetDevBody, UDS_SERVER_PATH,
+    AddNoteBody, AutomationCommand, ChangeLenByBody, GetSequenceQuery, MidiMsg, MidiReqBody,
+    NoteDuration, RenameSequenceBody, RmNoteBody, SetChannelBody, SetDevBody, UDS_SERVER_PATH,
 };
 pub use midi_daw_types::{BPQ, Tempo};
 use midir::MidiOutput;
@@ -708,7 +708,7 @@ async fn save_project(
 // ListSavedProjects {
 //     /// will send back the base file names without the parent directory
 //     responder: OneshotSender<Vec<String>>,
-// },
+// },data.chunks_mut(params.channels_count)
 
 #[get("/project/list-saved")]
 async fn get_saved_projects(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> HttpResponse {
@@ -864,6 +864,7 @@ pub async fn run(
     sequencer_tx: Sender<SequencerControlCmd>,
     mb_server: MbServer,
     server_tx: MbServerHandle,
+    new_automation_tx: Sender<AutomationCommand>,
 ) -> std::io::Result<()> {
     let tempo = web::Data::new(tempo);
     // let bpq = web::Data::new(bpq);
@@ -904,6 +905,7 @@ pub async fn run(
 
     HttpServer::new({
         let server_tx = web::Data::new(server_tx);
+        let new_autom = web::Data::new(new_automation_tx);
 
         move || {
             App::new()
@@ -915,6 +917,7 @@ pub async fn run(
                 .app_data(new_dev_tx.clone())
                 .app_data(virtual_devs.clone())
                 .app_data(seq_tx.clone())
+                .app_data(new_autom.clone())
                 .service(midi)
                 .service(midi_pool_exec)
                 .service(get_devs)

@@ -959,6 +959,19 @@ impl From<MidiChannel> for Channel {
     }
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[derive(Clone, Debug, Deserialize, Serialize, Encode, Decode)]
+pub enum AutomationCommand {
+    New {
+        conf: AutomationConf,
+        name: String,
+        // responder: OneshotSender<String>,
+    },
+    Stop {
+        name: String,
+    },
+}
+
 pub fn get_bincode_conf() -> bincode::config::Configuration {
     bincode::config::standard()
 }

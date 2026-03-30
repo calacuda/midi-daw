@@ -16,6 +16,7 @@ pyo3 = ["dep:pyo3"]
 bincode = "2.0.1"
 enum_dispatch = "0.3.13"
 hound = "3.5.1"
+jack = { version = "0.13.5", features = ["controller"] }
 midi-msg = "0.8.0"
 pyo3 = { version = "0.27", optional = true }
 serde = { version = "1.0.219", features = ["derive"] }

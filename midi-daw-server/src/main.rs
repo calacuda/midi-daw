@@ -1,9 +1,10 @@
 use crate::{
-    midi::{dev::new_midi_dev, out::midi_out},
+    midi::{automation::automation, dev::new_midi_dev, out::midi_out},
     sequencer::sequencer_start,
     server::message_bus::MbServer,
 };
 use crossbeam::channel::unbounded;
+use fx_hash::FxHashMap;
 use std::{
     sync::{Arc, RwLock},
     thread::spawn,
@@ -12,6 +13,8 @@ use std::{
 pub mod midi;
 pub mod sequencer;
 pub mod server;
+
+pub type HashMap<Key, Value> = FxHashMap<Key, Value>;
 
 // const APP_NAME: &str = "MIDI-DAW";
 
@@ -22,14 +25,15 @@ pub async fn main() -> std::io::Result<()> {
     let bpq = Arc::new(RwLock::new(24.0));
     let pulse_counter = Arc::new(RwLock::new(0));
 
-    // prepare mpsc.
+    // prepare mpsc
     let (midi_msg_out_tx, midi_msg_out_rx) = unbounded();
     let (new_midi_dev_tx, new_midi_dev_rx) = unbounded();
     let (sequencer_control_tx, sequencer_control_rx) = unbounded();
     // let (from_sequence_tx, from_sequencer_rx) = unbounded();
+    let (automation_tx, automation_rx) = unbounded();
     let (mb_server, server_tx) = MbServer::new();
 
-    let (_jh_1, _jh_2, _jh_3) = {
+    let (_jh_1, _jh_2, _jh_3, _jh_4) = {
         // start midi output thread.
         let midi_out_jh = spawn({
             let tempo = tempo.clone();
@@ -43,9 +47,7 @@ pub async fn main() -> std::io::Result<()> {
         let midi_dev_jh = spawn(move || new_midi_dev(new_midi_dev_tx));
 
         // start a automation thread.
-        // let (automation_tx, automation_rx) = unbounded();
-        //
-        // let automation_jh = spawn(move || automation(automation_rx, midi_msg_out_tx.clone()));
+        let automation_jh = spawn(move || automation(automation_rx));
 
         // start sequencer
         let sequencer_jh = spawn({
@@ -56,7 +58,7 @@ pub async fn main() -> std::io::Result<()> {
             move || sequencer_start(tempo, bpq, sequencer_control_rx, server_tx)
         });
 
-        (midi_out_jh, midi_dev_jh, sequencer_jh)
+        (midi_out_jh, midi_dev_jh, automation_jh, sequencer_jh)
     };
 
     // run webserver.
@@ -68,6 +70,7 @@ pub async fn main() -> std::io::Result<()> {
         sequencer_control_tx,
         mb_server,
         server_tx,
+        automation_tx,
     )
     .await
 }

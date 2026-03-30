@@ -15,8 +15,8 @@ pub struct WaveTable {
 }
 
 impl AutomationTrait for WaveTable {
-    fn sub_type(&self) -> impl Into<String> {
-        "wavetable"
+    fn sub_type(&self) -> String {
+        "wavetable".into()
     }
 
     fn update(&mut self) {
@@ -25,6 +25,10 @@ impl AutomationTrait for WaveTable {
 
     fn get_value(&self) -> f64 {
         self.last_sample
+    }
+
+    fn done(&self) -> bool {
+        false
     }
 }
 
