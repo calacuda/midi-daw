@@ -6,7 +6,7 @@ use bincode::{
 };
 use midi_msg::Channel;
 #[cfg(feature = "pyo3")]
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::warn;
@@ -46,6 +46,12 @@ impl MidiTarget {
     #[new]
     fn new_py() -> Self {
         Self::new()
+    }
+
+    #[cfg(feature = "pyo3")]
+    // This method enables Python's copy.deepcopy()
+    pub fn __deepcopy__(&self, _memo: &Bound<'_, PyDict>) -> Self {
+        self.clone() // Use Rust's Clone implementation
     }
 }
 
@@ -232,6 +238,11 @@ impl MidiChannel {
         ];
 
         channels[(n - 1) as usize]
+    }
+
+    // This method enables Python's copy.deepcopy()
+    pub fn __deepcopy__(&self, _memo: &Bound<'_, PyDict>) -> Self {
+        self.clone() // Use Rust's Clone implementation
     }
 }
 

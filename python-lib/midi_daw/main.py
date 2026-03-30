@@ -13,7 +13,7 @@ By: Calacuda | MIT License | Epoch: Jul 25, 2025
 import logging
 import multiprocessing
 import threading
-from copy import copy
+from copy import copy, deepcopy
 from functools import partial
 from multiprocessing import Manager, Process
 from os import path
@@ -48,7 +48,7 @@ class AutomationWrapper:
     def __init__(self, func, sub_type: str, automation=None, main_type=None):
         global _JACK_CLIENT
 
-        self._func = func
+        self._func = deepcopy(func)
         self.name = f"{func.__name__}.{main_type}.{sub_type}"
         self.automation = automation
         self.__name__ = self.name
@@ -81,18 +81,18 @@ class AutomationWrapper:
         self._jack_client = jack.Client('midi-daw-live')
         self.input = self._jack_client.inports.register(self.name)
         self._jack_client.set_process_callback(self.func)
-        print("callback set")
+        # print("callback set")
         out_ports = [port.name for port in self._jack_client.get_ports(is_audio=True, is_output=True, is_physical=False)]
         # fuzzy find for "midi-daw:{name}" and connect to it
-        print(f"found output_ports {out_ports}")
+        # print(f"found output_ports {out_ports}")
         out_port = process.extractOne(f"midi-daw:{self.name}", out_ports)[0]
-        print(f"found output_port {out_port} it matches {self.name}")
+        # print(f"found output_port {out_port} it matches {self.name}")
 
         
         self._jack_client.activate()
-        print("activated")
+        # print("activated")
         self.input.connect(out_port)
-        print(f"connected, {self.input.connections}")
+        # print(f"connected, {self.input.connections}")
 
     def func(self, frames):
         # print("foo")
@@ -285,7 +285,7 @@ def note(
 
 
 def pitch_bend(amt, block: bool = True, midi_out=midi_out):
-    abs_val = abs(amt * 16383)
+    abs_val = abs((amt + 1.0) * (16383 / 2))
     amt = int(abs_val)
     cmd = MidiMsg.PitchBend(amt)
     midi_out(cmd, block=block)
@@ -571,8 +571,9 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             self.new_midi_out = partial(_midi_out, self.midi_target)
             self.send_note_to = partial(note, midi_out=self.new_midi_out)
             # self.playing_notes = Array(0, 64)
-            self.manager = Manager()
-            self.playing_notes = self.manager.list()
+            # self.manager = Manager()
+            # self.playing_notes = self.manager.list()
+            self.playing_notes = []
             self.new_note = partial(self.note, self.playing_notes)
             self.new_cc = partial(cc, midi_out=self.new_midi_out)
             # new_rest = partial(rest)
@@ -583,6 +584,8 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
                 "cc": self.new_cc,
                 "panic": self.new_panic,
                 "pitch_bend": self.new_pitch_bend,
+                # "_midi_out": self.new_midi_out,
+                "MIDI_TARGET": self.midi_target,
             }
             # self.api = {"note": self.new_note, "MIDI_TARGET": self.midi_target}
             # print(dir(self.func))
@@ -605,8 +608,8 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
                 self.func.func.__globals__.update(self.api)
                 self.func._func.__globals__.update(self.api)
                 self.func()
-                # self.stop()
-                self.func = lambda : None
+                self.stop()
+                # self.func = lambda : None
                 # self.func = self.func.func
 
             # return result
@@ -617,17 +620,20 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
                 # t = Process(target=f, args=args, kwargs=kwargs)
                 t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
                 t.start()
-                self.func.__globals__.update(old)
+                # self.func.__globals__.update(old)
                 # print(f"running function => {self.name}")
                 running_funcs[self.name] = t
-                # clear_dead_threads()
+                print(running_funcs)
+                clear_dead_threads()
 
                 return self.name
             else:
                 result = self.func(*args, **kwargs)
                 self.func.__globals__.update(old)
+                clear_dead_threads()
 
                 return result
+
 
         def note(self, playing_notes, *args, **kwargs):
             # send_note_to = partial(self.note, midi_out=self.new_midi_out)
@@ -664,7 +670,7 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
                 self.func.stop()
             # else:
             #     print(f"type of self.func is: {type(self.func)}")
-            self.new_panic()
+            # self.new_panic()
 
             log.info(f"stopped function {self.name}")
 
@@ -683,6 +689,8 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             else:
                 for _ in range(self.loop_number):
                     self.func(*args, *kwargs)
+
+            self.stop()
 
         def compile(self):
             """will compile the code and send it to the server for play back"""

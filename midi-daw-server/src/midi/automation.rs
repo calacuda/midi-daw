@@ -1,17 +1,6 @@
-use std::sync::{Arc, RwLock};
-
-use actix::dev::OneshotSender;
 use crossbeam::channel::Receiver;
 use jack::contrib::controller::ControlledProcessorTrait;
-use midi_daw_types::{
-    AutomationCommand,
-    automation::{
-        AUTOMATIONS_PER_SECOND, Automation, AutomationConf, AutomationTrait, AutomationTypes,
-    },
-};
-use midi_msg::MidiMsg;
-use serde::{Deserialize, Serialize};
-// use tinyaudio::{OutputDeviceParameters, run_output_device};
+use midi_daw_types::{AutomationCommand, automation::Automation};
 use tracing::log::*;
 
 // pub fn automation(

@@ -3,9 +3,8 @@ use enum_dispatch::enum_dispatch;
 use hound::{SampleFormat, WavReader};
 use lfo::{Lfo, sin_wave, wavetable};
 #[cfg(feature = "pyo3")]
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
-use tracing::info;
 
 use crate::automation::lfo::{sin_wave::SinLfo, wavetable::WaveTable};
 
@@ -45,6 +44,15 @@ pub enum AutomationTypes {
 pub enum AutomationConf {
     Lfo(lfo::LfoConfig),
     // EnvelopeGen(envelope::EnvConfig),
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl AutomationConf {
+    // This method enables Python's copy.deepcopy()
+    pub fn __deepcopy__(&self, _memo: &Bound<'_, PyDict>) -> Self {
+        self.clone() // Use Rust's Clone implementation
+    }
 }
 
 impl TryFrom<AutomationConf> for AutomationTypes {

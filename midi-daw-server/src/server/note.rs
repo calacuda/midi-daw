@@ -92,5 +92,7 @@ pub async fn pitch_bend(
         msg: midi_msg::ChannelVoiceMsg::PitchBend { bend },
     };
 
+    // info!("bend ammount {bend}");
+
     _ = midi_out.send((dev, msg));
 }

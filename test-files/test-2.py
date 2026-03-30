@@ -26,7 +26,7 @@ def lead():
 
 
 @play_on("vital", channel=Ch1, block=False, loop=True)
-@lfo("sin", 7.5)
+@lfo("sin", 6.5)
 def pitch_wobble(lfo_amt):
     global counter
     # print(lfo)
@@ -41,22 +41,15 @@ def pitch_wobble(lfo_amt):
 
     counter += 1
     
-    if not (counter % 42):
-        lfo_amt = lfo_amt * 0.5 + 0.5
+    if not (counter % 24):
+        # lfo_amt = lfo_amt * 0.5 + 0.5
         # print(lfo_amt)
-        # unpacked_tuple_4byte = struct.unpack('<f', bytes([b for b in list(lfo_amt)]))
-        # lfo_amt = unpacked_tuple_4byte[0]
         bend_amt = lfo_amt * 0.75
         print(f"{lfo_amt} => {bend_amt}")
         # print(f"bend amt {bend_amt}")
         pitch_bend(bend_amt)
         # cc(1, int(lfo_amt * 126))
         note("a#4", en(), vel=80)
-
-
-
-
-    
 
 
 # lead()
