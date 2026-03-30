@@ -1,12 +1,11 @@
-use std::sync::{Arc, RwLock};
-
 use bincode::{Decode, Encode};
 use enum_dispatch::enum_dispatch;
 use hound::{SampleFormat, WavReader};
 use lfo::{Lfo, sin_wave, wavetable};
 #[cfg(feature = "pyo3")]
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::automation::lfo::{sin_wave::SinLfo, wavetable::WaveTable};
 
@@ -222,6 +221,7 @@ impl jack::contrib::controller::ControlledProcessorTrait for Automation {
             // *sample = (x.sin() as f32) * gain;
             // self.time += self.frame_t;
             *sample = self.automation.step() as f32;
+            // info!("{sample}");
 
             if self.automation.done() {
                 if let Err(_e) = channels.try_notify(AutomationNotification::Done) {

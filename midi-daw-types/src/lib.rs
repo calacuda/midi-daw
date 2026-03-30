@@ -1,4 +1,4 @@
-#[cfg(feature = "pyo3")]
+// #[cfg(feature = "pyo3")]
 use crate::automation::{Automation, AutomationConf, AutomationTypes, lfo::LfoConfig};
 use bincode::{
     Decode, Encode,
@@ -963,13 +963,61 @@ impl From<MidiChannel> for Channel {
 #[derive(Clone, Debug, Deserialize, Serialize, Encode, Decode)]
 pub enum AutomationCommand {
     New {
-        conf: AutomationConf,
         name: String,
+        conf: AutomationConf,
         // responder: OneshotSender<String>,
     },
     Stop {
         name: String,
     },
+}
+
+impl AutomationCommand {
+    // pub fn new(sequence: String, amt: isize) -> Self {
+    //     Self { sequence, amt }
+    // }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        match bincode::decode_from_slice(&bytes, get_bincode_conf()) {
+            Ok(decoded) => Ok(decoded.0),
+            Err(e) => Err(format!(
+                "attempt to decode bytes to MsgFromServer failed with error, {e}"
+            )),
+        }
+    }
+
+    pub fn to_bytes(self) -> Result<Vec<u8>, EncodeError> {
+        match bincode::encode_to_vec(&self, get_bincode_conf()) {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                warn!("attempt to encode bytes of MsgFromServer failed with error, {e}");
+                Err(e)
+            }
+        }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl AutomationCommand {
+    #[pyo3(name = "from_bytes")]
+    #[staticmethod]
+    fn from_bytes_py(bytes: Vec<u8>) -> Option<Self> {
+        Self::from_bytes(&bytes).ok()
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
 }
 
 pub fn get_bincode_conf() -> bincode::config::Configuration {
@@ -1000,6 +1048,7 @@ fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AutomationTypes>()?;
     m.add_class::<AutomationConf>()?;
     m.add_class::<LfoConfig>()?;
+    m.add_class::<AutomationCommand>()?;
     // m.add_class::<LfoConfig>()?;
 
     // m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;

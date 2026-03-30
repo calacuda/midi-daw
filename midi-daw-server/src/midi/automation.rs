@@ -74,6 +74,8 @@ pub fn automation(
 
     loop {
         if let Ok(automation_cmd) = new_automation_rx.recv() {
+            info!("got automation cmd: {automation_cmd:?}");
+
             match automation_cmd {
                 AutomationCommand::New {
                     conf,
@@ -113,9 +115,11 @@ pub fn automation(
                         // }
 
                         let (processor_instance, handle) = automation.instance(16, 16);
+                        info!("made instance");
 
                         let active_client =
                             jack_client.activate_async((), processor_instance).unwrap();
+                        info!("activated client");
 
                         automations.push((name, active_client, handle));
                     }
@@ -125,12 +129,14 @@ pub fn automation(
                 },
                 AutomationCommand::Stop { name } => {
                     // automations.(
-                    let mut new_automations = Vec::with_capacity(automations.len() - 1);
+                    let mut new_automations = Vec::with_capacity(automations.len());
 
                     for (this_name, jack_client, _handle) in automations {
                         if this_name == name {
+                            warn!("deactivating from stop {this_name}");
                             _ = jack_client.deactivate();
                         } else {
+                            warn!("keeping {this_name}");
                             new_automations.push((this_name, jack_client, _handle));
                         }
                         // this_name != &name
@@ -139,6 +145,8 @@ pub fn automation(
                     automations = new_automations;
                 }
             }
+        } else {
+            error!("failed to recv message");
         }
 
         // automations.retain(|(name, autom, jack_client, _)| {
@@ -151,13 +159,14 @@ pub fn automation(
         //     !done
         // });
 
-        let mut new_automations = Vec::with_capacity(automations.len() - 1);
+        let mut new_automations = Vec::with_capacity(automations.len());
 
-        for (_this_name, jack_client, mut handle) in automations {
+        for (this_name, jack_client, mut handle) in automations {
             if !handle.drain_notifications().collect::<Vec<_>>().is_empty() {
+                warn!("deactivating {this_name}");
                 _ = jack_client.deactivate();
             } else {
-                new_automations.push((_this_name, jack_client, handle));
+                new_automations.push((this_name, jack_client, handle));
             }
             // this_name != &name
         }

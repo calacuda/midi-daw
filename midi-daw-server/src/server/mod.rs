@@ -856,6 +856,22 @@ async fn rm_one_project(
 //     }
 // }
 
+#[post("/automation")]
+async fn automation(
+    autom_coms: web::Data<Sender<AutomationCommand>>,
+    args: Json<AutomationCommand>,
+) -> HttpResponse {
+    match autom_coms.send(args.0) {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            let error_msg = format!("sending automation message failed with error, {e}");
+
+            error!("{error_msg}");
+            HttpResponse::InternalServerError().body(error_msg)
+        }
+    }
+}
+
 pub async fn run(
     tempo: Tempo,
     bpq: BPQ,
@@ -954,6 +970,7 @@ pub async fn run(
                 .service(get_saved_projects)
                 .service(load_project)
                 .service(rm_one_project)
+                .service(automation)
                 .service(message_bus::message_bus)
         }
     })
