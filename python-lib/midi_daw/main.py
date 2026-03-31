@@ -10,6 +10,7 @@ By: Calacuda | MIT License | Epoch: Jul 25, 2025
 """
 
 # import asyncio
+import json
 import logging
 import multiprocessing
 import threading
@@ -24,14 +25,32 @@ import requests_unixsocket
 from midi_daw_types import (UDS_SERVER_PATH, Automation, AutomationCommand, 
                             AutomationConf, LfoConfig, MidiChannel, 
                             MidiMsg, MidiReqBody, MidiTarget, NoteLen, 
-                            note_from_str)
+                            Sequence as BackEndSequence, SetDevBody, AddNoteBody,
+                            RmNoteBody, SetChannelBody, note_from_str,)
 from thefuzz import process
 from websockets.sync.client import unix_connect
 import jack
 
+
+class WhitelistFilter(logging.Filter):
+    """Filters log records based on a whitelist of logger names."""
+    def __init__(self, *whitelist):
+        self.whitelist = whitelist
+
+    def filter(self, record):
+        # Check if the logger name (or starts with) is in the whitelist
+        for name in self.whitelist:
+            if record.name.startswith(name):
+                return True
+        return False
+
 requests_unixsocket.monkeypatch()
+_filter = WhitelistFilter(__name__, "midi_daw_types", "midi_daw")
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+# Add the filter to the default handler
+for handler in logging.root.handlers:
+    handler.addFilter(_filter)
 
 multiprocessing.set_start_method("fork", force=True)  # or 'spawn'
 
@@ -56,6 +75,7 @@ class AutomationWrapper:
         self._jack_client = jack.Client('midi-daw-live')
         self.input = self._jack_client.inports.register(self.name)
         # _JACK_CLIENT.connect(out_port, self.input.name)
+        self.event = threading.Event()
 
     def __call__(self, *args, **kwargs):
         import time 
@@ -87,12 +107,11 @@ class AutomationWrapper:
         # print(f"found output_ports {out_ports}")
         out_port = process.extractOne(f"midi-daw:{self.name}", out_ports)[0]
         # print(f"found output_port {out_port} it matches {self.name}")
-
-        
         self._jack_client.activate()
         # print("activated")
         self.input.connect(out_port)
         # print(f"connected, {self.input.connections}")
+        self.event.wait()
 
     def func(self, frames):
         # print("foo")
@@ -115,6 +134,7 @@ class AutomationWrapper:
         #
         # if proc is not None:
         #     proc.kill()
+        self.event.set()
         post(AutomationCommand.Stop(self.name).json(), "automation")
         # pass
 
@@ -135,7 +155,7 @@ class AutomationWrapper:
 
 
 def set_log_level(level):
-    log.set_level(level)
+    logging.getLogger().setLevel(level)
 
 
 def mk_channel(channel):
@@ -197,19 +217,23 @@ def post(data, path):
         log.warning(f"{res.text}")
 
 
-def get(path):
+def get(path, convert: bool = True, **query):
     socket = UDS_SERVER_PATH.replace("/", "%2F")
     # headers = {"Content-Type": "application/json"}
     res = requests.get(
         f"http+unix://{socket}/{path}",
         # data=data,
         # headers=headers,
+        params=dict(query) if query is not None else None
     )
 
     if res.status_code != 200:
         log.warning(f"{res.text}")
 
-    return res.json()
+    if convert:
+        return res.json()
+    else:
+        return res.text
 
 
 def _do_midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg):
@@ -244,6 +268,28 @@ def _midi_out(midi_target: MidiTarget, midi_cmd: MidiMsg, block: bool = True):
 def midi_out(midi_cmd: MidiMsg, block: bool = True):
     # print("DEFAULT MIDI OUT CALLED")
     _midi_out(MIDI_TARGET, midi_cmd, block)
+
+
+def mk_midi_note(note) -> int:
+    midi_note = -1
+
+    match note:
+        case str():
+            midi_note = note_from_str(note)
+            # midi_cmd = midi_cmd(midi_note)
+            # send_midi_cmd(midi_cmd)
+        case int():
+            # midi_cmd = midi_cmd(notes)
+            # send_midi_cmd(midi_cmd)
+            midi_note = note
+        # case list():
+        #     for n in notes[:-1]:
+        #         note(n, duration, vel, False, midi_out)
+        #
+        #     note(notes[-1], duration, vel, block, midi_out)
+
+    return midi_note
+
 
 
 def note(
@@ -321,7 +367,7 @@ def get_tempo() -> float:
     return get("tempo")
 
 
-def tempo(new_tempo: float = None) -> float:
+def tempo(new_tempo: float | None = None) -> float:
     if new_tempo is not None:
         set_tempo(new_tempo)
 
@@ -697,3 +743,120 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             print("compiling")
 
     return PlayOn
+
+
+class Sequence:
+    default_step_duration = NoteLen.Sn(1)
+    default_step_velocity = 88
+        
+    def __init__(self, name: str, step_duration: NoteLen | None = None, step_velocity: int | None = None, dev: str | None = None, channel: MidiChannel | None = None) -> None:
+        seq = None
+        names = get("sequence/names")
+        log.debug(f"found seqeunces :  {names}")
+
+        if name in names:
+            seq = BackEndSequence.from_json(get("sequence", convert=False, sequence=name))
+            log.debug(f"found seqeunce :  {seq.name}")
+            log.debug([msg for msg in [step for step in seq.steps]])
+
+        if seq is not None:
+            log.debug("setting seqeunce to that from the server")
+            self.seq = seq
+        else:
+            self.seq = BackEndSequence(name)
+            post(json.dumps(name), "sequence/new")
+
+        self._dev = dev
+        self._channel = channel
+
+        if self._dev is not None:
+            self.seq.midi_dev = self.dev
+
+        if self._channel is not None:
+            self.seq.channel = self._channel
+            
+        self.name = name
+        self.step_duration = step_duration
+        self.step_velocity = step_velocity
+
+    @property
+    def dev(self):
+        return self._dev
+
+    @dev.setter
+    def dev(self, value: str):
+        self.seq.midi_dev = value
+        self.dev = value
+        post(SetDevBody(self.name, value).json(), "sequence/set-dev")
+
+        return self
+
+    @property
+    def channel(self):
+        return self._channel
+
+    @channel.setter
+    def channel(self, value: MidiChannel):
+        self.seq.channel = value
+        self._channel = value
+        post(SetChannelBody(self.name, value).json(), "sequence/set-channel")
+
+        return self
+
+    def set_note(self, step: int, note: str | int,  duration: NoteLen | None = None, velocity: int | None = None):
+        # first non-null value with priority given first to function args, then to object defaults, then class defaults.
+        velocity = next((item for item in [velocity, self.step_velocity] if item is not None), self.default_step_velocity)
+        duration = next((item for item in [duration, self.step_duration] if item is not None), self.default_step_duration)
+
+        if step >= self.seq.len():
+            log.warning(f"attemting to set step: {step}, of sequence of len: {self.seq.len()}. step was too high using modulo to force step to be with in range. will set step: {step % self.seq.len()}")
+
+        note = mk_midi_note(note)
+
+        (should_add, old_note) = self.seq.set_note(step % self.seq.len(), note, velocity, duration)
+
+        if old_note is not None:
+            log.info("rming an existing note")
+            post(RmNoteBody(self.name, step, old_note).json(), "sequence/rm-note")
+
+        if should_add:
+            # log.info("adding new note")
+            post(AddNoteBody(self.name, step, note, velocity, duration).json(), "sequence/add-note")
+
+        return self
+
+    def play(self):
+        post(json.dumps(self.name), "sequence/play-one")
+        log.info("play-quedued...")
+
+    def stop(self, now: bool = False):
+        endpoint = "sequence/queue-stop"
+
+        if now:
+            endpoint = "sequence/stop-these"
+
+        post(json.dumps([self.name]), endpoint)
+        log.info("stopped...")
+
+    def stop_now(self,):
+        self.stop(True)
+
+
+if __name__ == "__main__":
+    import time
+
+    set_log_level(logging.DEBUG)
+    seq = Sequence("test-sequence")
+    print(tempo())
+    print(f"this sequence: {seq.name}")
+    print("all_seqeunces : ", get("sequence/names"))
+    print("before sequence set up : ", get("sequence", sequence=seq.name))
+    seq.set_note(0, "C4")
+    print("after sequence set up : ", get("sequence", sequence=seq.name))
+    print(*(msg for msg in [step for step in seq.seq.steps]))
+    be_seq = BackEndSequence.from_json(get("sequence", convert=False, sequence=seq.name))
+    print(*(msg for msg in [step for step in be_seq.steps]))
+    seq.play()
+    time.sleep(1)
+    seq.stop()
+

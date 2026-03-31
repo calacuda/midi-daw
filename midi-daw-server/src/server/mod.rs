@@ -264,11 +264,13 @@ async fn do_get_sequences(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> H
     }
 }
 
+/// retrieves a list of sequence names
 #[get("/sequence/names")]
 async fn get_sequences(seq_coms: web::Data<Sender<SequencerControlCmd>>) -> HttpResponse {
     do_get_sequences(seq_coms).await
 }
 
+/// retrieves a all seqeunces
 #[get("/sequence")]
 async fn get_sequence(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
@@ -445,10 +447,13 @@ async fn queue_stop_sequences(
     seq_coms: web::Data<Sender<SequencerControlCmd>>,
     seq_name: Json<Vec<String>>,
 ) -> HttpResponseBuilder {
-    let msg = SequencerControlCmd::QueueStop(seq_name.0);
+    let msg = SequencerControlCmd::QueueStop(seq_name.0.clone());
 
     match seq_coms.send(msg) {
-        Ok(_) => HttpResponse::Ok(),
+        Ok(_) => {
+            info!("queued stop for: {:?}.", seq_name.0);
+            HttpResponse::Ok()
+        }
         Err(e) => {
             error!("{e}");
             HttpResponse::InternalServerError()
@@ -679,7 +684,7 @@ async fn rm_one_sequence(
     }
 }
 
-// /// saves all seqeunces into a sub folder of the data dir. the base file name will be based on the sequences name
+// /// saves all sequences into a sub folder of the data dir. the base file name will be based on the sequences name
 // SaveProject {
 //     project_name: String,
 // },

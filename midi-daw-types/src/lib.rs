@@ -1,14 +1,18 @@
-// #[cfg(feature = "pyo3")]
-use crate::automation::{Automation, AutomationConf, AutomationTypes, lfo::LfoConfig};
+use crate::automation::AutomationConf;
+#[cfg(feature = "pyo3")]
+use crate::automation::{Automation, AutomationTypes, lfo::LfoConfig};
 use bincode::{
     Decode, Encode,
     error::{DecodeError, EncodeError},
 };
+#[cfg(feature = "pyo3")]
+use log::*;
 use midi_msg::Channel;
 #[cfg(feature = "pyo3")]
 use pyo3::{prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+#[cfg(not(feature = "pyo3"))]
 use tracing::*;
 
 pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
@@ -738,16 +742,16 @@ impl SetChannelBody {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object, get_all, set_all))]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Sequence {
-    #[pyo3(get, set)]
+    // #[pyo3(get, set)]
     pub name: SequenceName,
-    #[pyo3(get, set)]
+    // #[pyo3(get, set)]
     pub steps: Vec<Step>,
-    #[pyo3(get, set)]
+    // #[pyo3(get, set)]
     pub midi_dev: String,
-    #[pyo3(get, set)]
+    // #[pyo3(get, set)]
     pub channel: MidiChannel,
     i: usize,
 }
@@ -809,6 +813,11 @@ impl Sequence {
         self.json()
     }
 
+    #[staticmethod]
+    fn from_json(json_str: &str) -> Option<Self> {
+        serde_json::from_str(json_str).ok()
+    }
+
     fn len(&self) -> usize {
         self.steps.len()
     }
@@ -819,9 +828,11 @@ impl Sequence {
         note: u8,
         velocity: u8,
         duration: NoteDuration,
-    ) -> (bool, bool) {
+    ) -> (bool, Option<u8>) {
+        // trace!("set_note called");
+
         let mut should_add = false;
-        let mut should_rm_first = false;
+        let mut should_rm_first = None;
 
         if let Some(step) = self.steps.get_mut(step_i) {
             let mut note_set = false;
@@ -833,12 +844,19 @@ impl Sequence {
                     duration: old_duration,
                 } = cmd
                 {
-                    should_add = note != *old_note;
-                    *old_note = note;
-                    *old_velocity = velocity;
-                    *old_duration = duration;
+                    should_add =
+                        note != *old_note || velocity != *old_velocity || duration != *old_duration;
                     note_set = true;
-                    should_rm_first = true;
+
+                    if should_add {
+                        debug!("found a note to repalce");
+                        *old_note = note;
+                        *old_velocity = velocity;
+                        *old_duration = duration;
+                        should_rm_first = Some(*old_note);
+                    } else {
+                        debug!("found a note to but it is identical; not doing anything");
+                    }
 
                     break;
                 }
@@ -851,6 +869,7 @@ impl Sequence {
                     duration,
                 });
                 should_add = true;
+                debug!("adding not pressent note");
             }
         } else {
             error!(
@@ -858,6 +877,8 @@ impl Sequence {
                 self.steps.len()
             );
         }
+
+        // info!("returning from set_note: ({should_add}, {should_rm_first:?})");
 
         (should_add, should_rm_first)
     }
@@ -1135,6 +1156,8 @@ pub fn get_bincode_conf() -> bincode::config::Configuration {
 /// A Python module implemented in Rust.
 #[pymodule]
 fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    pyo3_log::init();
+
     m.add_class::<MidiChannel>()?;
     m.add_class::<MidiTarget>()?;
     m.add_class::<MidiMsg>()?;
@@ -1166,7 +1189,6 @@ fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
     //     // A good place to install the Rust -> Python logger.
     // }
-    pyo3_log::init();
 
     Ok(())
 }

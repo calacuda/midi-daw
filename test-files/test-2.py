@@ -25,7 +25,7 @@ def lead():
     note("f#3", sn(), vel=80)
 
 
-@play_on("vital", channel=Ch1, block=False, loop=True)
+@play_on("vital", channel=Ch1, block=True, loop=1)
 @lfo("sin", 6.5)
 def pitch_wobble(lfo_amt):
     global counter
