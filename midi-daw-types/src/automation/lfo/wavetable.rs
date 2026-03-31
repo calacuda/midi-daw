@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use std::sync::Arc;
 
 // #[pyclass]
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 pub struct WaveTable {
     sample_rate: f64,

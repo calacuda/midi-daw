@@ -9,7 +9,7 @@ use midi_msg::Channel;
 use pyo3::{prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::warn;
+use tracing::*;
 
 pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
 
@@ -21,7 +21,7 @@ pub type SequenceName = String;
 
 pub mod automation;
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[cfg_attr(feature = "pyo3", pyo3(get_all, set_all))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct MidiTarget {
@@ -62,7 +62,7 @@ impl MidiTarget {
 }
 
 // #[pyclass]
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default, Clone, Copy, Debug)]
 pub enum MidiChannel {
     #[default]
@@ -268,7 +268,7 @@ impl MidiChannel {
 //     }
 // }
 
-#[cfg_attr(feature = "pyo3", pyclass(name = "NoteLen"))]
+#[cfg_attr(feature = "pyo3", pyclass(name = "NoteLen", from_py_object))]
 #[derive(
     Serialize, Deserialize, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, Hash,
 )]
@@ -330,7 +330,7 @@ impl NoteDuration {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum MidiMsg {
     PlayNote {
@@ -439,7 +439,7 @@ pub fn note_from_str(name: String) -> Option<u8> {
 }
 
 // #[pyclass]
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct MidiReqBody {
     pub midi_dev: String,
@@ -502,7 +502,7 @@ impl MidiReqBody {
 //     // pub msg: MidiMsg
 // }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct AddNoteBody {
     pub sequence: String,
@@ -558,7 +558,7 @@ impl AddNoteBody {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct RmNoteBody {
     pub sequence: String,
@@ -598,7 +598,7 @@ impl RmNoteBody {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct SetDevBody {
     pub sequence: String,
@@ -633,7 +633,7 @@ impl SetDevBody {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct GetSequenceQuery {
     pub sequence: String,
@@ -668,7 +668,7 @@ impl GetSequenceQuery {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct RenameSequenceBody {
     pub old_name: String,
@@ -703,7 +703,7 @@ impl RenameSequenceBody {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct SetChannelBody {
     pub sequence: String,
@@ -738,13 +738,18 @@ impl SetChannelBody {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Sequence {
+    #[pyo3(get, set)]
     pub name: SequenceName,
+    #[pyo3(get, set)]
     pub steps: Vec<Step>,
+    #[pyo3(get, set)]
     pub midi_dev: String,
+    #[pyo3(get, set)]
     pub channel: MidiChannel,
+    i: usize,
 }
 
 impl Sequence {
@@ -754,20 +759,111 @@ impl Sequence {
 
         seq
     }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
 }
 
 impl Default for Sequence {
     fn default() -> Self {
         Self {
             name: "Default-Sequence".into(),
-            steps: (0..16).map(|_| Vec::default()).collect(),
+            steps: (0..16).map(|_| Step::default()).collect(),
             midi_dev: "Midi Through:0".into(),
             channel: MidiChannel::Ch1,
+            i: 0,
         }
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+impl Iterator for Sequence {
+    type Item = Step;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let res = self.steps.get(self.i).map(|step| step.clone());
+        self.i += 1;
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl Sequence {
+    #[new]
+    fn new_py(name: String) -> Self {
+        let mut s = Self::default();
+
+        s.name = name;
+
+        s
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+
+    fn len(&self) -> usize {
+        self.steps.len()
+    }
+
+    fn set_note(
+        &mut self,
+        step_i: usize,
+        note: u8,
+        velocity: u8,
+        duration: NoteDuration,
+    ) -> (bool, bool) {
+        let mut should_add = false;
+        let mut should_rm_first = false;
+
+        if let Some(step) = self.steps.get_mut(step_i) {
+            let mut note_set = false;
+
+            for cmd in step.iter_mut() {
+                if let MidiMsg::PlayNote {
+                    note: old_note,
+                    velocity: old_velocity,
+                    duration: old_duration,
+                } = cmd
+                {
+                    should_add = note != *old_note;
+                    *old_note = note;
+                    *old_velocity = velocity;
+                    *old_duration = duration;
+                    note_set = true;
+                    should_rm_first = true;
+
+                    break;
+                }
+            }
+
+            if !note_set {
+                step.push(MidiMsg::PlayNote {
+                    note,
+                    velocity,
+                    duration,
+                });
+                should_add = true;
+            }
+        } else {
+            error!(
+                "editing step {step_i}, of sequence of len {}, is not posible.",
+                self.steps.len()
+            );
+        }
+
+        (should_add, should_rm_first)
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct ChangeLenByBody {
     pub sequence: String,
@@ -802,7 +898,7 @@ impl ChangeLenByBody {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, PartialOrd, Clone, Debug)]
 pub enum MsgFromServer {
     /// a single sync pulse
@@ -970,7 +1066,7 @@ impl From<MidiChannel> for Channel {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Clone, Debug, Deserialize, Serialize, Encode, Decode)]
 pub enum AutomationCommand {
     New {
@@ -1065,6 +1161,12 @@ fn midi_daw_types(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     m.add_function(wrap_pyfunction!(note_from_str, m)?)?;
     m.add("UDS_SERVER_PATH", UDS_SERVER_PATH)?;
+
+    // #[pymodule_init]
+    // fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    //     // A good place to install the Rust -> Python logger.
+    // }
+    pyo3_log::init();
 
     Ok(())
 }

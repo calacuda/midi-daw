@@ -3,7 +3,7 @@ use crate::automation::{AUTOMATIONS_PER_SECOND, AutomationTrait};
 use pyo3::prelude::*;
 // use std::sync::Arc;
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 pub struct SinLfo {
     last_sample: f64,

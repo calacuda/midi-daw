@@ -9,7 +9,7 @@ pub mod sin_wave;
 pub mod wavetable;
 
 // #[pyclass]
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, PartialOrd, Clone, Debug)]
 pub enum LfoConfig {
     /// wave-table lfo
@@ -66,7 +66,7 @@ pub enum LfoConfig {
 }
 
 // #[pyclass]
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 #[enum_dispatch(AutomationTrait)]
 pub enum Lfo {

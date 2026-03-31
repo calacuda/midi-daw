@@ -30,7 +30,7 @@ pub trait AutomationTrait /*: PyClass */ {
 }
 
 // #[pyclass]
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(PartialEq, PartialOrd, Clone, Debug)]
 #[enum_dispatch(AutomationTrait)]
 pub enum AutomationTypes {
@@ -39,7 +39,7 @@ pub enum AutomationTypes {
 }
 
 // #[pyclass]
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, PartialOrd, Clone, Debug)]
 pub enum AutomationConf {
     Lfo(lfo::LfoConfig),
