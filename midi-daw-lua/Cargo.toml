@@ -1,0 +1,11 @@
+[package]
+name = "midi-daw-lua"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bincode = "2.0.1"
+enum_dispatch = "0.3.13"
+jack = { version = "0.13.5", features = ["controller"] }
+midi-daw-types = { version = "0.1.0", path = "../midi-daw-types", default-features = false }
+midi-msg = "0.8.1"
