@@ -3,7 +3,7 @@ import struct
 from midi_daw import *
 
 
-new_dev("VITAL")
+# new_dev("VITAL")
 devs = get_devs()
 print(devs)
 
@@ -25,8 +25,8 @@ def lead():
     note("f#3", sn(), vel=80)
 
 
-@play_on("vital", channel=Ch1, block=True, loop=1)
-@lfo("sin", 6.5)
+@play_on("vital", channel=Ch1, block=True, loop=-1)
+@lfo("sin", 3.5)
 def pitch_wobble(lfo_amt):
     global counter
     # print(lfo)
@@ -41,15 +41,15 @@ def pitch_wobble(lfo_amt):
 
     counter += 1
     
-    if not (counter % 24):
+    if not (counter % 96):
         # lfo_amt = lfo_amt * 0.5 + 0.5
         # print(lfo_amt)
         bend_amt = lfo_amt * 0.75
-        print(f"{lfo_amt} => {bend_amt}")
+        # print(f"{lfo_amt} => {bend_amt}")
         # print(f"bend amt {bend_amt}")
         pitch_bend(bend_amt)
         # cc(1, int(lfo_amt * 126))
-        note("a#4", en(), vel=80)
+        # note("a#4", en(), vel=80)
 
 
 # lead()

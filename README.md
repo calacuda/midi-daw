@@ -83,3 +83,4 @@ The main midi-daw program runs as a webserver accessable from the local network 
   - [x] change android app to use the new message format
 - [x] add BPQ setting & getting api end points
 - [ ] set up the server as a wifi access point to remove the need for a travel router
+- [ ] use virtual midi device for sync-pulses in addition to websockets

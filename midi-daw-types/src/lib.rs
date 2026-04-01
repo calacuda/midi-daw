@@ -753,7 +753,6 @@ pub struct Sequence {
     pub midi_dev: String,
     // #[pyo3(get, set)]
     pub channel: MidiChannel,
-    i: usize,
 }
 
 impl Sequence {
@@ -780,19 +779,7 @@ impl Default for Sequence {
             steps: (0..16).map(|_| Step::default()).collect(),
             midi_dev: "Midi Through:0".into(),
             channel: MidiChannel::Ch1,
-            i: 0,
         }
-    }
-}
-
-impl Iterator for Sequence {
-    type Item = Step;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let res = self.steps.get(self.i).map(|step| step.clone());
-        self.i += 1;
-
-        res
     }
 }
 

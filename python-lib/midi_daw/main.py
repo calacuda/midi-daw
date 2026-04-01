@@ -18,7 +18,7 @@ from copy import copy, deepcopy
 from functools import partial
 from multiprocessing import Manager, Process
 from os import path
-from itertools import batched
+from dataclasses import dataclass
 
 import requests
 import requests_unixsocket
@@ -30,6 +30,7 @@ from midi_daw_types import (UDS_SERVER_PATH, Automation, AutomationCommand,
 from thefuzz import process
 from websockets.sync.client import unix_connect
 import jack
+import musical_scales
 
 
 class WhitelistFilter(logging.Filter):
@@ -154,6 +155,15 @@ class AutomationWrapper:
         return self.name
 
 
+@dataclass
+class Scale:
+    root: str
+    scale: str
+    octave: int = 4
+    # def __init__(self):
+    #     self.scale
+
+
 def set_log_level(level):
     logging.getLogger().setLevel(level)
 
@@ -270,12 +280,32 @@ def midi_out(midi_cmd: MidiMsg, block: bool = True):
     _midi_out(MIDI_TARGET, midi_cmd, block)
 
 
-def mk_midi_note(note) -> int:
+def mk_midi_note(note, scale: Scale | None = None) -> int:
     midi_note = -1
 
     match note:
         case str():
-            midi_note = note_from_str(note)
+            # midi_note = note_from_str(note)
+            if scale is None:
+                # midi_note = musical_scales.Note(note).enharmonic
+                midi_note = note_from_str(note)
+            elif note.isnumeric():
+                m_scale = musical_scales.scale(scale.root, scale.scale)
+                print(m_scale)
+                # print(f"{int(note)} // {len(m_scale)} = {int(note) // len(m_scale)}")
+
+                octave = scale.octave + (int(note) - 1) // len(m_scale)
+                note = m_scale[(int(note) - 1) % len(m_scale)]
+                # print(f"note 1: {note}")
+
+                if note.midi[-2:0].isnumeric():
+                    octave += int(note.midi[-2:]) - 3
+                    note = note.midi[0:-2] + str(octave)
+                else:
+                    octave += (int(note.midi[-1]) - 3)
+                    note = note.midi[0:-1] + str(octave)
+                print(f"note 2: {note}")
+                midi_note = note_from_str(note)
             # midi_cmd = midi_cmd(midi_note)
             # send_midi_cmd(midi_cmd)
         case int():
@@ -749,10 +779,11 @@ class Sequence:
     default_step_duration = NoteLen.Sn(1)
     default_step_velocity = 88
         
-    def __init__(self, name: str, step_duration: NoteLen | None = None, step_velocity: int | None = None, dev: str | None = None, channel: MidiChannel | None = None) -> None:
+    def __init__(self, name: str, step_duration: NoteLen | None = None, step_velocity: int | None = None, dev: str | None = None, channel: MidiChannel = MidiChannel.Ch1) -> None:
         seq = None
         names = get("sequence/names")
         log.debug(f"found seqeunces :  {names}")
+        self.name = name
 
         if name in names:
             seq = BackEndSequence.from_json(get("sequence", convert=False, sequence=name))
@@ -765,9 +796,11 @@ class Sequence:
         else:
             self.seq = BackEndSequence(name)
             post(json.dumps(name), "sequence/new")
+            self.stop_now()
 
         self._dev = dev
         self._channel = channel
+        self._scale: Scale | None = None
 
         if self._dev is not None:
             self.seq.midi_dev = self.dev
@@ -775,35 +808,48 @@ class Sequence:
         if self._channel is not None:
             self.seq.channel = self._channel
             
-        self.name = name
         self.step_duration = step_duration
         self.step_velocity = step_velocity
+ 
+    def dev(self, value: str | None = None):
+        if value is not None:
+            value = find_dev(value)
+            self.seq.midi_dev = value
+            self._dev = value
+            post(SetDevBody(self.name, value).json(), "sequence/set-dev")
 
-    @property
-    def dev(self):
-        return self._dev
+            return self
+        else:
+            return self._dev
 
-    @dev.setter
-    def dev(self, value: str):
-        self.seq.midi_dev = value
-        self.dev = value
-        post(SetDevBody(self.name, value).json(), "sequence/set-dev")
-
-        return self
-
-    @property
-    def channel(self):
-        return self._channel
-
-    @channel.setter
     def channel(self, value: MidiChannel):
-        self.seq.channel = value
-        self._channel = value
-        post(SetChannelBody(self.name, value).json(), "sequence/set-channel")
+        if value is not None:
+            self.seq.channel = value
+            self._channel = value
+            post(SetChannelBody(self.name, value).json(), "sequence/set-channel")
 
-        return self
+            return self
+        else:
+            return self._channel
 
-    def set_note(self, step: int, note: str | int,  duration: NoteLen | None = None, velocity: int | None = None):
+    def duration(self, value: NoteLen | None = None):
+        if value is not None:
+            self.default_step_duration = value
+
+            return self
+        else:
+            return self.default_step_duration
+
+
+    def scale(self, value: Scale | None = None):
+        if value is not None:
+            self._scale = value
+            
+            return self
+        else:
+            return self._scale
+
+    def step(self, step: int, note: str | int,  duration: NoteLen | None = None, velocity: int | None = None):
         # first non-null value with priority given first to function args, then to object defaults, then class defaults.
         velocity = next((item for item in [velocity, self.step_velocity] if item is not None), self.default_step_velocity)
         duration = next((item for item in [duration, self.step_duration] if item is not None), self.default_step_duration)
@@ -811,7 +857,8 @@ class Sequence:
         if step >= self.seq.len():
             log.warning(f"attemting to set step: {step}, of sequence of len: {self.seq.len()}. step was too high using modulo to force step to be with in range. will set step: {step % self.seq.len()}")
 
-        note = mk_midi_note(note)
+        note = mk_midi_note(note, scale=self.scale())
+        # print(f"{type(note)}: {note}")
 
         (should_add, old_note) = self.seq.set_note(step % self.seq.len(), note, velocity, duration)
 
@@ -827,16 +874,18 @@ class Sequence:
 
     def play(self):
         post(json.dumps(self.name), "sequence/play-one")
-        log.info("play-quedued...")
+        log.info("play quedued...")
 
     def stop(self, now: bool = False):
         endpoint = "sequence/queue-stop"
+        mesg = "stop queued..."
 
         if now:
             endpoint = "sequence/stop-these"
+            mesg = "stopped..."
 
         post(json.dumps([self.name]), endpoint)
-        log.info("stopped...")
+        log.info(mesg)
 
     def stop_now(self,):
         self.stop(True)
@@ -846,18 +895,25 @@ if __name__ == "__main__":
     import time
 
     set_log_level(logging.DEBUG)
-    seq = Sequence("test-sequence")
-    print(tempo())
-    print(f"this sequence: {seq.name}")
-    print("all_seqeunces : ", get("sequence/names"))
-    print("before sequence set up : ", get("sequence", sequence=seq.name))
-    seq.set_note(0, "C4").set_note(3, "c3")
-    print("after sequence set up : ", get("sequence", sequence=seq.name))
-    print(*(msg for msg in [step for step in seq.seq.steps]))
+    new_dev("VITAL")
+    name = "test-sequence"
+    post(json.dumps(name), "sequence/rm")
+    seq = Sequence(name)
+    # print(tempo())
+    # print(f"this sequence: {seq.name}")
+    # print("all_seqeunces : ", get("sequence/names"))
+    # print("before sequence set up : ", get("sequence", sequence=seq.name))
+    # seq.set_note(0, "C4").set_note(3, "c3")
+    # scale = Scale("A#", "blues")
+    # print(f"scale is {scale}")
+    # print(f"scale is {seq.scale()}")
+    seq.scale(Scale("d#", "dorian")).dev("vital").duration(NoteLen.En(1)).step(0, "2").step(3, "5").step(6, "1").step(9, "6")
+    # print("after sequence set up : ", get("sequence", sequence=seq.name))
+    # print(*(msg for msg in [step for step in seq.seq.steps]))
     be_seq = BackEndSequence.from_json(get("sequence", convert=False, sequence=seq.name))
-    print(*(msg for msg in [step for step in be_seq.steps]))
+    # print(*(msg for msg in [step for step in be_seq.steps]))
     time.sleep(1)
     seq.play()
-    time.sleep(3)
+    time.sleep(6)
     seq.stop()
 
