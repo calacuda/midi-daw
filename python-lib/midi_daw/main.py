@@ -77,10 +77,11 @@ class AutomationWrapper:
         self.input = self._jack_client.inports.register(self.name)
         # _JACK_CLIENT.connect(out_port, self.input.name)
         self.event = threading.Event()
+        self.midi = None
 
     def __call__(self, *args, **kwargs):
         import time 
-        global _JACK_CLIENT
+        # global _JACK_CLIENT
         # global AUTOMATION_THREADS
 
         # t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
@@ -96,6 +97,7 @@ class AutomationWrapper:
         # stop old automation
         # post(AutomationCommand.Stop(self.name), "automation")
         # return self.func(*args, **kwargs)
+        self.midi = args[0]
         self.stop()
         post(AutomationCommand.New(self.name, self.automation).json(), "automation")
         time.sleep(.25)
@@ -124,8 +126,9 @@ class AutomationWrapper:
         # print(frames)
         # print(type(frames))
         # print(dir(frames))
-        for sample in self.input.get_array():
-            self._func(sample)
+        [threading.Thread(target=self._func, args=(self.midi, sample)).start() for sample in self.input.get_array()]
+        # thread = threading.Thread(target=synth.pitch_bend, args=(bend_amt,))
+        # [t.start() for t in threads]
 
     def stop(self):
         """stops the running automation thread"""
@@ -363,6 +366,7 @@ def note(
 def pitch_bend(amt, block: bool = True, midi_out=midi_out):
     abs_val = abs((amt + 1.0) * (16383 / 2))
     amt = int(abs_val)
+    # print(amt)
     cmd = MidiMsg.PitchBend(amt)
     midi_out(cmd, block=block)
 
@@ -630,6 +634,18 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
         block => should it be started in a sub thread
     """
 
+    @dataclass
+    class Midi:
+        def __init__(self, midi_target, new_midi_out) -> None:
+            self.midi_target = midi_target
+            self.new_midi_out = new_midi_out
+            # self.notei
+            self.note = partial(note, midi_out=self.new_midi_out)
+            self.cc = partial(cc, midi_out=self.new_midi_out)
+            self.panic = partial(panic, midi_out=self.new_midi_out)
+            self.pitch_bend = partial(pitch_bend, midi_out=self.new_midi_out)
+        
+
     class PlayOn:
         def __init__(self, func):
 
@@ -655,21 +671,23 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             # new_rest = partial(rest)
             self.new_pitch_bend = partial(pitch_bend, midi_out=self.new_midi_out)
             self.new_panic = partial(panic, midi_out=self.new_midi_out)
-            self.api = {
-                "note": self.new_note,
-                "cc": self.new_cc,
-                "panic": self.new_panic,
-                "pitch_bend": self.new_pitch_bend,
-                # "_midi_out": self.new_midi_out,
-                "MIDI_TARGET": self.midi_target,
-            }
+            # self.api = {
+            #     "note": self.new_note,
+            #     "cc": self.new_cc,
+            #     "panic": self.new_panic,
+            #     "pitch_bend": self.new_pitch_bend,
+            #     # "_midi_out": self.new_midi_out,
+            #     # "MIDI_TARGET": self.midi_target,
+            #     # "is_set": True,
+            # }
             # self.api = {"note": self.new_note, "MIDI_TARGET": self.midi_target}
             # print(dir(self.func))
             self.should_loop = loop != 0
             self.loop_number = -1 if isinstance(loop, bool) and loop else loop
             self.setup_f = setup
             self.__name__ = self.name
-            self.__globals__ = self.func.__globals__  
+            # self.__globals__ = self.func.__globals__  
+            self.midi = Midi(self.midi_target, self.new_midi_out)
 
         def __call__(self, *args, **kwargs):
             global running_funcs
@@ -677,13 +695,14 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             self.midi_file = ""
             # print('running "midi file" on server')
 
-            old = copy(self.func.__globals__)
-            self.func.__globals__.update(self.api)
+            # old = copy(self.func.__globals__)
+            # self.func.__globals__.update(self.api)
+            args = (self.midi, *args)
             
             if isinstance(self.func, AutomationWrapper):
-                self.func.func.__globals__.update(self.api)
-                self.func._func.__globals__.update(self.api)
-                self.func()
+                # self.func.func.__globals__.update(self.api)
+                # self.func._func.__globals__.update(self.api)
+                # self.func()
                 self.stop()
                 # self.func = lambda : None
                 # self.func = self.func.func
@@ -694,18 +713,19 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
                 # t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
                 f = self.loop_f if self.should_loop else self.func
                 # t = Process(target=f, args=args, kwargs=kwargs)
-                t = threading.Thread(target=self.func, args=args, kwargs=kwargs)
+                # print(args)
+                t = threading.Thread(target=f, args=args, kwargs=kwargs)
                 t.start()
                 # self.func.__globals__.update(old)
                 # print(f"running function => {self.name}")
                 running_funcs[self.name] = t
-                print(running_funcs)
+                # print(running_funcs)
                 clear_dead_threads()
 
                 return self.name
             else:
                 result = self.func(*args, **kwargs)
-                self.func.__globals__.update(old)
+                # self.func.__globals__.update(old)
                 clear_dead_threads()
 
                 return result

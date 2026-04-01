@@ -1,9 +1,10 @@
-import struct
+import threading
 
 from midi_daw import *
 
 
 # new_dev("VITAL")
+new_dev("synth-1")
 devs = get_devs()
 print(devs)
 
@@ -14,21 +15,23 @@ counter = 0
 
 
 @play_on("TD-3-MO:0", channel=Ch1, block=False, loop=-1)
-def lead():
-    panic(lead.new_midi_out)
-    note("b2", qn(), vel=80)
-    note("a#2", sn(), vel=80)
-    note("f#2", en(), vel=80)
-    note("C#3", qn(), vel=80)
-    note("f#2", en(), vel=80)
-    note("C#3", en(), vel=80)
-    note("f#3", sn(), vel=80)
+def lead(synth):
+    synth.panic()
+    synth.note("b2", qn(), vel=80)
+    synth.note("a#2", sn(), vel=80)
+    synth.note("f#2", en(), vel=80)
+    synth.note("C#3", qn(), vel=80)
+    synth.note("f#2", en(), vel=80)
+    synth.note("C#3", en(), vel=80)
+    synth.note("f#3", sn(), vel=80)
 
 
-@play_on("vital", channel=Ch1, block=True, loop=-1)
+# @play_on("vital", channel=Ch1, block=True, loop=-1)
+@play_on("synth-1", channel=Ch1, block=True, loop=-1)
 @lfo("sin", 3.5)
-def pitch_wobble(lfo_amt):
-    global counter
+def pitch_wobble(synth, lfo_amt):
+    # global counter
+    # global threads
     # print(lfo)
     # bend_amt = lfo * 0.75
     # do pitch bend
@@ -39,21 +42,28 @@ def pitch_wobble(lfo_amt):
     # if lfo_amt:
     #     print(lfo_amt)
 
-    counter += 1
+    # counter += 1
+    # bend_amt = lfo_amt * 0.75
     
-    if not (counter % 96):
+    # if not (counter % 96):
         # lfo_amt = lfo_amt * 0.5 + 0.5
         # print(lfo_amt)
-        bend_amt = lfo_amt * 0.75
+    bend_amt = lfo_amt * 0.75
         # print(f"{lfo_amt} => {bend_amt}")
         # print(f"bend amt {bend_amt}")
-        pitch_bend(bend_amt)
+    synth.pitch_bend(bend_amt)
+        # thread.start()
+        # threads.append(thread)
+        # clear_dead_threads()
+        # print(len(threads))
         # cc(1, int(lfo_amt * 126))
         # note("a#4", en(), vel=80)
+        # counter = 0
 
 
 # lead()
 pitch_wobble()
+lead()
 
 # rest(wn())
 # print("stopping")
