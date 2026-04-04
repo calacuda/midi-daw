@@ -104,18 +104,19 @@ impl Api {
 
     pub fn rest(&self, dur: NoteDuration) {
         let (mul, denom) = match dur {
-            NoteDuration::Wn(n) => (n, 1.0),
+            NoteDuration::Wn(n) => (n, 4.0),
             NoteDuration::Hn(n) => (n, 2.0),
-            NoteDuration::Qn(n) => (n, 4.0),
-            NoteDuration::En(n) => (n, 8.0),
-            NoteDuration::Sn(n) => (n, 16.0),
-            NoteDuration::Tn(n) => (n, 32.0),
-            NoteDuration::S4n(n) => (n, 64.0),
+            NoteDuration::Qn(n) => (n, 1.0),
+            NoteDuration::En(n) => (n, 1.0 / 2.0),
+            NoteDuration::Sn(n) => (n, 1.0 / 4.0),
+            NoteDuration::Tn(n) => (n, 1.0 / 8.0),
+            NoteDuration::S4n(n) => (n, 1.0 / 16.),
         };
         let mul = mul as f64;
 
         sleep(Duration::from_secs_f64(
-            ((60.0 / self.tempo) * 8.0 / denom) * mul,
+            // ((60.0 / self.tempo) * 2.0 / denom) * mul,
+            ((60.0 / self.tempo) * denom) * mul,
         ));
     }
 }

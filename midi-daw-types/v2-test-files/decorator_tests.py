@@ -31,9 +31,9 @@ print(devs)
 # @factory("midi-dev", loops=3,  block=False)
 @song.register
 def f(api):
-    print(f"func-name = {f.__name__}")
-    api.play("g4", NoteLen.Sn(1))
-    print(f"playing f on {api.device}:{api.channel}")
+    # print(f"func-name = {f.__name__}")
+    api.play("g4", NoteLen.Sn(3))
+    # print(f"playing f on {api.device}:{api.channel}")
     api.rest(NoteLen.Sn(1))
 
 
@@ -53,7 +53,7 @@ def f_3(api):
 
 if __name__ == "__main__":
 
-    f(loops=16, block=True)
+    f(loops=32, block=True)
     f_2(loops=10)
     print("non-blockers called")
     # f_3(loops=10, block=True)
