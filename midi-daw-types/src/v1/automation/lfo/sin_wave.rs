@@ -1,4 +1,4 @@
-use crate::automation::{AUTOMATIONS_PER_SECOND, AutomationTrait};
+use crate::v1::automation::{AUTOMATIONS_PER_SECOND, AutomationTrait};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 // use std::sync::Arc;

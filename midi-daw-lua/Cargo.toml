@@ -9,4 +9,8 @@ enum_dispatch = "0.3.13"
 jack = { version = "0.13.5", features = ["controller"] }
 midi-daw-types = { version = "0.1.0", path = "../midi-daw-types", default-features = false }
 midi-msg = "0.8.1"
-mlua = { version = "0.11.6", features = ["lua55", "macros", "mlua_derive", "serde", "vendored"] }
+mlua = { version = "0.11.6", features = ["async", "lua54", "macros", "mlua_derive", "send", "serde", "vendored"] }
+rustc-hash = "2.1.2"
+tokio = { version = "1.50.0", default-features = false, features = ["macros", "signal", "process", "rt", "rt-multi-thread", "time", "sync"] }
+tracing = { version = "0.1.44", features = ["log", "release_max_level_warn"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

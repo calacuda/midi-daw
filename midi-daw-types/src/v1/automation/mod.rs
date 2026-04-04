@@ -6,7 +6,7 @@ use lfo::{Lfo, sin_wave, wavetable};
 use pyo3::{prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
 
-use crate::automation::lfo::{sin_wave::SinLfo, wavetable::WaveTable};
+use crate::v1::automation::lfo::{sin_wave::SinLfo, wavetable::WaveTable};
 
 // pub mod envelope;
 pub mod lfo;

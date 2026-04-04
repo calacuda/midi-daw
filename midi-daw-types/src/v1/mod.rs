@@ -1,0 +1,787 @@
+#[cfg(feature = "pyo3")]
+use crate::{MidiChannel, MidiTarget};
+use crate::{MidiMsg, NoteDuration};
+use automation::AutomationConf;
+#[cfg(feature = "pyo3")]
+use automation::{Automation, AutomationTypes, lfo::LfoConfig};
+use bincode::{
+    Decode, Encode,
+    error::{DecodeError, EncodeError},
+};
+#[cfg(feature = "pyo3")]
+use log::*;
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+#[cfg(not(feature = "pyo3"))]
+use tracing::*;
+
+pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
+
+// pub type MidiDeviceName = String;
+// pub type Tempo = Arc<std::sync::RwLock<f64>>;
+pub type BPQ = Arc<std::sync::RwLock<f64>>;
+pub type Step = Vec<MidiMsg>;
+pub type SequenceName = String;
+
+pub mod automation;
+
+/// gets midi note as a u8 from a string name.
+#[cfg_attr(feature = "pyo3", pyfunction)]
+pub fn note_from_str(name: String) -> Option<u8> {
+    let mut name = name.to_lowercase().replace(" ", "");
+    // let mut octave = 24;
+
+    let scale_offset: u8 = if name.starts_with("b#") || name.starts_with("cb") {
+        print!("[Error] Sorry but \"{name}\" is not a real note");
+        return None;
+    } else if name.starts_with("c#") || name.starts_with("db") {
+        name = name.replace("c#", "").replace("db", "");
+        1
+    } else if name.starts_with("d#") || name.starts_with("eb") {
+        name = name.replace("d#", "").replace("eb", "");
+        3
+    } else if name.starts_with("e#") || name.starts_with("fb") {
+        print!("[Error] Sorry but \"{name}\" is not a real note");
+        return None;
+    } else if name.starts_with("f#") || name.starts_with("gb") {
+        name = name.replace("f#", "").replace("gb", "");
+        6
+    } else if name.starts_with("g#") || name.starts_with("ab") {
+        name = name.replace("g#", "").replace("ab", "");
+        8
+    } else if name.starts_with("a#") || name.starts_with("bb") {
+        name = name.replace("a#", "").replace("bb", "");
+        10
+    } else if name.starts_with("c") {
+        name = name.replace("c", "");
+        0
+    } else if name.starts_with("d") {
+        name = name.replace("d", "");
+        2
+    } else if name.starts_with("e") {
+        name = name.replace("e", "");
+        4
+    } else if name.starts_with("f") {
+        name = name.replace("f", "");
+        5
+    } else if name.starts_with("g") {
+        name = name.replace("g", "");
+        7
+    } else if name.starts_with("a") {
+        name = name.replace("a", "");
+        9
+    } else if name.starts_with("b") {
+        name = name.replace("b", "");
+        11
+    } else {
+        print!("[Error] Sorry but \"{name}\" is not a real note");
+        return None;
+    };
+
+    // println!("name -> {name}");
+
+    let octave: u8 = if let Ok(octave) = name.parse()
+        && !name.is_empty()
+    {
+        octave
+    } else {
+        1
+    };
+
+    Some(12 * octave + scale_offset + 12)
+}
+
+// #[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct MidiReqBody {
+    pub midi_dev: String,
+    pub channel: MidiChannel,
+    pub msg: MidiMsg,
+}
+
+impl MidiReqBody {
+    pub fn new(midi_dev: String, channel: MidiChannel, msg: MidiMsg) -> Self {
+        Self {
+            midi_dev,
+            channel,
+            msg,
+        }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+pub fn display_midi_note(midi_note: u8) -> String {
+    let note_name_i = midi_note % 12;
+    let octave = midi_note / 12;
+
+    let note_names = [
+        "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
+    ];
+    let note_name = note_names[note_name_i as usize];
+
+    format!("{note_name}{octave:X}")
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+// #[cfg_attr(feature = "pyo3", pymethods)]
+impl MidiReqBody {
+    #[new]
+    fn new_py(midi_dev: String, channel: MidiChannel, msg: MidiMsg) -> Self {
+        Self::new(midi_dev, channel, msg)
+    }
+
+    // #[cfg_attr(feature = "pyo3", new)]
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+// // #[pyclass]
+// #[cfg_attr(feature = "pyo3", pyclass)]
+// #[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+// pub struct RestReqBody {
+//     pub tempo: String,
+//     // pub channel: MidiChannel,
+//     // pub msg: MidiMsg
+// }
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct AddNoteBody {
+    pub sequence: String,
+    pub step: usize,
+    pub note: u8,
+    pub velocity: u8,
+    pub note_len: Option<NoteDuration>,
+}
+
+impl AddNoteBody {
+    pub fn new(
+        sequence: String,
+        step: usize,
+        note: u8,
+        velocity: u8,
+        note_len: Option<NoteDuration>,
+    ) -> Self {
+        Self {
+            sequence,
+            step,
+            note,
+            velocity,
+            note_len,
+        }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl AddNoteBody {
+    #[new]
+    fn new_py(
+        sequence: String,
+        step: usize,
+        note: u8,
+        velocity: u8,
+        note_len: Option<NoteDuration>,
+    ) -> Self {
+        Self::new(sequence, step, note, velocity, note_len)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct RmNoteBody {
+    pub sequence: String,
+    pub step: usize,
+    pub note: u8,
+}
+
+impl RmNoteBody {
+    pub fn new(sequence: String, step: usize, note: u8) -> Self {
+        Self {
+            sequence,
+            step,
+            note,
+        }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl RmNoteBody {
+    #[new]
+    fn new_py(sequence: String, step: usize, note: u8) -> Self {
+        Self::new(sequence, step, note)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct SetDevBody {
+    pub sequence: String,
+    pub midi_dev: String,
+}
+
+impl SetDevBody {
+    pub fn new(sequence: String, midi_dev: String) -> Self {
+        Self { sequence, midi_dev }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl SetDevBody {
+    #[new]
+    fn new_py(sequence: String, midi_dev: String) -> Self {
+        Self::new(sequence, midi_dev)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct GetSequenceQuery {
+    pub sequence: String,
+    // pub midi_dev: String,
+}
+
+impl GetSequenceQuery {
+    pub fn new(sequence: String) -> Self {
+        Self { sequence }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl GetSequenceQuery {
+    #[new]
+    fn new_py(sequence: String) -> Self {
+        Self::new(sequence)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct RenameSequenceBody {
+    pub old_name: String,
+    pub new_name: String,
+}
+
+impl RenameSequenceBody {
+    pub fn new(old_name: String, new_name: String) -> Self {
+        Self { old_name, new_name }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl RenameSequenceBody {
+    #[new]
+    fn new_py(old_name: String, new_name: String) -> Self {
+        Self::new(old_name, new_name)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct SetChannelBody {
+    pub sequence: String,
+    pub channel: MidiChannel,
+}
+
+impl SetChannelBody {
+    pub fn new(sequence: String, channel: MidiChannel) -> Self {
+        Self { sequence, channel }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl SetChannelBody {
+    #[new]
+    fn new_py(sequence: String, channel: MidiChannel) -> Self {
+        Self::new(sequence, channel)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object, get_all, set_all))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Sequence {
+    // #[pyo3(get, set)]
+    pub name: SequenceName,
+    // #[pyo3(get, set)]
+    pub steps: Vec<Step>,
+    // #[pyo3(get, set)]
+    pub midi_dev: String,
+    // #[pyo3(get, set)]
+    pub channel: MidiChannel,
+}
+
+impl Sequence {
+    pub fn new(name: String) -> Self {
+        let mut seq = Self::default();
+        seq.name = name;
+
+        seq
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+impl Default for Sequence {
+    fn default() -> Self {
+        Self {
+            name: "Default-Sequence".into(),
+            steps: (0..16).map(|_| Step::default()).collect(),
+            midi_dev: "Midi Through:0".into(),
+            channel: MidiChannel::Ch1,
+        }
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl Sequence {
+    #[new]
+    fn new_py(name: String) -> Self {
+        let mut s = Self::default();
+
+        s.name = name;
+
+        s
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+
+    #[staticmethod]
+    fn from_json(json_str: &str) -> Option<Self> {
+        serde_json::from_str(json_str).ok()
+    }
+
+    fn len(&self) -> usize {
+        self.steps.len()
+    }
+
+    fn set_note(
+        &mut self,
+        step_i: usize,
+        note: u8,
+        velocity: u8,
+        duration: NoteDuration,
+    ) -> (bool, Option<u8>) {
+        // trace!("set_note called");
+
+        let mut should_add = false;
+        let mut should_rm_first = None;
+
+        if let Some(step) = self.steps.get_mut(step_i) {
+            let mut note_set = false;
+
+            for cmd in step.iter_mut() {
+                if let MidiMsg::PlayNote {
+                    note: old_note,
+                    velocity: old_velocity,
+                    duration: old_duration,
+                } = cmd
+                {
+                    should_add =
+                        note != *old_note || velocity != *old_velocity || duration != *old_duration;
+                    note_set = true;
+
+                    if should_add {
+                        debug!("found a note to repalce");
+                        *old_note = note;
+                        *old_velocity = velocity;
+                        *old_duration = duration;
+                        should_rm_first = Some(*old_note);
+                    } else {
+                        debug!("found a note to but it is identical; not doing anything");
+                    }
+
+                    break;
+                }
+            }
+
+            if !note_set {
+                step.push(MidiMsg::PlayNote {
+                    note,
+                    velocity,
+                    duration,
+                });
+                should_add = true;
+                debug!("adding not pressent note");
+            }
+        } else {
+            error!(
+                "editing step {step_i}, of sequence of len {}, is not posible.",
+                self.steps.len()
+            );
+        }
+
+        // info!("returning from set_note: ({should_add}, {should_rm_first:?})");
+
+        (should_add, should_rm_first)
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct ChangeLenByBody {
+    pub sequence: String,
+    pub amt: isize,
+}
+
+impl ChangeLenByBody {
+    pub fn new(sequence: String, amt: isize) -> Self {
+        Self { sequence, amt }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl ChangeLenByBody {
+    #[new]
+    fn new_py(sequence: String, amt: isize) -> Self {
+        Self::new(sequence, amt)
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, PartialOrd, Clone, Debug)]
+pub enum MsgFromServer {
+    /// a single sync pulse
+    SyncPulse {
+        /// the number of pulses
+        pulse_count: usize,
+        /// the last beat to occur
+        after_step: usize,
+        /// the next beat that will happen
+        before_step: usize,
+    },
+    /// a musical beat happened
+    Beat {
+        /// the pulse count when the beat happened
+        pulse_count: usize,
+        /// the beat number
+        beat: usize,
+        /// the type of note this beat represents. (ie: sizteenth-note, quarter-note, etc)
+        beat_type: NoteDuration,
+        /// the number of beats in a quarter note
+        bpq: f64,
+    },
+    /// a step of the sequencer has occured
+    Step {
+        /// the pulse count when the beat happened
+        pulse_count: usize,
+        /// the number of steps since last reset
+        step_n: usize,
+        /// the type of note this beat represents. (ie: sizteenth-note, quarter-note, etc)
+        step_type: NoteDuration,
+        /// the number of beats in a quarter note
+        bpq: f64,
+    },
+    /// indicates that the sync pulse counter has reset to zero because nothing was playing
+    SyncPulseReset(),
+    /// the described sequence will stop after after_steps amount of time. in other words in other
+    /// words the sequence has been queued to stop
+    SequenceWillStop {
+        /// the sequence that will stop
+        sequence_name: SequenceName,
+        /// the number of beats it will it stop after
+        after_steps: usize,
+    },
+    /// the described sequence stopped
+    SequenceStoped {
+        /// the sequence that stopped
+        sequence_name: SequenceName,
+        /// the beat count this sequence stopped at
+        step_n: usize,
+    },
+    /// the described sequence will start after after_steps. in other words the sequence has been
+    /// queued to start
+    SequenceWillStart {
+        /// the sequnece
+        sequence_name: SequenceName,
+        /// the number of steps after which this sequence will start
+        after_steps: usize,
+    },
+    /// a sequence has started
+    SequenceStarted {
+        /// the sequnece
+        sequence_name: SequenceName,
+    },
+}
+
+impl TryFrom<Vec<u8>> for MsgFromServer {
+    type Error = DecodeError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        bincode::decode_from_slice(&value, get_bincode_conf()).map(|(data, _)| data)
+    }
+}
+
+impl MsgFromServer {
+    // pub fn new(sequence: String, amt: isize) -> Self {
+    //     Self { sequence, amt }
+    // }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        match bincode::decode_from_slice(&bytes, get_bincode_conf()) {
+            Ok(decoded) => Ok(decoded.0),
+            Err(e) => Err(format!(
+                "attempt to decode bytes to MsgFromServer failed with error, {e}"
+            )),
+        }
+    }
+
+    pub fn to_bytes(self) -> Result<Vec<u8>, EncodeError> {
+        match bincode::encode_to_vec(&self, get_bincode_conf()) {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                warn!("attempt to encode bytes of MsgFromServer failed with error, {e}");
+                Err(e)
+            }
+        }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl MsgFromServer {
+    #[pyo3(name = "from_bytes")]
+    #[staticmethod]
+    fn from_bytes_py(bytes: Vec<u8>) -> Option<Self> {
+        Self::from_bytes(&bytes).ok()
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[derive(Clone, Debug, Deserialize, Serialize, Encode, Decode)]
+pub enum AutomationCommand {
+    New {
+        name: String,
+        conf: AutomationConf,
+        // responder: OneshotSender<String>,
+    },
+    Stop {
+        name: String,
+    },
+}
+
+impl AutomationCommand {
+    // pub fn new(sequence: String, amt: isize) -> Self {
+    //     Self { sequence, amt }
+    // }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        match bincode::decode_from_slice(&bytes, get_bincode_conf()) {
+            Ok(decoded) => Ok(decoded.0),
+            Err(e) => Err(format!(
+                "attempt to decode bytes to MsgFromServer failed with error, {e}"
+            )),
+        }
+    }
+
+    pub fn to_bytes(self) -> Result<Vec<u8>, EncodeError> {
+        match bincode::encode_to_vec(&self, get_bincode_conf()) {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                warn!("attempt to encode bytes of MsgFromServer failed with error, {e}");
+                Err(e)
+            }
+        }
+    }
+
+    pub fn json(&self) -> String {
+        let Ok(res) = serde_json::to_string(self) else {
+            return String::new();
+        };
+
+        res
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl AutomationCommand {
+    #[pyo3(name = "from_bytes")]
+    #[staticmethod]
+    fn from_bytes_py(bytes: Vec<u8>) -> Option<Self> {
+        Self::from_bytes(&bytes).ok()
+    }
+
+    #[pyo3(name = "json")]
+    fn json_py(&self) -> String {
+        self.json()
+    }
+}
+
+pub fn get_bincode_conf() -> bincode::config::Configuration {
+    bincode::config::standard()
+}
+
+#[cfg(feature = "pyo3")]
+#[pymodule]
+#[pyo3(submodule, name = "v1")]
+/// A Python module implemented in Rust.
+pub fn v1(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // pyo3_log::init();
+
+    m.add_class::<MidiChannel>()?;
+    m.add_class::<MidiTarget>()?;
+    m.add_class::<MidiMsg>()?;
+    m.add_class::<NoteDuration>()?;
+    m.add_class::<MidiReqBody>()?;
+    m.add_class::<AddNoteBody>()?;
+    m.add_class::<RmNoteBody>()?;
+    m.add_class::<SetDevBody>()?;
+    m.add_class::<GetSequenceQuery>()?;
+    m.add_class::<RenameSequenceBody>()?;
+    m.add_class::<SetChannelBody>()?;
+    m.add_class::<Sequence>()?;
+    m.add_class::<ChangeLenByBody>()?;
+    m.add_class::<MsgFromServer>()?;
+    // m.add_class::<>()?;
+
+    m.add_class::<Automation>()?;
+    m.add_class::<AutomationTypes>()?;
+    m.add_class::<AutomationConf>()?;
+    m.add_class::<LfoConfig>()?;
+    m.add_class::<AutomationCommand>()?;
+    // m.add_class::<LfoConfig>()?;
+
+    // m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
+    m.add_function(wrap_pyfunction!(note_from_str, m)?)?;
+    m.add("UDS_SERVER_PATH", UDS_SERVER_PATH)?;
+
+    // #[pymodule_init]
+    // fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    //     // A good place to install the Rust -> Python logger.
+    // }
+
+    Ok(())
+}
