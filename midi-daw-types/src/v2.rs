@@ -60,6 +60,7 @@ impl Api {
     fn start(&self) {}
 
     /// plays a note
+    #[pyo3(signature = (note, dur = None, vel = None, blocking = None))]
     fn note(
         &self,
         note: String,
@@ -67,6 +68,19 @@ impl Api {
         vel: Option<i8>,
         blocking: Option<bool>,
     ) {
+        println!("playing {note}-{vel:?} for {dur:?}. blocking? {blocking:?}");
+    }
+
+    /// plays a note
+    #[pyo3(signature = (note, dur = None, vel = None, blocking = None))]
+    fn play(
+        &self,
+        note: String,
+        dur: Option<NoteDuration>,
+        vel: Option<i8>,
+        blocking: Option<bool>,
+    ) {
+        self.note(note, dur, vel, blocking);
     }
 }
 

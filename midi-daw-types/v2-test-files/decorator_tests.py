@@ -1,5 +1,6 @@
 from midi_daw_types import MidiChannel
 from midi_daw_types import v2
+import time
 
 print("\n\n", "=" * 30, "\n\n", sep="")
 song = v2.MidiDaw("MIDI-DEV", MidiChannel.Ch1)
@@ -18,6 +19,7 @@ def factory(dev, channel=None, loops=None, block=None):
 # @v2.my_decorator_factory("midi-dev")
 @factory("midi-dev", loops=3,  block=False)
 def f(api):
+    api.play("c#4")
     print(f"playing f on {api.device}:{api.channel}")
     
 
@@ -29,10 +31,10 @@ def f_2(api):
 @factory("a-third-dev", loops=3,  block=False)
 def f_3(api):
     print(f"playing f_3 on {api.device}:{api.channel}")
+    time.sleep(0.1)
  
 
 if __name__ == "__main__":
-    import time
 
     f(loops=10)
     f_2(loops=10)
