@@ -78,13 +78,14 @@ impl Api {
         blocking: Option<bool>,
     ) {
         let dur = dur.unwrap_or(NoteDuration::Sn(1));
+        println!("playing {note}@{vel:?} for {dur:?}, on: {:?}. blocking? {blocking:?}", self.device);
         let note = note_from_str(note).unwrap_or(0);
-        println!("playing {note}-{vel:?} for {dur:?}. blocking? {blocking:?}");
         self.__coms.send(
             MidiThreadCtrlMesg::PlayNote { 
                 note, 
                 velocity: vel.unwrap_or(100), 
-                duration: dur            });
+                duration: dur,
+            });
         self.rest(dur);
         self.__coms.send(MidiThreadCtrlMesg::StopNote { note });
     }
@@ -430,17 +431,21 @@ impl MidiDaw {
                 let loop_f = || {
                     for _ in 0..loop_n {
                         if let Err(e) = f() {
-                            println!("running custom: {func_name}, rsulted in error, {e}");
+                            println!("running custom: {func_name}, resulted in error, {e}");
                             break;
                         }
                     }
                 };
+                
+                if let Err(e) = thread.write().map(|mut thread| thread.spawn_midi(api.clone(), rx)) {
+                    println!("atempt to spawn thread failed, :(, with error: {e}");
+                }
 
                 if block {
                     if loop_n == 0 {
                         loop {
                             if let Err(e) = f() {
-                                println!("running custom: {func_name}, rsulted in error, {e}");
+                                println!("running custom: {func_name}, resulted in error, {e}");
                                 break;
                             }
                         }
@@ -450,7 +455,7 @@ impl MidiDaw {
                 } else {
                     // *_jh.lock().unwrap() = Some(if loop_n == 0 {
                     py.detach(move || {
-                        if let Err(e) = thread.write().map(|mut thread| thread.spawn(func, func_name.clone(), loop_n, api.clone(), rx)) {
+                        if let Err(e) = thread.write().map(|mut thread| thread.spawn_exec(func, func_name.clone(), loop_n, api.clone())) {
                             println!("atempt to spawn thread failed, :(, with error: {e}");
                         }
                     })
