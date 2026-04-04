@@ -20,7 +20,7 @@ hound = "3.5"
 jack = { version = "0.13", features = ["controller"] }
 log = { version = "0.4", optional = true, features = ["std"] }
 midi-msg = "0.8"
-midir = { version = "0.10.3", features = ["jack"] }
+midir = { version = "0.10.3" }
 pyo3 = { version = "0.28", optional = true }
 pyo3-log = { version = "0.13", optional = true }
 rust-fuzzy-search = "0.1.1"

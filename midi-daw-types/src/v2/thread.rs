@@ -2,8 +2,8 @@
 // use serde::{Deserialize, Serialize};
 
 use std::{
-    sync::{Arc, atomic::AtomicBool},
-    thread::{JoinHandle, spawn},
+    sync::{atomic::AtomicBool, Arc},
+    thread::{spawn, JoinHandle},
 };
 
 use crossbeam::channel::Receiver;
@@ -15,8 +15,8 @@ use pyo3::{prelude::*, types::PyFunction};
 use tracing::*;
 
 use crate::{
+    v2::{mk_dev, Api, MidiDev, MidiThreadCtrlMesg},
     MidiMsg,
-    v2::{Api, MidiDev, MidiThreadCtrlMesg, mk_dev},
 };
 
 // #[cfg_attr(feature = "pyo3", pyclass)]
@@ -49,14 +49,9 @@ impl MidiDawThread {
         !self.exec_jh.is_finished()
     }
 
-    pub fn spawn_midi(
-        &mut self,
-        // func: Arc<Py<PyFunction>>,
-        api: Api,
-        recv: Receiver<MidiThreadCtrlMesg>,
-    ) {
+    pub fn spawn_midi(&mut self, api: Api, recv: Receiver<MidiThreadCtrlMesg>) {
         let midi_dev = api.device.clone();
-        let channel = api.channel.clone().into();
+        let channel = api.channel.into();
 
         self.midi_out_jh = spawn(move || {
             loop {
@@ -89,6 +84,7 @@ impl MidiDawThread {
                 // poll for msg to send
                 while let Ok(recved_midi_msg) = recv.recv() {
                     println!("got message: {recved_midi_msg:?}");
+
                     let msg = match recved_midi_msg {
                         MidiMsg::PlayNote {
                             note,
@@ -136,116 +132,6 @@ impl MidiDawThread {
         // recv: Receiver<MidiThreadCtrlMesg>,
     ) {
         self.rift = func.clone();
-        // let midi_dev = api.device.clone();
-        // let channel = api.channel.clone().into();
-
-        // self.midi_out_jh = spawn(move || {
-        //     loop {
-        //         // let dev = None;
-        //
-        //         // let midi_out = MidiOutput::new(&format!("MIDI-DAW-{midi_dev_name}")).unwrap();
-        //         // while dev.is_none() {
-        //         let mut dev = match midi_dev.clone() {
-        //             MidiDev::Physical(dev_name) => loop {
-        //                 let midi_out = MidiOutput::new(&format!("MIDI-DAW-{dev_name}")).unwrap();
-        //
-        //                 if let Some(Ok(dev)) = midi_out
-        //                     .ports()
-        //                     .into_iter()
-        //                     .find(|p| {
-        //                         midi_out
-        //                             .port_name(p)
-        //                             .map(|name| name == dev_name)
-        //                             .unwrap_or(false)
-        //                     })
-        //                     .map(|dev| midi_out.connect(&dev, &dev_name))
-        //                 {
-        //                     // if let Ok(dev) = midi_out.connect(&dev, &midi_dev_name) {
-        //                     break dev;
-        //                     // }
-        //                 }
-        //             },
-        //             MidiDev::Virtual(dev_name) => {
-        //                 println!("making virtual device named, \"{dev_name}\"");
-        //                 mk_dev(&dev_name).unwrap()
-        //             }
-        //         };
-        //
-        //         // if let Some(dev) = midi_out.find_port_by_id (dev_id.to_string()).clone() {
-        //         //     if let Ok(dev) = midi_out.connect(&dev, &dev_name) {
-        //         //         midi_devs.insert(dev_name, dev);
-        //         //     } else {
-        //         //         warn!("device named \"{dev_name}\" is no longer connected")
-        //         //         continue;
-        //         //     }
-        //         // } else {
-        //         //     warn!("unknown device id \"{dev_id}\"")
-        //         //     continue;
-        //         // }
-        //
-        //         // let Some(dev) = dev {
-        //         //     unreachable!("dev should be a \"Some\" value by this point");
-        //         // };
-        //
-        //         // poll for msg to send
-        //         while let Ok(recved_midi_msg) = recv.try_recv() {
-        //             println!("got message: {recved_midi_msg:?}");
-        //             // match midi_msg {
-        //             // let (dev_name, msg) = midi_msg;
-        //             //
-        //             // if midi_devs.contains_key(&dev_name) => {
-        //             //     // send messages
-        //             //     let Some(dev) = midi_devs.get_mut(&dev_name) else {
-        //             //         error!(
-        //             //             "an error occured finding the midi device with the name \"{dev_name}\""
-        //             //         );
-        //             //         // eprintln!("an error occured finding the midi device with the name \"{dev_name}\"");
-        //             //         continue;
-        //             //     };
-        //             let msg = match recved_midi_msg {
-        //                 MidiMsg::PlayNote {
-        //                     note,
-        //                     velocity,
-        //                     duration: _,
-        //                 } => midi_msg::MidiMsg::ChannelVoice {
-        //                     channel,
-        //                     msg: midi_msg::ChannelVoiceMsg::NoteOn { note, velocity },
-        //                 },
-        //                 MidiMsg::StopNote { note } => midi_msg::MidiMsg::ChannelVoice {
-        //                     channel,
-        //                     msg: midi_msg::ChannelVoiceMsg::NoteOff {
-        //                         note,
-        //                         velocity: 100,
-        //                     },
-        //                 },
-        //                 MidiMsg::PitchBend { bend } => midi_msg::MidiMsg::ChannelVoice {
-        //                     channel,
-        //                     msg: midi_msg::ChannelVoiceMsg::PitchBend { bend },
-        //                 },
-        //                 MidiMsg::CC { control, value } => midi_msg::MidiMsg::ChannelVoice {
-        //                     channel,
-        //                     msg: midi_msg::ChannelVoiceMsg::ControlChange {
-        //                         control: midi_msg::ControlChange::CC { control, value },
-        //                     },
-        //                 },
-        //             };
-        //
-        //             if let Err(e) = dev.send(&msg.to_midi()) {
-        //                 error!("midi output failed with error {e}");
-        //                 // eprintln!("midi output failed with error {e}");
-        //                 break;
-        //             }
-        //
-        //             // if let Err(e) = responce_dev.send()
-        //             // } else {
-        //             //     error!("the requested midi device, \"{dev_name}\", is not connected.");
-        //             //     // eprintln!("the requested midi device, \"{dev_name}\", is not connected.");
-        //             //     error!("known devs = {:?}", midi_devs.keys());
-        //             // }
-        //             // }
-        //         }
-        //     }
-        // });
 
         self.exec_jh = if loop_n == 0 {
             // let func = func.clone();

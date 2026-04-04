@@ -115,7 +115,7 @@ impl Api {
         let mul = mul as f64;
 
         sleep(Duration::from_secs_f64(
-            ((60.0 / self.tempo) * 2.0 / denom) * mul,
+            ((60.0 / self.tempo) * 8.0 / denom) * mul,
         ));
     }
 }
@@ -438,7 +438,7 @@ impl MidiDaw {
                 };
                 
                 if let Err(e) = thread.write().map(|mut thread| thread.spawn_midi(api.clone(), rx)) {
-                    println!("atempt to spawn thread failed, :(, with error: {e}");
+                    println!("atempt to spawn midi thread failed, :(, with error: {e}");
                 }
 
                 if block {
@@ -456,7 +456,7 @@ impl MidiDaw {
                     // *_jh.lock().unwrap() = Some(if loop_n == 0 {
                     py.detach(move || {
                         if let Err(e) = thread.write().map(|mut thread| thread.spawn_exec(func, func_name.clone(), loop_n, api.clone())) {
-                            println!("atempt to spawn thread failed, :(, with error: {e}");
+                            println!("atempt to spawn exec thread failed, :(, with error: {e}");
                         }
                     })
                 }
