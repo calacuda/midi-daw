@@ -15,26 +15,28 @@ import logging
 import multiprocessing
 import threading
 from copy import copy, deepcopy
+from dataclasses import dataclass
 from functools import partial
 from multiprocessing import Manager, Process
 from os import path
-from dataclasses import dataclass
 
-import requests
-import requests_unixsocket
-from midi_daw_types import (UDS_SERVER_PATH, Automation, AutomationCommand, 
-                            AutomationConf, LfoConfig, MidiChannel, 
-                            MidiMsg, MidiReqBody, MidiTarget, NoteLen, 
-                            Sequence as BackEndSequence, SetDevBody, AddNoteBody,
-                            RmNoteBody, SetChannelBody, note_from_str,)
-from thefuzz import process
-from websockets.sync.client import unix_connect
 import jack
 import musical_scales
+import requests
+import requests_unixsocket
+from midi_daw_types import (UDS_SERVER_PATH, AddNoteBody, Automation,
+                            AutomationCommand, AutomationConf, LfoConfig,
+                            MidiChannel, MidiMsg, MidiReqBody, MidiTarget,
+                            NoteLen, RmNoteBody)
+from midi_daw_types import Sequence as BackEndSequence
+from midi_daw_types import SetChannelBody, SetDevBody, note_from_str
+from thefuzz import process
+from websockets.sync.client import unix_connect
 
 
 class WhitelistFilter(logging.Filter):
     """Filters log records based on a whitelist of logger names."""
+
     def __init__(self, *whitelist):
         self.whitelist = whitelist
 
@@ -44,6 +46,7 @@ class WhitelistFilter(logging.Filter):
             if record.name.startswith(name):
                 return True
         return False
+
 
 requests_unixsocket.monkeypatch()
 _filter = WhitelistFilter(__name__, "midi_daw_types", "midi_daw")
@@ -73,14 +76,15 @@ class AutomationWrapper:
         self.automation = automation
         self.__name__ = self.name
         self.__globals__ = self._func.__globals__
-        self._jack_client = jack.Client('midi-daw-live')
+        self._jack_client = jack.Client("midi-daw-live")
         self.input = self._jack_client.inports.register(self.name)
         # _JACK_CLIENT.connect(out_port, self.input.name)
         self.event = threading.Event()
         self.midi = None
 
     def __call__(self, *args, **kwargs):
-        import time 
+        import time
+
         # global _JACK_CLIENT
         # global AUTOMATION_THREADS
 
@@ -100,12 +104,17 @@ class AutomationWrapper:
         self.midi = args[0]
         self.stop()
         post(AutomationCommand.New(self.name, self.automation).json(), "automation")
-        time.sleep(.25)
-        self._jack_client = jack.Client('midi-daw-live')
+        time.sleep(0.25)
+        self._jack_client = jack.Client("midi-daw-live")
         self.input = self._jack_client.inports.register(self.name)
         self._jack_client.set_process_callback(self.func)
         # print("callback set")
-        out_ports = [port.name for port in self._jack_client.get_ports(is_audio=True, is_output=True, is_physical=False)]
+        out_ports = [
+            port.name
+            for port in self._jack_client.get_ports(
+                is_audio=True, is_output=True, is_physical=False
+            )
+        ]
         # fuzzy find for "midi-daw:{name}" and connect to it
         # print(f"found output_ports {out_ports}")
         out_port = process.extractOne(f"midi-daw:{self.name}", out_ports)[0]
@@ -126,7 +135,10 @@ class AutomationWrapper:
         # print(frames)
         # print(type(frames))
         # print(dir(frames))
-        [threading.Thread(target=self._func, args=(self.midi, sample)).start() for sample in self.input.get_array()]
+        [
+            threading.Thread(target=self._func, args=(self.midi, sample)).start()
+            for sample in self.input.get_array()
+        ]
         # thread = threading.Thread(target=synth.pitch_bend, args=(bend_amt,))
         # [t.start() for t in threads]
 
@@ -141,7 +153,6 @@ class AutomationWrapper:
         self.event.set()
         post(AutomationCommand.Stop(self.name).json(), "automation")
         # pass
-
 
     # def init_automation(self):
     #     """initializes the automation to initial state"""
@@ -237,7 +248,7 @@ def get(path, convert: bool = True, **query):
         f"http+unix://{socket}/{path}",
         # data=data,
         # headers=headers,
-        params=dict(query) if query is not None else None
+        params=dict(query) if query is not None else None,
     )
 
     if res.status_code != 200:
@@ -305,7 +316,7 @@ def mk_midi_note(note, scale: Scale | None = None) -> int:
                     octave += int(note.midi[-2:]) - 3
                     note = note.midi[0:-2] + str(octave)
                 else:
-                    octave += (int(note.midi[-1]) - 3)
+                    octave += int(note.midi[-1]) - 3
                     note = note.midi[0:-1] + str(octave)
                 print(f"note 2: {note}")
                 midi_note = note_from_str(note)
@@ -322,7 +333,6 @@ def mk_midi_note(note, scale: Scale | None = None) -> int:
         #     note(notes[-1], duration, vel, block, midi_out)
 
     return midi_note
-
 
 
 def note(
@@ -548,7 +558,7 @@ def lfo(
     lfo_type = lfo_type.lower()
     lfo_types = {
         # "wave": lambda : LfoConfig.WaveTable(),
-        "sin": lambda : LfoConfig.Sin(freq, one_shot, bipolar, hifi_update),
+        "sin": lambda: LfoConfig.Sin(freq, one_shot, bipolar, hifi_update),
         "triangle": None,
         "saw-up": None,
         "saw-down": None,
@@ -557,10 +567,12 @@ def lfo(
         # "antilog-down": None,
     }
     lfo_builder = lfo_types.get(lfo_type)
-    
+
     if lfo_builder is not None:
         automation = AutomationConf.Lfo(lfo_builder())
-        return partial(AutomationWrapper, automation=automation, main_type="lfo", sub_type=lfo_type)
+        return partial(
+            AutomationWrapper, automation=automation, main_type="lfo", sub_type=lfo_type
+        )
     elif lfo_type.endswith(".wav") and path.exists(lfo_type):
         conf = LfoConfig.WaveTable(lfo_type, freq)
 
@@ -572,10 +584,17 @@ def lfo(
             return None
         else:
             # print("returning automation")
-            return partial(AutomationWrapper, automation=automation, main_type="lfo", sub_type=lfo_type)
+            return partial(
+                AutomationWrapper,
+                automation=automation,
+                main_type="lfo",
+                sub_type=lfo_type,
+            )
             # return AutomationWrapper()
     elif lfo_type.endswith(".wav") and not path.exists(lfo_type):
-        print("you are trying to use teh WaveTable LFO but that file path doesn't exists.")
+        print(
+            "you are trying to use teh WaveTable LFO but that file path doesn't exists."
+        )
         return None
     else:
         print("unknown lfo_type")
@@ -644,7 +663,6 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             self.cc = partial(cc, midi_out=self.new_midi_out)
             self.panic = partial(panic, midi_out=self.new_midi_out)
             self.pitch_bend = partial(pitch_bend, midi_out=self.new_midi_out)
-        
 
     class PlayOn:
         def __init__(self, func):
@@ -686,7 +704,7 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             self.loop_number = -1 if isinstance(loop, bool) and loop else loop
             self.setup_f = setup
             self.__name__ = self.name
-            # self.__globals__ = self.func.__globals__  
+            # self.__globals__ = self.func.__globals__
             self.midi = Midi(self.midi_target, self.new_midi_out)
 
         def __call__(self, *args, **kwargs):
@@ -698,7 +716,7 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
             # old = copy(self.func.__globals__)
             # self.func.__globals__.update(self.api)
             args = (self.midi, *args)
-            
+
             if isinstance(self.func, AutomationWrapper):
                 # self.func.func.__globals__.update(self.api)
                 # self.func._func.__globals__.update(self.api)
@@ -729,7 +747,6 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
                 clear_dead_threads()
 
                 return result
-
 
         def note(self, playing_notes, *args, **kwargs):
             # send_note_to = partial(self.note, midi_out=self.new_midi_out)
@@ -798,15 +815,24 @@ def play_on(midi_output: str, channel=MidiChannel.Ch1, loop=0, block=False, setu
 class Sequence:
     default_step_duration = NoteLen.Sn(1)
     default_step_velocity = 88
-        
-    def __init__(self, name: str, step_duration: NoteLen | None = None, step_velocity: int | None = None, dev: str | None = None, channel: MidiChannel = MidiChannel.Ch1) -> None:
+
+    def __init__(
+        self,
+        name: str,
+        step_duration: NoteLen | None = None,
+        step_velocity: int | None = None,
+        dev: str | None = None,
+        channel: MidiChannel = MidiChannel.Ch1,
+    ) -> None:
         seq = None
         names = get("sequence/names")
         log.debug(f"found seqeunces :  {names}")
         self.name = name
 
         if name in names:
-            seq = BackEndSequence.from_json(get("sequence", convert=False, sequence=name))
+            seq = BackEndSequence.from_json(
+                get("sequence", convert=False, sequence=name)
+            )
             log.debug(f"found seqeunce :  {seq.name}")
             log.debug([msg for msg in [step for step in seq.steps]])
 
@@ -827,10 +853,10 @@ class Sequence:
 
         if self._channel is not None:
             self.seq.channel = self._channel
-            
+
         self.step_duration = step_duration
         self.step_velocity = step_velocity
- 
+
     def dev(self, value: str | None = None):
         if value is not None:
             value = find_dev(value)
@@ -860,27 +886,42 @@ class Sequence:
         else:
             return self.default_step_duration
 
-
     def scale(self, value: Scale | None = None):
         if value is not None:
             self._scale = value
-            
+
             return self
         else:
             return self._scale
 
-    def step(self, step: int, note: str | int,  duration: NoteLen | None = None, velocity: int | None = None):
+    def step(
+        self,
+        step: int,
+        note: str | int,
+        duration: NoteLen | None = None,
+        velocity: int | None = None,
+    ):
         # first non-null value with priority given first to function args, then to object defaults, then class defaults.
-        velocity = next((item for item in [velocity, self.step_velocity] if item is not None), self.default_step_velocity)
-        duration = next((item for item in [duration, self.step_duration] if item is not None), self.default_step_duration)
+        velocity = next(
+            (item for item in [velocity, self.step_velocity] if item is not None),
+            self.default_step_velocity,
+        )
+        duration = next(
+            (item for item in [duration, self.step_duration] if item is not None),
+            self.default_step_duration,
+        )
 
         if step >= self.seq.len():
-            log.warning(f"attemting to set step: {step}, of sequence of len: {self.seq.len()}. step was too high using modulo to force step to be with in range. will set step: {step % self.seq.len()}")
+            log.warning(
+                f"attemting to set step: {step}, of sequence of len: {self.seq.len()}. step was too high using modulo to force step to be with in range. will set step: {step % self.seq.len()}"
+            )
 
         note = mk_midi_note(note, scale=self.scale())
         # print(f"{type(note)}: {note}")
 
-        (should_add, old_note) = self.seq.set_note(step % self.seq.len(), note, velocity, duration)
+        should_add, old_note = self.seq.set_note(
+            step % self.seq.len(), note, velocity, duration
+        )
 
         if old_note is not None:
             log.info("rming an existing note")
@@ -888,7 +929,10 @@ class Sequence:
 
         if should_add:
             # log.info("adding new note")
-            post(AddNoteBody(self.name, step, note, velocity, duration).json(), "sequence/add-note")
+            post(
+                AddNoteBody(self.name, step, note, velocity, duration).json(),
+                "sequence/add-note",
+            )
 
         return self
 
@@ -907,7 +951,9 @@ class Sequence:
         post(json.dumps([self.name]), endpoint)
         log.info(mesg)
 
-    def stop_now(self,):
+    def stop_now(
+        self,
+    ):
         self.stop(True)
 
 
@@ -927,13 +973,16 @@ if __name__ == "__main__":
     # scale = Scale("A#", "blues")
     # print(f"scale is {scale}")
     # print(f"scale is {seq.scale()}")
-    seq.scale(Scale("d#", "dorian")).dev("vital").duration(NoteLen.En(1)).step(0, "2").step(3, "5").step(6, "1").step(9, "6")
+    seq.scale(Scale("d#", "dorian")).dev("vital").duration(NoteLen.En(1)).step(
+        0, "2"
+    ).step(3, "5").step(6, "1").step(9, "6")
     # print("after sequence set up : ", get("sequence", sequence=seq.name))
     # print(*(msg for msg in [step for step in seq.seq.steps]))
-    be_seq = BackEndSequence.from_json(get("sequence", convert=False, sequence=seq.name))
+    be_seq = BackEndSequence.from_json(
+        get("sequence", convert=False, sequence=seq.name)
+    )
     # print(*(msg for msg in [step for step in be_seq.steps]))
     time.sleep(1)
     seq.play()
     time.sleep(6)
     seq.stop()
-

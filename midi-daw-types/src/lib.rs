@@ -1,6 +1,7 @@
+#![feature(thread_sleep_until)]
 use bincode::{
-    Decode, Encode,
     error::{DecodeError, EncodeError},
+    Decode, Encode,
 };
 #[cfg(feature = "pyo3")]
 use log::*;
@@ -407,7 +408,7 @@ fn midi_daw_types(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // v2
     {
         let module = PyModule::new(py, "v2")?;
-        v2::v2(&module)?;
+        v2::v2(py, &module)?;
         m.add_submodule(&module)?;
         py.import("sys")?
             .getattr("modules")?

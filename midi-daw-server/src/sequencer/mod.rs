@@ -2,19 +2,19 @@ use std::time::Duration;
 
 use actix::dev::OneshotSender;
 use async_std::{
-    fs::{File, create_dir_all, read_dir, remove_file},
+    fs::{create_dir_all, read_dir, remove_file, File},
     io::{BufReader, ReadExt, WriteExt},
 };
 use crossbeam::channel::Receiver;
 use futures_lite::stream::StreamExt;
 use fx_hash::FxHashMap;
 use http_body_util::Full;
-use hyper::{Method, Request, body::Bytes};
+use hyper::{body::Bytes, Method, Request};
 use hyper_util::client::legacy::Client;
 use hyperlocal::{UnixClientExt, UnixConnector, Uri};
 use midi_daw_types::{
-    BPQ, MidiChannel, MidiMsg, MidiReqBody, MsgFromServer, NoteDuration, Sequence, SequenceName,
-    Tempo, UDS_SERVER_PATH,
+    MidiChannel, MidiMsg, MidiReqBody, MsgFromServer, NoteDuration, Sequence, SequenceName, Tempo,
+    BPQ, UDS_SERVER_PATH,
 };
 use tokio::spawn;
 use tracing::*;
@@ -227,7 +227,11 @@ pub async fn sequencer_start(
                                     )
                                 });
 
-                            if msgs.len() > 0 { Some(msgs) } else { None }
+                            if msgs.len() > 0 {
+                                Some(msgs)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }

@@ -2,6 +2,7 @@
 // use serde::{Deserialize, Serialize};
 
 use std::{
+    ops::Deref,
     sync::{atomic::AtomicBool, Arc},
     thread::{spawn, JoinHandle},
 };
@@ -15,7 +16,7 @@ use pyo3::{prelude::*, types::PyFunction};
 use tracing::*;
 
 use crate::{
-    v2::{mk_dev, Api, MidiDev, MidiThreadCtrlMesg},
+    v2::{mk_dev, Api, Func, MidiDev, MidiThreadCtrlMesg},
     MidiMsg,
 };
 
@@ -23,7 +24,7 @@ use crate::{
 // #[cfg_attr(feature = "pyo3", pyo3(get_all, set_all))]
 // #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct MidiDawThread {
-    rift: Arc<Py<PyFunction>>,
+    // rift: Arc<Py<PyFunction>>,
     exec_jh: JoinHandle<()>,
     midi_out_jh: JoinHandle<()>,
     pub exit: Arc<AtomicBool>,
@@ -31,9 +32,9 @@ pub struct MidiDawThread {
 }
 
 impl MidiDawThread {
-    pub fn new(rift: Arc<Py<PyFunction>>, exit: Arc<AtomicBool>, api: Api) -> Self {
+    pub fn new(/* rift: Arc<Py<PyFunction>>, */ exit: Arc<AtomicBool>, api: Api) -> Self {
         Self {
-            rift,
+            // rift,
             exec_jh: spawn(|| {}),
             midi_out_jh: spawn(|| {}),
             exit,
@@ -83,8 +84,7 @@ impl MidiDawThread {
 
                 // poll for msg to send
                 while let Ok(recved_midi_msg) = recv.recv() {
-                    println!("got message: {recved_midi_msg:?}");
-
+                    // println!("got message: {recved_midi_msg:?}");
                     let msg = match recved_midi_msg {
                         MidiMsg::PlayNote {
                             note,
@@ -125,13 +125,14 @@ impl MidiDawThread {
 
     pub fn spawn_exec(
         &mut self,
-        func: Arc<Py<PyFunction>>,
+        // func: Arc<Py<PyFunction>>,
+        func: Arc<Func>,
         func_name: Arc<String>,
         loop_n: usize,
         api: Api,
         // recv: Receiver<MidiThreadCtrlMesg>,
     ) {
-        self.rift = func.clone();
+        // self.rift = func.clone();
 
         self.exec_jh = if loop_n == 0 {
             // let func = func.clone();
@@ -149,7 +150,12 @@ impl MidiDawThread {
 
                     loop {
                         // if let Err(e) = f() {
-                        if let Err(e) = func.call1(py, (&api,)) {
+                        // if let Err(e) = func.call1(py, (&api,)) {
+                        if let Err(e) = match func.deref() {
+                            Func::PyF(func) => func.call1(py, (&api,)),
+                            Func::PyCF(func) => func.call1(py, (&api,)),
+                            Func::PyAny(func) => func.call1(py, (&api,)),
+                        } {
                             println!("running custom: {func_name}, resulted in error, {e}");
                             break;
                         }
@@ -169,7 +175,12 @@ impl MidiDawThread {
 
                     // Arc::new(move || {
                     for _ in 0..loop_n {
-                        if let Err(e) = func.call1(py, (&api,)) {
+                        // if let Err(e) = func.call1(py, (&api,)) {
+                        if let Err(e) = match func.deref() {
+                            Func::PyF(func) => func.call1(py, (&api,)),
+                            Func::PyCF(func) => func.call1(py, (&api,)),
+                            Func::PyAny(func) => func.call1(py, (&api,)),
+                        } {
                             println!("running custom: {func_name}, resulted in error, {e}");
                             break;
                         }

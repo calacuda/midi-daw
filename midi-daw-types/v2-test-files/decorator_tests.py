@@ -2,6 +2,7 @@
 import time
 
 from midi_daw_types import MidiChannel, NoteLen, v2
+from midi_daw_types.v2 import lfo
 
 print("\n\n", "=" * 30, "\n\n", sep="")
 song = v2.MidiDaw("Vital", MidiChannel.Ch1, virt=True)
@@ -33,17 +34,28 @@ print(devs)
 def f(api):
     # print(f"func-name = {f.__name__}")
     api.play("g4", NoteLen.Sn(3))
-    # print(f"playing f on {api.device}:{api.channel}")
+    print(f"playing g4 on {api.device}:{api.channel}")
     api.rest(NoteLen.Sn(1))
 
 
-@play_on("diferent-dev", loops=3, block=False)
+@song.register
+@lfo.sin
+def pitch_worble(api, lfo_sample):
+    bend_amt = lfo_sample
+    print(f"bending by, {bend_amt}")
+    api.pitch_bend(bend_amt)
+
+
+# print(type(pitch_worble))
+
+
+# @play_on("diferent-dev", loops=3, block=False)
 def f_2(api):
     print(f"playing f_2 on {api.device}:{api.channel}")
     time.sleep(0.15)
 
 
-@play_on("a-third-dev", loops=3, block=False)
+# @play_on("a-third-dev", loops=3, block=False)
 def f_3(api):
     print(f"func-name = {f.__name__}")
     api.play(f"c4", NoteLen.Sn(1))
@@ -52,12 +64,13 @@ def f_3(api):
 
 
 if __name__ == "__main__":
-
-    f(loops=32, block=True)
-    f_2(loops=10)
+    f(loops=32, block=False)
+    pitch_worble(freq=10.0, block=True)
+    # f_2(loops=10)
     print("non-blockers called")
     # f_3(loops=10, block=True)
     print("blocking thread done")
+    time.sleep(25)
     # time.sleep(2.5)
     print("exiting")
 
