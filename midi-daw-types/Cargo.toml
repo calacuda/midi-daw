@@ -22,6 +22,7 @@ lazy_static = "1.5.0"
 log = { version = "0.4", optional = true, features = ["std"] }
 midi-msg = "0.8"
 midir = { version = "0.10.3" }
+musical_scales = "0.2.0"
 pyo3 = { version = "0.28", optional = true }
 pyo3-log = { version = "0.13", optional = true }
 rust-fuzzy-search = "0.1.1"

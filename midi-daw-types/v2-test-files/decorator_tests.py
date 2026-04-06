@@ -8,6 +8,7 @@ from midi_daw.v2.note_lens import *
 print("\n\n", "=" * 30, "\n\n", sep="")
 song = v2.MidiDaw("Vital", MidiChannel.Ch1, virt=True)
 automa = v2.MidiDaw("Vital", MidiChannel.Ch1, virt=True)
+# drums = v2.MidiDaw("808", MidiChannel.Ch1, virt=True)
 
 
 def play_on(dev, channel=None, loops=None, block=None):
@@ -41,8 +42,9 @@ def f(api):
     # # time.sleep(1.0)
     # # print(f"py: playing g4 on {api.device}:{api.channel}")
     # api.rest(NoteLen.Sn(1))
-    api.play("c4", sn(1))
-    api.rest(sn(12 // 3 - 1))
+    # api.play("c4", sn(1))
+    api.play("1", en(1))
+    api.rest(en(12 // 3 - 1))
 
 
 @automa.register
@@ -53,6 +55,13 @@ def pitch_worble(api, lfo_sample):
     api.pitch_bend(bend_amt)
 
 
+@automa.register
+@lfo.sin
+def mod_wiggle(api, lfo_sample):
+    wiggle = (lfo_sample + 1) * (127 // 2)
+    api.cc(1, int(wiggle))
+
+
 # print(type(pitch_worble))
 
 
@@ -61,8 +70,9 @@ def pitch_worble(api, lfo_sample):
 def f_2(api):
     # print(f"playing f_2 on {api.device}:{api.channel}")
     # time.sleep(0.15)
-    api.play("b4", sn(1))
-    api.rest(sn(12 // 2 - 1))
+    # api.play("b4", sn(1))
+    api.play("7", en(1))
+    api.rest(en(12 // 2 - 1))
 
 
 # @play_on("a-third-dev", loops=3, block=False)
@@ -74,8 +84,9 @@ def f_3(api):
     # # print(f"py: playing c_4 on {api.device}:{api.channel}")
     # api.rest(NoteLen.Sn(16 - n))
     # # time.sleep(0.1)
-    api.play("g4", sn(1))
-    api.rest(sn(12 // 2 - 1))
+    # api.play("g4", sn(1))
+    api.play("5", en(1))
+    api.rest(en(12 // 2 - 1))
 
 
 # run_main_if()
@@ -89,12 +100,14 @@ def f_3(api):
 
 @main
 def main():
-    loops = 128
-    pitch_jh = pitch_worble(freq=7.5, block=False)
-    f_jh = f(loops=loops, block=False)
+    # loops = 128
+    loops = 0
+    # pitch_jh = pitch_worble(freq=7.5, block=False)
+    # mod_jh = mod_wiggle(freq=2.5, block=False)
+    f_jh = f(loops=loops, block=False, scale="c4-maj")
     print("non-blockers called")
-    f_2_jh = f_2(loops=int(loops * (2 / 3)), block=False)
-    f_3_jh = f_3(loops=int(loops * (2 / 3)), block=True)
+    f_2_jh = f_2(loops=int(loops * (2 / 3)), block=False, scale="c4-maj")
+    f_3_jh = f_3(loops=int(loops * (2 / 3)), block=True, scale="c4-maj")
     song.stop()
     print("blocking thread done")
     print("exiting")

@@ -7,11 +7,9 @@ use crossbeam::channel::{unbounded, Receiver, Sender};
 use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use log::*;
-use midir::{os::unix::VirtualOutput, ConnectError, MidiInput, MidiOutput, MidiOutputConnection};
-use pyo3::{
-    ffi::PyObject_GetAttrString,
-    types::{PyCFunction, PyDict},
-};
+use midir::{os::unix::VirtualOutput, MidiOutput, MidiOutputConnection};
+use musical_scales::{PitchClass, Scale, ScaleType};
+use pyo3::types::PyCFunction;
 #[cfg(feature = "pyo3")]
 use pyo3::{prelude::*, types::PyFunction};
 use rust_fuzzy_search::fuzzy_search_best_n;
@@ -23,9 +21,9 @@ use std::{
     ops::Deref,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
+        Arc, RwLock,
     },
-    thread::{sleep, sleep_until, spawn, JoinHandle},
+    thread::{sleep_until, spawn, JoinHandle},
     time::{Duration, Instant},
 };
 #[cfg(not(feature = "pyo3"))]
@@ -35,7 +33,7 @@ use tracing::*;
 pub mod automation;
 pub mod thread;
 
-pub type Scale = Vec<String>;
+// pub type Scale = Vec<String>;
 pub type MidiThreadCtrlMesg = ((MidiDev, MidiChannel), MidiMsg);
 
 lazy_static! {
@@ -172,6 +170,7 @@ pub struct Api {
     __coms: Sender<MidiThreadCtrlMesg>,
     __name: String,
     tempo: f64,
+    scale: Option<(Scale, u8)>,
 }
 
 impl Api {
@@ -189,7 +188,30 @@ impl Api {
             __coms: MIDI_OUT_THREAD_COMS.0.clone(),
             __name: name,
             tempo,
+            scale: None,
         }
+    }
+}
+
+impl Api {
+    pub fn do_rest(&self, dur: NoteDuration, now: Instant) {
+        // let now = Instant::now();
+        let (mul, denom) = match dur {
+            NoteDuration::Wn(n) => (n, 4.0),
+            NoteDuration::Hn(n) => (n, 2.0),
+            NoteDuration::Qn(n) => (n, 1.0),
+            NoteDuration::En(n) => (n, 1.0 / 2.0),
+            NoteDuration::Sn(n) => (n, 1.0 / 4.0),
+            NoteDuration::Tn(n) => (n, 1.0 / 8.0),
+            NoteDuration::S4n(n) => (n, 1.0 / 16.),
+        };
+        let mul = mul as f64;
+
+        Python::attach(|py| {
+            py.detach(|| {
+                sleep_until(now + Duration::from_secs_f64(((60.0 / self.tempo) * denom) * mul))
+            })
+        });
     }
 }
 
@@ -203,8 +225,8 @@ impl Api {
     //     }
     // }
 
-    /// starts playback
-    fn start(&self) {}
+    // /// starts playback
+    // fn start(&self) {}
 
     /// plays a note
     #[pyo3(signature = (note, dur = None, vel = None, blocking = None))]
@@ -215,12 +237,24 @@ impl Api {
         vel: Option<u8>,
         blocking: Option<bool>,
     ) {
+        let now = Instant::now();
         let dur = dur.unwrap_or(NoteDuration::Sn(1));
         // println!(
         //     "playing {note}@{vel:?} for {dur:?}, on: {:?}. blocking? {blocking:?}",
         //     self.device
         // );
-        let note = note_from_str(note).unwrap_or(0);
+        let note =
+            if let (Some((scale, octave)), Ok(new_note)) = (&self.scale, note.parse::<usize>()) {
+                // println!("new_note: {new_note}");
+
+                if let Ok(note) = scale.idx_to_pitch(new_note - 1) {
+                    note.to_midi() + 12 * octave
+                } else {
+                    note_from_str(note).unwrap_or(0)
+                }
+            } else {
+                note_from_str(note).unwrap_or(0)
+            };
         self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::PlayNote {
@@ -229,11 +263,27 @@ impl Api {
                 duration: dur,
             },
         ));
-        self.rest(dur);
+        self.do_rest(dur, now);
         self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::StopNote { note },
         ));
+    }
+
+    fn set_scale(&mut self, root: String, scale_type: String) {
+        let root_midi = note_from_str(root).unwrap_or(60);
+        let root = PitchClass::from_midi_note(root_midi);
+        let scale_type = match scale_type.to_lowercase().as_str() {
+            "maj" | "major" => ScaleType::Major,
+            "min" | "minor" => ScaleType::Minor,
+            "mel" | "mel-min" => ScaleType::MinorMelodic,
+            "harm" | "harm-min" => ScaleType::MinorHarmonic,
+            "pent" | "pent-maj" | "maj-pent" => ScaleType::MajorPentatonic,
+            "pent-m" | "pentm" | "pent-min" | "min-pent" => ScaleType::MinorPentatonic,
+            _ => ScaleType::Major,
+        };
+
+        self.scale = Some((Scale::new(root, scale_type), root_midi / 12));
     }
 
     /// plays a note
@@ -250,35 +300,12 @@ impl Api {
 
     pub fn rest(&self, dur: NoteDuration) {
         let now = Instant::now();
-        let (mul, denom) = match dur {
-            NoteDuration::Wn(n) => (n, 4.0),
-            NoteDuration::Hn(n) => (n, 2.0),
-            NoteDuration::Qn(n) => (n, 1.0),
-            NoteDuration::En(n) => (n, 1.0 / 2.0),
-            NoteDuration::Sn(n) => (n, 1.0 / 4.0),
-            NoteDuration::Tn(n) => (n, 1.0 / 8.0),
-            NoteDuration::S4n(n) => (n, 1.0 / 16.),
-        };
-        let mul = mul as f64;
-
-        Python::attach(|py| {
-            py.detach(|| {
-                // println!("py: resting for some-time");
-                sleep_until(
-                    now + Duration::from_secs_f64(
-                        // ((60.0 / self.tempo) * 2.0 / denom) * mul,
-                        ((60.0 / self.tempo) * denom) * mul,
-                    ),
-                )
-            })
-        });
+        self.do_rest(dur, now);
     }
 
     #[pyo3(signature = (amt))]
     fn pitch_bend(&self, amt: f32) {
-        // let amp_corection = amt * 0.5;
         let y_int_correction = amt + 1.0;
-        // let bend = ((u8::MAX / 2) as f32 * y_int_correction).floor() as u16;
         let bend = (8192. * y_int_correction).floor() as u16;
         // println!(
         //     "bend = {bend}/{}, (from amt: {amt}) on device {:?}:{:?}",
@@ -291,6 +318,30 @@ impl Api {
             (self.device.clone(), self.channel),
             MidiMsg::PitchBend { bend },
         ));
+    }
+
+    #[pyo3(signature = (cc, val))]
+    fn cc(&self, cc: u8, val: u8) {
+        self.__coms.send((
+            (self.device.clone(), self.channel),
+            MidiMsg::CC {
+                control: cc,
+                value: val,
+            },
+        ));
+    }
+
+    #[pyo3(signature = (note))]
+    fn stop(&self, note: u8) {
+        self.__coms.send((
+            (self.device.clone(), self.channel),
+            MidiMsg::StopNote { note },
+        ));
+    }
+
+    #[pyo3(signature = ())]
+    fn panic(&self) {
+        // TODO: implement this by adding to the enum a panic message
     }
 }
 
@@ -458,10 +509,11 @@ impl MidiDaw {
                 let func_name = func_name.clone();
                 let func = func.clone();
                 // let _jh = _jh.clone();
-                let api = api.clone();
+                let mut api = api.clone();
                 let thread = thread.clone();
                 // let rx = rx.clone();
                 let thread_name = key.clone();
+                let exit = exit.clone();
 
                 Python::attach(move |py| -> PyResult<String> {
                     let loop_n: Option<usize> = kwargs
@@ -475,6 +527,21 @@ impl MidiDaw {
                         .map(|block| block.extract::<bool>().ok())
                         .flatten();
                     let block = loc_block.unwrap_or_else(|| block.unwrap_or(true));
+                    let scale: Option<String> = kwargs
+                        .map(|kwargs| kwargs.call_method1("pop", ("scale", true)).ok())
+                        .flatten()
+                        .map(|scale| scale.extract().ok())
+                        .flatten();
+
+                    if let Some(scale) = scale && scale.contains("-") {
+                        if let Some((root, scale_type)) = scale.split_once("-") {
+                            // println!("root = {root}");
+                            api.set_scale(root.into(), scale_type.into());
+                        }
+                    }
+                    exit.store(false, Ordering::Relaxed);
+
+                    // let block = loc_block.unwrap_or_else(|| block.unwrap_or());
 
                     // println!("loop_n: {loop_n:?}");
                     let loop_n = loop_n.clone().unwrap_or(1);
