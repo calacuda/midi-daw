@@ -1,7 +1,5 @@
 use std::{
-    sync::{Arc, Mutex},
-    thread::{sleep, sleep_until, spawn},
-    time::{Duration, Instant},
+    ffi::CString, sync::{Arc, Mutex}, thread::{sleep, sleep_until, spawn}, time::{Duration, Instant}
 };
 
 use bincode::{Decode, Encode};
@@ -287,127 +285,143 @@ fn sin<'a>(
     let func_name = Arc::new(func_name);
     let _jh = Arc::new(Mutex::new(None));
 
-    PyCFunction::new_closure(py, None, None, move |args, kwargs| {
-        let func_name = func_name.clone();
-        let func = func.clone();
-        let _jh = _jh.clone();
-        // let api = api.clone();
-        let args = args.clone().unbind();
-        let freq: f32 = kwargs
-            // .map(|kwargs| kwargs.get_item("freq").ok())
-            // .map(|kwargs| kwargs.call_method1("pop", ("freq", 6.0)).ok())
-            .map(|kwargs| kwargs.call_method1("pop", ("freq", freq)).ok())
-            .flatten()
-            // .flatten()
-            .map(|freq| freq.extract::<f32>().ok())
-            .flatten()
-            .unwrap_or(6.0);
-        let kwargs = kwargs.map(|kwargs| kwargs.clone().unbind());
+    PyCFunction::new_closure(
+        py,
+        None, 
+        Some(Box::leak(
+                CString::new(
+                    func_name
+                        .clone()
+                        .as_bytes()
+                        .to_owned()
+                        // .iter()
+                        .into_iter()
+                        .collect::<Vec<u8>>(),
+                )?
+                .into_boxed_c_str(),
+            )),
+        move |args, kwargs| {
+            let func_name = func_name.clone();
+            let func = func.clone();
+            let _jh = _jh.clone();
+            // let api = api.clone();
+            let args = args.clone().unbind();
+            let freq: f32 = kwargs
+                // .map(|kwargs| kwargs.get_item("freq").ok())
+                // .map(|kwargs| kwargs.call_method1("pop", ("freq", 6.0)).ok())
+                .map(|kwargs| kwargs.call_method1("pop", ("freq", freq)).ok())
+                .flatten()
+                // .flatten()
+                .map(|freq| freq.extract::<f32>().ok())
+                .flatten()
+                .unwrap_or(6.0);
+            let kwargs = kwargs.map(|kwargs| kwargs.clone().unbind());
 
-        Python::attach(move |py| -> PyResult<()> {
-            // let api: Api = kwargs
-            //     .map(|kwargs| kwargs.get_item("api").ok())
-            //     .flatten()
-            //     .flatten()
-            //     .map(|freq| freq.extract::<f32>().ok())
-            //     .flatten()
-            //     .unwrap_or(6.0);
-            // let loc_api = api.clone().into_pyobject(py).unwrap();
-            // let f = Arc::new(|| func.call1(py, (&loc_api,)));
+            Python::attach(move |py| -> PyResult<()> {
+                // let api: Api = kwargs
+                //     .map(|kwargs| kwargs.get_item("api").ok())
+                //     .flatten()
+                //     .flatten()
+                //     .map(|freq| freq.extract::<f32>().ok())
+                //     .flatten()
+                //     .unwrap_or(6.0);
+                // let loc_api = api.clone().into_pyobject(py).unwrap();
+                // let f = Arc::new(|| func.call1(py, (&loc_api,)));
 
-            // let mut auto = AutomationTypes::try_from(AutomationConf::Lfo(LfoConfig::Sin {
-            //     freq: freq as f64,
-            //     one_shot: false,
-            //     bipolar: bi_pole,
-            //     hifi,
-            // }));
+                // let mut auto = AutomationTypes::try_from(AutomationConf::Lfo(LfoConfig::Sin {
+                //     freq: freq as f64,
+                //     one_shot: false,
+                //     bipolar: bi_pole,
+                //     hifi,
+                // }));
 
-            let sample_rate = if hifi { 44_100. } else { 22_050. };
-            println!("sanple-rate = {sample_rate}");
-            let wait_time = Duration::from_secs_f32(1. / sample_rate);
-            println!("wait-time: {wait_time:?}");
-            // let kwargs = kwargs.map(|kwargs| kwargs.bind(py));
+                let sample_rate = if hifi { 44_100. } else { 22_050. };
+                println!("sanple-rate = {sample_rate}");
+                let wait_time = Duration::from_secs_f32(1. / sample_rate);
+                println!("wait-time: {wait_time:?}");
+                // let kwargs = kwargs.map(|kwargs| kwargs.bind(py));
 
-            *_jh.lock().unwrap() = Some({
-                // let func = func.clone();
-                // let api = api.clone();
-                // let auto = auto.clone();
-                let auto = AutomationTypes::try_from(AutomationConf::Lfo(LfoConfig::Sin {
-                    freq: freq as f64,
-                    one_shot: false,
-                    bipolar: bi_pole,
-                    sample_rate: sample_rate as f64,
-                    hifi,
-                }));
-                // let kwargs = kwargs.map(|kwargs| kwargs.unbind());
-                // let kwargs = kwargs.clone().map(|kwargs| kwargs.unbind());
+                *_jh.lock().unwrap() = Some({
+                    // let func = func.clone();
+                    // let api = api.clone();
+                    // let auto = auto.clone();
+                    let auto = AutomationTypes::try_from(AutomationConf::Lfo(LfoConfig::Sin {
+                        freq: freq as f64,
+                        one_shot: false,
+                        bipolar: bi_pole,
+                        sample_rate: sample_rate as f64,
+                        hifi,
+                    }));
+                    // let kwargs = kwargs.map(|kwargs| kwargs.unbind());
+                    // let kwargs = kwargs.clone().map(|kwargs| kwargs.unbind());
 
-                py.detach(move || {
-                    spawn(move || {
-                        Python::initialize();
+                    py.detach(move || {
+                        spawn(move || {
+                            Python::initialize();
 
-                        Python::attach(move |py| {
-                            if let Ok(mut auto) = auto {
-                                let f = {
-                                    // let api = api.into_pyobject(py).unwrap();
-                                    // let kwargs = match kwargs {
-                                    //     Some(kwargs) => Some(kwargs.bind(py)),
-                                    //     None => None,
-                                    // };
-                                    let kwargs = kwargs.map(|kwargs| kwargs.bind(py).to_owned());
-                                    // let kwargs = kwargs.as_ref();
+                            Python::attach(move |py| {
+                                if let Ok(mut auto) = auto {
+                                    let f = {
+                                        // let api = api.into_pyobject(py).unwrap();
+                                        // let kwargs = match kwargs {
+                                        //     Some(kwargs) => Some(kwargs.bind(py)),
+                                        //     None => None,
+                                        // };
+                                        let kwargs = kwargs.map(|kwargs| kwargs.bind(py).to_owned());
+                                        // let kwargs = kwargs.as_ref();
 
-                                    // Arc::new(move |s: f32| func.call(py, (&api, s), kwargs))
-                                    move |s| {
-                                        let args = args.bind(py).to_list();
+                                        // Arc::new(move |s: f32| func.call(py, (&api, s), kwargs))
+                                        move |s| {
+                                            let args = args.bind(py).to_list();
 
-                                        if let Err(e) = args.append(s as f32) {
-                                            println!("couldn't add sample to args list. {e}");
+                                            if let Err(e) = args.append(s as f32) {
+                                                println!("couldn't add sample to args list. {e}");
+                                            }
+                                            
+                                            let args = args.to_tuple();
+
+                                            // func.call(py, args, kwargs)
+                                            func.call(
+                                                py,
+                                                args,
+                                                kwargs.as_ref(), // .map(|kwargs| kwargs.bind(py).to_owned())
+                                                                // .as_ref(),
+                                            )
+                                            // Ok(())
                                         }
-                                        
-                                        let args = args.to_tuple();
+                                    };
 
-                                        // func.call(py, args, kwargs)
-                                        func.call(
-                                            py,
-                                            args,
-                                            kwargs.as_ref(), // .map(|kwargs| kwargs.bind(py).to_owned())
-                                                             // .as_ref(),
-                                        )
-                                        // Ok(())
+                                    loop {
+                                        let wait = spawn({
+                                            // let wait_time = wait_time.clone();
+
+                                            move || sleep(wait_time)
+                                        });
+                                        // let when = Instant::now() + wait_time;
+                                        // let sample = auto.step();
+
+                                        if let Err(e) = f(auto.step()) {
+                                            println!(
+                                                "running custom: {func_name}, resulted in error, {e}"
+                                            );
+                                            break;
+                                        }                                    
+
+                                        if let Err(e) = wait.join() {
+                                            println!("wait thread for lfo sample gen timing failed with error, {e:?}");
+                                        }
+                                        // sleep_until(when);
                                     }
-                                };
-
-                                loop {
-                                    let wait = spawn({
-                                        // let wait_time = wait_time.clone();
-
-                                        move || sleep(wait_time)
-                                    });
-                                    // let when = Instant::now() + wait_time;
-                                    // let sample = auto.step();
-
-                                    if let Err(e) = f(auto.step()) {
-                                        println!(
-                                            "running custom: {func_name}, resulted in error, {e}"
-                                        );
-                                        break;
-                                    }                                    
-
-                                    if let Err(e) = wait.join() {
-                                        println!("wait thread for lfo sample gen timing failed with error, {e:?}");
-                                    }
-                                    // sleep_until(when);
                                 }
-                            }
+                            })
                         })
                     })
-                })
-            });
+                });
 
-            Ok(())
-        })
-    })
+                Ok(())
+            })
+        }
+    )
 }
 
 #[cfg(feature = "pyo3")]

@@ -18,6 +18,7 @@ crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 enum_dispatch = "0.3"
 hound = "3.5"
 jack = { version = "0.13", features = ["controller"] }
+lazy_static = "1.5.0"
 log = { version = "0.4", optional = true, features = ["std"] }
 midi-msg = "0.8"
 midir = { version = "0.10.3" }

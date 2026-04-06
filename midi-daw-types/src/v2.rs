@@ -3,7 +3,8 @@ use crate::{
     NoteDuration,
 };
 use bincode::{Decode, Encode};
-use crossbeam::channel::{unbounded, Sender};
+use crossbeam::channel::{unbounded, Receiver, Sender};
+use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use log::*;
 use midir::{os::unix::VirtualOutput, ConnectError, MidiInput, MidiOutput, MidiOutputConnection};
@@ -14,10 +15,11 @@ use rust_fuzzy_search::fuzzy_search_best_n;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::{
+    ffi::CString,
     fmt::Display,
     ops::Deref,
     sync::{atomic::AtomicBool, Arc, Mutex, RwLock},
-    thread::{sleep, spawn},
+    thread::{sleep, spawn, JoinHandle},
     time::Duration,
 };
 #[cfg(not(feature = "pyo3"))]
@@ -28,7 +30,115 @@ pub mod automation;
 pub mod thread;
 
 pub type Scale = Vec<String>;
-pub type MidiThreadCtrlMesg = MidiMsg;
+pub type MidiThreadCtrlMesg = ((MidiDev, MidiChannel), MidiMsg);
+
+lazy_static! {
+    /// This is an example for using doc comment attributes
+    static ref MIDI_OUT_THREAD_COMS: (Sender<MidiThreadCtrlMesg>, Receiver<MidiThreadCtrlMesg>) = unbounded();
+    static ref MIDI_OUT: Sender<MidiThreadCtrlMesg> = MIDI_OUT_THREAD_COMS.0.clone();
+    // static ref MIDI_OUT_THREAD: JoinHandle<()> = spawn(midi_out_thread);
+
+}
+
+fn midi_out_thread() {
+    println!("MIDI_OUT_THREAD started");
+
+    let mut midi_devs = FxHashMap::<MidiDeviceName, MidiOutputConnection>::default();
+
+    let mut send_to_dev = |midi_msg: MidiThreadCtrlMesg| -> bool {
+        match midi_msg {
+            (
+                (MidiDev::Physical(dev_name) | MidiDev::Virtual(dev_name), channel),
+                msg, /*, responce_dev*/
+            ) if midi_devs.contains_key(&dev_name) => {
+                let Some(dev) = midi_devs.get_mut(&dev_name) else {
+                    unreachable!(
+                        "an error occured finding the midi device with the name \"{dev_name}\". not retrying"
+                    );
+                    // eprintln!("an error occured finding the midi device with the name \"{dev_name}\"");
+                    // return false;
+                };
+
+                let channel = channel.into();
+
+                let msg = match msg {
+                    MidiMsg::PlayNote {
+                        note,
+                        velocity,
+                        duration: _,
+                    } => midi_msg::MidiMsg::ChannelVoice {
+                        channel,
+                        msg: midi_msg::ChannelVoiceMsg::NoteOn { note, velocity },
+                    },
+                    MidiMsg::StopNote { note } => midi_msg::MidiMsg::ChannelVoice {
+                        channel,
+                        msg: midi_msg::ChannelVoiceMsg::NoteOff {
+                            note,
+                            velocity: 100,
+                        },
+                    },
+                    MidiMsg::PitchBend { bend } => midi_msg::MidiMsg::ChannelVoice {
+                        channel,
+                        msg: midi_msg::ChannelVoiceMsg::PitchBend { bend },
+                    },
+                    MidiMsg::CC { control, value } => midi_msg::MidiMsg::ChannelVoice {
+                        channel,
+                        msg: midi_msg::ChannelVoiceMsg::ControlChange {
+                            control: midi_msg::ControlChange::CC { control, value },
+                        },
+                    },
+                };
+
+                if let Err(e) = dev.send(&msg.to_midi()) {
+                    error!("midi output failed with error {e}");
+                    // eprintln!("midi output failed with error {e}");
+                }
+
+                // if let Err(e) = responce_dev.send()
+                true
+            }
+            ((MidiDev::Virtual(dev_name), _channel), _msg /*, _responce_dev*/)
+                if !midi_devs.contains_key(&dev_name) =>
+            {
+                info!("the requested virtual midi device, \"{dev_name}\", has yet to be made, making now.");
+                let Ok(midi_out) = MidiOutput::new("MIDI-DAW-NEW-DEV") else {
+                    return false;
+                };
+
+                if let Ok(dev) = midi_out.create_virtual(&dev_name)
+                    && !midi_devs.contains_key(&dev_name)
+                {
+                    midi_devs.insert(dev_name, dev);
+                } else if midi_devs.contains_key(&dev_name) {
+                    info!("device already exists")
+                } else {
+                    error!("failed to make virtual output device");
+                }
+
+                false
+            }
+            ((MidiDev::Physical(dev_name), _channel), _msg) => {
+                error!("the requested physical midi device, \"{dev_name}\", is not connected.");
+                error!("known devs = {:?}", midi_devs.keys());
+                true
+            }
+            ((MidiDev::Virtual(dev_name), _channel), _msg) => {
+                unreachable!(
+                    "virtual midi device, \"{dev_name}\", was not found and the code failed to detect that it should be created..."
+                )
+            }
+        }
+    };
+
+    loop {
+        // poll for msg to send
+        while let Ok(midi_msg) = MIDI_OUT_THREAD_COMS.1.try_recv() {
+            if !send_to_dev(midi_msg.clone()) {
+                send_to_dev(midi_msg);
+            }
+        }
+    }
+}
 
 // #[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 // #[cfg_attr(feature = "pyo3", pyo3(get_all, set_all))]
@@ -38,7 +148,8 @@ pub type MidiThreadCtrlMesg = MidiMsg;
 pub struct Api {
     // NOTE: Only Needed if calling multiple functions
     // riffs: Vec<Py<()>>,
-    #[pyo3(get, set)]
+    #[pyo3(get, name = "device")]
+    // pub device_name: MidiDeviceName,
     pub device: MidiDev,
     #[pyo3(get, set)]
     pub channel: MidiChannel,
@@ -52,7 +163,7 @@ impl Api {
     fn new(
         dev: MidiDev,
         channel: MidiChannel,
-        __coms: Sender<MidiThreadCtrlMesg>,
+        // __coms: Sender<MidiThreadCtrlMesg>,
         name: String,
         tempo: f64,
     ) -> Self {
@@ -60,7 +171,7 @@ impl Api {
             device: dev,
             channel,
             // __threads: Vec::new(),
-            __coms,
+            __coms: MIDI_OUT_THREAD_COMS.0.clone(),
             __name: name,
             tempo,
         }
@@ -95,13 +206,19 @@ impl Api {
         //     self.device
         // );
         let note = note_from_str(note).unwrap_or(0);
-        self.__coms.send(MidiThreadCtrlMesg::PlayNote {
-            note,
-            velocity: vel.unwrap_or(100),
-            duration: dur,
-        });
+        self.__coms.send((
+            (self.device.clone(), self.channel),
+            MidiMsg::PlayNote {
+                note,
+                velocity: vel.unwrap_or(100),
+                duration: dur,
+            },
+        ));
         self.rest(dur);
-        self.__coms.send(MidiThreadCtrlMesg::StopNote { note });
+        self.__coms.send((
+            (self.device.clone(), self.channel),
+            MidiMsg::StopNote { note },
+        ));
     }
 
     /// plays a note
@@ -139,9 +256,15 @@ impl Api {
         // let amp_corection = amt * 0.5;
         let y_int_correction = amt + 1.0;
         let bend = ((u16::MAX / 2) as f32 * y_int_correction).floor() as u16;
-        // println!("bend = {bend}, on device {:?}", self.device);
+        println!(
+            "bend = {bend}, on device {:?}:{:?}",
+            self.device, self.channel
+        );
 
-        self.__coms.send(MidiThreadCtrlMesg::PitchBend { bend });
+        self.__coms.send((
+            (self.device.clone(), self.channel),
+            MidiMsg::PitchBend { bend },
+        ));
     }
 }
 
@@ -230,11 +353,11 @@ impl MidiDaw {
             "playing \"{func_name}\" on {:?}:{:?}",
             self.device, self.channel
         );
-        let (tx, rx) = unbounded();
+        // let (tx, rx) = unbounded();
         let api = Api::new(
             self.device.clone(),
             self.channel,
-            tx,
+            // tx,
             func_name.to_string(),
             self.tempo,
         );
@@ -263,7 +386,7 @@ impl MidiDaw {
                             .unwrap()
                     })
             });
-        println!("func type => {func}");
+        println!("func, \"{func_name}\", is of type => {func}");
         let func = Arc::new(func);
 
         let key = if self.threads.contains_key(&*func_name) {
@@ -285,101 +408,120 @@ impl MidiDaw {
 
         self.threads.insert(key.clone(), thread.clone());
 
-        PyCFunction::new_closure(py, None, None, move |args, kwargs| {
-            let func_name = func_name.clone();
-            let func = func.clone();
-            // let _jh = _jh.clone();
-            let api = api.clone();
-            let thread = thread.clone();
-            let rx = rx.clone();
-            let thread_name = key.clone();
+        // let c_f_name = Arc::new(CString::new(func_name.as_bytes().clone().to_vec())?);
+        // let c_f_name = c_f_name.clone().as_c_str();
 
-            Python::attach(move |py| -> PyResult<String> {
-                let loop_n: Option<usize> = kwargs
-                    .map(|kwargs| kwargs.call_method1("pop", ("loops", 1)).ok())
-                    .flatten()
-                    .map(|loops| loops.extract::<usize>().ok())
-                    .flatten();
-                let loc_block: Option<bool> = kwargs
-                    .map(|kwargs| kwargs.call_method1("pop", ("block", true)).ok())
-                    .flatten()
-                    .map(|block| block.extract::<bool>().ok())
-                    .flatten();
-                let block = loc_block.unwrap_or_else(|| block.unwrap_or(true));
+        PyCFunction::new_closure(
+            py,
+            None,
+            Some(Box::leak(
+                CString::new(
+                    func_name
+                        .clone()
+                        .as_bytes()
+                        .to_owned()
+                        // .iter()
+                        .into_iter()
+                        .collect::<Vec<u8>>(),
+                )?
+                .into_boxed_c_str(),
+            )),
+            move |args, kwargs| {
+                let func_name = func_name.clone();
+                let func = func.clone();
+                // let _jh = _jh.clone();
+                let api = api.clone();
+                let thread = thread.clone();
+                // let rx = rx.clone();
+                let thread_name = key.clone();
 
-                // println!("loop_n: {loop_n:?}");
-                let loop_n = loop_n.clone().unwrap_or(1);
-                // println!("loop_n: {loop_n:?}");
-                // if loop_n == 0 {
-                //     loop_n = 1;
-                // }
-                // let api = api.into_pyobject(py).unwrap();
-                let loc_api = api.clone().into_pyobject(py).unwrap();
-                let loc_arg = args.to_list();
+                Python::attach(move |py| -> PyResult<String> {
+                    let loop_n: Option<usize> = kwargs
+                        .map(|kwargs| kwargs.call_method1("pop", ("loops", 1)).ok())
+                        .flatten()
+                        .map(|loops| loops.extract::<usize>().ok())
+                        .flatten();
+                    let loc_block: Option<bool> = kwargs
+                        .map(|kwargs| kwargs.call_method1("pop", ("block", true)).ok())
+                        .flatten()
+                        .map(|block| block.extract::<bool>().ok())
+                        .flatten();
+                    let block = loc_block.unwrap_or_else(|| block.unwrap_or(true));
 
-                if let Err(e) = loc_arg.insert(0, loc_api) {
-                    println!("failed to add api struct to args list...");
-                    println!("error message was, \"{e}\"");
-                }
+                    // println!("loop_n: {loop_n:?}");
+                    let loop_n = loop_n.clone().unwrap_or(1);
+                    // println!("loop_n: {loop_n:?}");
+                    // if loop_n == 0 {
+                    //     loop_n = 1;
+                    // }
+                    // let api = api.into_pyobject(py).unwrap();
+                    let loc_api = api.clone().into_pyobject(py).unwrap();
+                    let loc_arg = args.to_list();
 
-                let loc_args = loc_arg.to_tuple();
-
-                let f = {
-                    // let func = func.bind(py);
-                    // Arc::new(|| func.call(py, (&loc_api,), kwargs))
-                    Arc::new(|| {
-                        // func.call(py, &loc_args, kwargs)
-                        match func.deref() {
-                            Func::PyF(func) => func.call(py, &loc_args, kwargs),
-                            Func::PyCF(func) => func.call(py, &loc_args, kwargs),
-                            Func::PyAny(func) => {
-                                // func.call_method(py, "__call__", &loc_args, kwargs)
-                                func.call(py, &loc_args, kwargs)
-                            }
-                        }
-                    })
-                };
-                let loop_f = || {
-                    for _ in 0..loop_n {
-                        if let Err(e) = f() {
-                            println!("running custom: {func_name}, resulted in error, {e}");
-                            break;
-                        }
+                    if let Err(e) = loc_arg.insert(0, loc_api) {
+                        println!("failed to add api struct to args list...");
+                        println!("error message was, \"{e}\"");
                     }
-                };
 
-                if let Err(e) = thread
-                    .write()
-                    .map(|mut thread| thread.spawn_midi(api.clone(), rx))
-                {
-                    println!("atempt to spawn midi thread failed, :(, with error: {e}");
-                }
+                    let loc_args = loc_arg.to_tuple();
 
-                if block {
-                    if loop_n == 0 {
-                        loop {
+                    let f = {
+                        // let func = func.bind(py);
+                        // Arc::new(|| func.call(py, (&loc_api,), kwargs))
+                        Arc::new(|| {
+                            // func.call(py, &loc_args, kwargs)
+                            match func.deref() {
+                                Func::PyF(func) => func.call(py, &loc_args, kwargs),
+                                Func::PyCF(func) => func.call(py, &loc_args, kwargs),
+                                Func::PyAny(func) => {
+                                    // func.call_method(py, "__call__", &loc_args, kwargs)
+                                    func.call(py, &loc_args, kwargs)
+                                }
+                            }
+                        })
+                    };
+                    let loop_f = || {
+                        for _ in 0..loop_n {
                             if let Err(e) = f() {
                                 println!("running custom: {func_name}, resulted in error, {e}");
                                 break;
                             }
                         }
-                    } else {
-                        loop_f();
-                    }
-                } else {
-                    // *_jh.lock().unwrap() = Some(if loop_n == 0 {
-                    py.detach(move || {
-                        if let Err(e) = thread.write().map(|mut thread| {
-                            thread.spawn_exec(func, func_name.clone(), loop_n, api.clone())
-                        }) {
-                            println!("atempt to spawn exec thread failed, :(, with error: {e}");
-                        }
-                    })
-                }
+                    };
 
-                Ok(thread_name)
-            })
-        })
+                    // if let Err(e) = thread
+                    //     .write()
+                    //     .map(|mut thread| thread.spawn_midi(api.clone(), rx))
+                    // {
+                    //     println!("atempt to spawn midi thread failed, :(, with error: {e}");
+                    // }
+
+                    if block {
+                        if loop_n == 0 {
+                            loop {
+                                if let Err(e) = f() {
+                                    println!("running custom: {func_name}, resulted in error, {e}");
+                                    break;
+                                }
+                            }
+                        } else {
+                            loop_f();
+                        }
+                    } else {
+                        // *_jh.lock().unwrap() = Some(if loop_n == 0 {
+                        py.detach(move || {
+                            if let Err(e) = thread.write().map(|mut thread| {
+                                thread.spawn_exec(func, func_name.clone(), loop_n, api.clone())
+                            }) {
+                                println!("atempt to spawn exec thread failed, :(, with error: {e}");
+                            }
+                        })
+                    }
+
+                    Ok(thread_name)
+                })
+            },
+        )
     }
 }
 
@@ -545,9 +687,14 @@ fn py_find_dev(patern: String) -> Option<String> {
 pub struct VirtMidiDev(Option<Arc<MidiOutputConnection>>);
 
 #[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+// #[cfg_attr(feature = "pyo3", pyclass)]
 #[cfg_attr(feature = "pyo3", pyo3(get_all, set_all))]
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum MidiDev {
+    // Virtual {
+    //     name: MidiDeviceName,
+    //     // dev: MidiOutputConnection,
+    // },
     Virtual(MidiDeviceName),
     Physical(MidiDeviceName),
 }
@@ -600,13 +747,15 @@ fn py_mk_dev(dev_name: String) {
 #[pyo3(submodule, name = "v2")]
 /// A Python module implemented in Rust.
 pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let _midi_out_thread: JoinHandle<()> = spawn(midi_out_thread);
+
     m.add_class::<MidiDaw>()?;
     // m.add_function(wrap_pyfunction!(my_decorator, m)?)?;
     // m.add_function(wrap_pyfunction!(my_decorator_factory, m)?)?;
     // m.add_function(wrap_pyfunction!(play_on, m)?)?;
     m.add_function(wrap_pyfunction!(list_devs, m)?)?;
     m.add_function(wrap_pyfunction!(py_find_dev, m)?)?;
-    m.add_function(wrap_pyfunction!(py_mk_dev, m)?)?;
+    // m.add_function(wrap_pyfunction!(py_mk_dev, m)?)?;
 
     // lfo
     {

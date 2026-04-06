@@ -50,78 +50,78 @@ impl MidiDawThread {
         !self.exec_jh.is_finished()
     }
 
-    pub fn spawn_midi(&mut self, api: Api, recv: Receiver<MidiThreadCtrlMesg>) {
-        let midi_dev = api.device.clone();
-        let channel = api.channel.into();
-
-        self.midi_out_jh = spawn(move || {
-            loop {
-                let mut dev = match midi_dev.clone() {
-                    MidiDev::Physical(dev_name) => loop {
-                        let midi_out = MidiOutput::new(&format!("MIDI-DAW-{dev_name}")).unwrap();
-
-                        if let Some(Ok(dev)) = midi_out
-                            .ports()
-                            .into_iter()
-                            .find(|p| {
-                                midi_out
-                                    .port_name(p)
-                                    .map(|name| name == dev_name)
-                                    .unwrap_or(false)
-                            })
-                            .map(|dev| midi_out.connect(&dev, &dev_name))
-                        {
-                            // if let Ok(dev) = midi_out.connect(&dev, &midi_dev_name) {
-                            break dev;
-                            // }
-                        }
-                    },
-                    MidiDev::Virtual(dev_name) => {
-                        println!("making virtual device named, \"{dev_name}\"");
-                        mk_dev(&dev_name).unwrap()
-                    }
-                };
-
-                // poll for msg to send
-                while let Ok(recved_midi_msg) = recv.recv() {
-                    // println!("got message: {recved_midi_msg:?}");
-                    let msg = match recved_midi_msg {
-                        MidiMsg::PlayNote {
-                            note,
-                            velocity,
-                            duration: _,
-                        } => midi_msg::MidiMsg::ChannelVoice {
-                            channel,
-                            msg: midi_msg::ChannelVoiceMsg::NoteOn { note, velocity },
-                        },
-                        MidiMsg::StopNote { note } => midi_msg::MidiMsg::ChannelVoice {
-                            channel,
-                            msg: midi_msg::ChannelVoiceMsg::NoteOff {
-                                note,
-                                velocity: 100,
-                            },
-                        },
-                        MidiMsg::PitchBend { bend } => midi_msg::MidiMsg::ChannelVoice {
-                            channel,
-                            msg: midi_msg::ChannelVoiceMsg::PitchBend { bend },
-                        },
-                        MidiMsg::CC { control, value } => midi_msg::MidiMsg::ChannelVoice {
-                            channel,
-                            msg: midi_msg::ChannelVoiceMsg::ControlChange {
-                                control: midi_msg::ControlChange::CC { control, value },
-                            },
-                        },
-                    };
-
-                    if let Err(e) = dev.send(&msg.to_midi()) {
-                        error!("midi output failed with error {e}");
-                        // eprintln!("midi output failed with error {e}");
-                        break;
-                    }
-                }
-            }
-        });
-    }
+    // pub fn spawn_midi(&mut self, api: Api, recv: Receiver<MidiThreadCtrlMesg>) {
+    //     let midi_dev = api.device.clone();
+    //     let channel = api.channel.into();
+    //
+    //     self.midi_out_jh = spawn(move || {
+    //         loop {
+    //             let mut dev = match midi_dev.clone() {
+    //                 MidiDev::Physical(dev_name) => loop {
+    //                     let midi_out = MidiOutput::new(&format!("MIDI-DAW-{dev_name}")).unwrap();
+    //
+    //                     if let Some(Ok(dev)) = midi_out
+    //                         .ports()
+    //                         .into_iter()
+    //                         .find(|p| {
+    //                             midi_out
+    //                                 .port_name(p)
+    //                                 .map(|name| name == dev_name)
+    //                                 .unwrap_or(false)
+    //                         })
+    //                         .map(|dev| midi_out.connect(&dev, &dev_name))
+    //                     {
+    //                         // if let Ok(dev) = midi_out.connect(&dev, &midi_dev_name) {
+    //                         break dev;
+    //                         // }
+    //                     }
+    //                 },
+    //                 MidiDev::Virtual(dev_name) => {
+    //                     println!("making virtual device named, \"{dev_name}\"");
+    //                     mk_dev(&dev_name).unwrap()
+    //                 }
+    //             };
+    //
+    //             // poll for msg to send
+    //             while let Ok(recved_midi_msg) = recv.recv() {
+    //                 // println!("got message: {recved_midi_msg:?}");
+    //                 let msg = match recved_midi_msg {
+    //                     MidiMsg::PlayNote {
+    //                         note,
+    //                         velocity,
+    //                         duration: _,
+    //                     } => midi_msg::MidiMsg::ChannelVoice {
+    //                         channel,
+    //                         msg: midi_msg::ChannelVoiceMsg::NoteOn { note, velocity },
+    //                     },
+    //                     MidiMsg::StopNote { note } => midi_msg::MidiMsg::ChannelVoice {
+    //                         channel,
+    //                         msg: midi_msg::ChannelVoiceMsg::NoteOff {
+    //                             note,
+    //                             velocity: 100,
+    //                         },
+    //                     },
+    //                     MidiMsg::PitchBend { bend } => midi_msg::MidiMsg::ChannelVoice {
+    //                         channel,
+    //                         msg: midi_msg::ChannelVoiceMsg::PitchBend { bend },
+    //                     },
+    //                     MidiMsg::CC { control, value } => midi_msg::MidiMsg::ChannelVoice {
+    //                         channel,
+    //                         msg: midi_msg::ChannelVoiceMsg::ControlChange {
+    //                             control: midi_msg::ControlChange::CC { control, value },
+    //                         },
+    //                     },
+    //                 };
+    //
+    //                 if let Err(e) = dev.send(&msg.to_midi()) {
+    //                     error!("midi output failed with error {e}");
+    //                     // eprintln!("midi output failed with error {e}");
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //     });
+    // }
 
     pub fn spawn_exec(
         &mut self,

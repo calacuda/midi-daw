@@ -33,9 +33,10 @@ print(devs)
 @song.register
 def f(api):
     # print(f"func-name = {f.__name__}")
-    api.play("g4", NoteLen.Sn(3))
+    # api.play("g4", NoteLen.Sn(7))
+    api.play("g4", NoteLen.Sn(1))
     print(f"playing g4 on {api.device}:{api.channel}")
-    api.rest(NoteLen.Sn(1))
+    # api.rest(NoteLen.Sn(1))
 
 
 @song.register
@@ -64,8 +65,8 @@ def f_3(api):
 
 
 if __name__ == "__main__":
-    f(loops=32, block=False)
-    pitch_worble(freq=10.0, block=True)
+    f(loops=64, block=False)
+    # pitch_worble(freq=10.0, block=False)
     # f_2(loops=10)
     print("non-blockers called")
     # f_3(loops=10, block=True)
