@@ -837,6 +837,48 @@ fn main<'a>(py: Python<'a>, func: Py<PyAny>) -> PyResult<()> {
     // })
 }
 
+#[pyfunction]
+#[pyo3(signature = (n = 1))]
+fn s4n(n: u8) -> NoteDuration {
+    NoteDuration::S4n(n)
+}
+
+#[pyfunction]
+#[pyo3(signature = (n = 1))]
+fn tn(n: u8) -> NoteDuration {
+    NoteDuration::Tn(n)
+}
+
+#[pyfunction]
+#[pyo3(signature = (n = 1))]
+fn sn(n: u8) -> NoteDuration {
+    NoteDuration::Sn(n)
+}
+
+#[pyfunction]
+#[pyo3(signature = (n = 1))]
+fn en(n: u8) -> NoteDuration {
+    NoteDuration::En(n)
+}
+
+#[pyfunction]
+#[pyo3(signature = (n = 1))]
+fn qn(n: u8) -> NoteDuration {
+    NoteDuration::Qn(n)
+}
+
+#[pyfunction]
+#[pyo3(signature = (n = 1))]
+fn hn(n: u8) -> NoteDuration {
+    NoteDuration::Hn(n)
+}
+
+#[pyfunction]
+#[pyo3(signature = (n = 1))]
+fn wn(n: u8) -> NoteDuration {
+    NoteDuration::Wn(n)
+}
+
 #[cfg(feature = "pyo3")]
 // #[pymodule(gil_used = false)]
 #[pymodule]
@@ -846,13 +888,28 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let _midi_out_thread: JoinHandle<()> = spawn(midi_out_thread);
 
     m.add_class::<MidiDaw>()?;
-    // m.add_function(wrap_pyfunction!(my_decorator, m)?)?;
-    // m.add_function(wrap_pyfunction!(my_decorator_factory, m)?)?;
-    // m.add_function(wrap_pyfunction!(play_on, m)?)?;
     m.add_function(wrap_pyfunction!(list_devs, m)?)?;
     m.add_function(wrap_pyfunction!(py_find_dev, m)?)?;
     // m.add_function(wrap_pyfunction!(py_mk_dev, m)?)?;
     m.add_function(wrap_pyfunction!(main, m)?)?;
+
+    // note_len
+    {
+        let module = PyModule::new(py, "note_lens")?;
+
+        module.add_function(wrap_pyfunction!(s4n, m)?)?;
+        module.add_function(wrap_pyfunction!(tn, m)?)?;
+        module.add_function(wrap_pyfunction!(sn, m)?)?;
+        module.add_function(wrap_pyfunction!(en, m)?)?;
+        module.add_function(wrap_pyfunction!(qn, m)?)?;
+        module.add_function(wrap_pyfunction!(hn, m)?)?;
+        module.add_function(wrap_pyfunction!(wn, m)?)?;
+
+        m.add_submodule(&module)?;
+        py.import("sys")?
+            .getattr("modules")?
+            .set_item("midi_daw.v2.note_lens", &module)?;
+    }
 
     // lfo
     {
@@ -861,7 +918,7 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_submodule(&module)?;
         py.import("sys")?
             .getattr("modules")?
-            .set_item("midi_daw.lfo", &module)?;
+            .set_item("midi_daw.v2.lfo", &module)?;
     }
 
     Ok(())

@@ -3,6 +3,7 @@ import time
 
 from midi_daw import MidiChannel, NoteLen, v2
 from midi_daw.v2 import lfo, main
+from midi_daw.v2.note_lens import *
 
 print("\n\n", "=" * 30, "\n\n", sep="")
 song = v2.MidiDaw("Vital", MidiChannel.Ch1, virt=True)
@@ -40,8 +41,8 @@ def f(api):
     # # time.sleep(1.0)
     # # print(f"py: playing g4 on {api.device}:{api.channel}")
     # api.rest(NoteLen.Sn(1))
-    api.play("c4", NoteLen.Sn(1))
-    api.rest(NoteLen.Sn(12 // 3 - 1))
+    api.play("c4", sn(1))
+    api.rest(sn(12 // 3 - 1))
 
 
 @automa.register
@@ -60,8 +61,8 @@ def pitch_worble(api, lfo_sample):
 def f_2(api):
     # print(f"playing f_2 on {api.device}:{api.channel}")
     # time.sleep(0.15)
-    api.play("b4", NoteLen.Sn(1))
-    api.rest(NoteLen.Sn(12 // 2 - 1))
+    api.play("b4", sn(1))
+    api.rest(sn(12 // 2 - 1))
 
 
 # @play_on("a-third-dev", loops=3, block=False)
@@ -73,8 +74,8 @@ def f_3(api):
     # # print(f"py: playing c_4 on {api.device}:{api.channel}")
     # api.rest(NoteLen.Sn(16 - n))
     # # time.sleep(0.1)
-    api.play("g4", NoteLen.Sn(1))
-    api.rest(NoteLen.Sn(12 // 2 - 1))
+    api.play("g4", sn(1))
+    api.rest(sn(12 // 2 - 1))
 
 
 # run_main_if()
