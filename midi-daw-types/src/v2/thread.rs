@@ -29,16 +29,22 @@ pub struct MidiDawThread {
     midi_out_jh: JoinHandle<()>,
     pub exit: Arc<AtomicBool>,
     pub api: Api,
+    thread_name: String,
 }
 
 impl MidiDawThread {
-    pub fn new(/* rift: Arc<Py<PyFunction>>, */ exit: Arc<AtomicBool>, api: Api) -> Self {
+    pub fn new(
+        /* rift: Arc<Py<PyFunction>>, */ thread_name: String,
+        exit: Arc<AtomicBool>,
+        api: Api,
+    ) -> Self {
         Self {
             // rift,
             exec_jh: spawn(|| {}),
             midi_out_jh: spawn(|| {}),
             exit,
             api,
+            thread_name,
         }
     }
 
@@ -137,6 +143,10 @@ impl MidiDawThread {
         self.exec_jh = if loop_n == 0 {
             // let func = func.clone();
             // let api = api.clone();
+            println!(
+                "about to spawn loop theads for thread: {}",
+                self.thread_name
+            );
 
             spawn(move || {
                 Python::initialize();
@@ -165,6 +175,10 @@ impl MidiDawThread {
         } else {
             // let func = func.clone();
             // let api = api.clone();
+            println!(
+                "about to spawn non-loop theads for thread: {}",
+                self.thread_name
+            );
 
             spawn(move || {
                 Python::initialize();

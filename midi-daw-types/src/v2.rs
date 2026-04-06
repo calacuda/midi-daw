@@ -252,17 +252,24 @@ impl Api {
         };
         let mul = mul as f64;
 
-        sleep(Duration::from_secs_f64(
-            // ((60.0 / self.tempo) * 2.0 / denom) * mul,
-            ((60.0 / self.tempo) * denom) * mul,
-        ));
+        Python::attach(|py| {
+            py.detach(|| {
+                println!("py: resting for some-time");
+
+                sleep(Duration::from_secs_f64(
+                    // ((60.0 / self.tempo) * 2.0 / denom) * mul,
+                    ((60.0 / self.tempo) * denom) * mul,
+                ))
+            })
+        });
     }
 
     #[pyo3(signature = (amt))]
     fn pitch_bend(&self, amt: f32) {
         // let amp_corection = amt * 0.5;
         let y_int_correction = amt + 1.0;
-        let bend = ((u8::MAX / 2) as f32 * y_int_correction).floor() as u16;
+        // let bend = ((u8::MAX / 2) as f32 * y_int_correction).floor() as u16;
+        let bend = (8192. * y_int_correction).floor() as u16;
         println!(
             "bend = {bend}/{}, (from amt: {amt}) on device {:?}:{:?}",
             u8::MAX,
@@ -375,8 +382,25 @@ impl MidiDaw {
         // let _jh = Arc::new(Mutex::new(None));
         let block = self.block;
         let exit = Arc::new(AtomicBool::from(false));
+
+        let key = if self.threads.contains_key(&*func_name) {
+            let fname = func_name.deref();
+            let n = self
+                .threads
+                .keys()
+                .filter(|k| {
+                    k.starts_with(fname) && k[(fname.len())..].to_string().parse::<usize>().is_ok()
+                })
+                .count();
+
+            format!("{}-{n}", fname)
+        } else {
+            func_name.deref().clone().to_owned()
+        };
+
         let thread = Arc::new(RwLock::new(MidiDawThread::new(
             // func.clone(),
+            key.clone(),
             exit.clone(),
             api.clone(),
         )));
@@ -397,21 +421,6 @@ impl MidiDaw {
             });
         println!("func, \"{func_name}\", is of type => {func}");
         let func = Arc::new(func);
-
-        let key = if self.threads.contains_key(&*func_name) {
-            let fname = func_name.deref();
-            let n = self
-                .threads
-                .keys()
-                .filter(|k| {
-                    k.starts_with(fname) && k[(fname.len())..].to_string().parse::<usize>().is_ok()
-                })
-                .count();
-
-            format!("{}-{n}", fname)
-        } else {
-            func_name.deref().clone()
-        };
 
         println!("storing thread at key: {key}");
 
@@ -506,8 +515,10 @@ impl MidiDaw {
                     // }
 
                     if block {
-                        println!("register no-thread");
+                        println!("registered, not running in a thread");
                         if loop_n == 0 {
+                            println!("about to loop indefinately");
+
                             loop {
                                 if let Err(e) = f() {
                                     println!("running custom: {func_name}, resulted in error, {e}");
@@ -515,6 +526,8 @@ impl MidiDaw {
                                 }
                             }
                         } else {
+                            println!("about to loop once");
+
                             loop_f();
                         }
                     } else {
@@ -755,7 +768,7 @@ fn py_mk_dev(dev_name: String) {
 // }
 
 #[cfg(feature = "pyo3")]
-#[pymodule]
+#[pymodule(gil_used = false)]
 #[pyo3(submodule, name = "v2")]
 /// A Python module implemented in Rust.
 pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
