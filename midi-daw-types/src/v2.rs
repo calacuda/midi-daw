@@ -8,7 +8,10 @@ use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use log::*;
 use midir::{os::unix::VirtualOutput, ConnectError, MidiInput, MidiOutput, MidiOutputConnection};
-use pyo3::types::PyCFunction;
+use pyo3::{
+    ffi::PyObject_GetAttrString,
+    types::{PyCFunction, PyDict},
+};
 #[cfg(feature = "pyo3")]
 use pyo3::{prelude::*, types::PyFunction};
 use rust_fuzzy_search::fuzzy_search_best_n;
@@ -44,8 +47,10 @@ lazy_static! {
 }
 
 fn midi_out_thread() {
-    println!("MIDI_OUT_THREAD started");
-
+    // println!("MIDI_OUT_THREAD started");
+    // TODO: add midi clock syncing.
+    // TODO: add a message that can be sent to here which will register a notification on a
+    // specified clock event.
     let mut midi_devs = FxHashMap::<MidiDeviceName, MidiOutputConnection>::default();
 
     let mut send_to_dev = |midi_msg: MidiThreadCtrlMesg| -> bool {
@@ -796,6 +801,42 @@ fn py_mk_dev(dev_name: String) {
 //     )
 // }
 
+#[pyfunction]
+// #[pyo3(signature = (func))]
+fn main<'a>(py: Python<'a>, func: Py<PyAny>) -> PyResult<()> {
+    let func = func
+        .bind(py)
+        .extract::<Py<PyFunction>>()
+        .map(Func::PyF)
+        .unwrap_or_else(|_| {
+            func.bind(py)
+                .extract::<Py<PyCFunction>>()
+                .map(Func::PyCF)
+                .unwrap_or_else(|_| {
+                    func.bind(py)
+                        .extract::<Py<PyAny>>()
+                        .map(Func::PyAny)
+                        .unwrap()
+                })
+        });
+    // let builtins = py.import("builtins")?;
+    // let var = builtins.getattr("__name__")?;
+    // Python::attach(|py| -> PyResult<()> {
+    let sys = py.import("sys")?;
+    let binder = sys.call_method1("_getframe", (1,));
+
+    if binder.is_err() {
+        match func {
+            Func::PyF(func) => func.call0(py)?,
+            Func::PyCF(func) => func.call0(py)?,
+            Func::PyAny(func) => func.call0(py)?,
+        };
+    }
+
+    Ok(())
+    // })
+}
+
 #[cfg(feature = "pyo3")]
 // #[pymodule(gil_used = false)]
 #[pymodule]
@@ -811,6 +852,7 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(list_devs, m)?)?;
     m.add_function(wrap_pyfunction!(py_find_dev, m)?)?;
     // m.add_function(wrap_pyfunction!(py_mk_dev, m)?)?;
+    m.add_function(wrap_pyfunction!(main, m)?)?;
 
     // lfo
     {

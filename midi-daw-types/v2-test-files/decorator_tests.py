@@ -2,7 +2,7 @@
 import time
 
 from midi_daw import MidiChannel, NoteLen, v2
-from midi_daw.v2 import lfo
+from midi_daw.v2 import lfo, main
 
 print("\n\n", "=" * 30, "\n\n", sep="")
 song = v2.MidiDaw("Vital", MidiChannel.Ch1, virt=True)
@@ -56,9 +56,12 @@ def pitch_worble(api, lfo_sample):
 
 
 # @play_on("diferent-dev", loops=3, block=False)
+@song.register
 def f_2(api):
-    print(f"playing f_2 on {api.device}:{api.channel}")
-    time.sleep(0.15)
+    # print(f"playing f_2 on {api.device}:{api.channel}")
+    # time.sleep(0.15)
+    api.play("b4", NoteLen.Sn(1))
+    api.rest(NoteLen.Sn(12 // 2 - 1))
 
 
 # @play_on("a-third-dev", loops=3, block=False)
@@ -74,20 +77,25 @@ def f_3(api):
     api.rest(NoteLen.Sn(12 // 2 - 1))
 
 
-if __name__ == "__main__":
-    loops = 128
+# run_main_if()
+# if __name__ == "__main__":
+#     loops = 128
+#     try:
+#         print(run_main_if())
+#     except:
+#         print("ERROR")
 
+
+@main
+def main():
+    loops = 128
     pitch_jh = pitch_worble(freq=7.5, block=False)
     f_jh = f(loops=loops, block=False)
-    # f_3_jh = f_3(loops=64, block=True)
-    # f_2(loops=10)
     print("non-blockers called")
-    # f_3(loops=10, block=True)
+    f_2_jh = f_2(loops=int(loops * (2 / 3)), block=False)
     f_3_jh = f_3(loops=int(loops * (2 / 3)), block=True)
     song.stop()
     print("blocking thread done")
-    # time.sleep(25)
-    # time.sleep(2.5)
     print("exiting")
     exit(0)
 
