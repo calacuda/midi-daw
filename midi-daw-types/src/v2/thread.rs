@@ -3,7 +3,10 @@
 
 use std::{
     ops::Deref,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread::{spawn, JoinHandle},
 };
 
@@ -139,6 +142,7 @@ impl MidiDawThread {
         // recv: Receiver<MidiThreadCtrlMesg>,
     ) {
         // self.rift = func.clone();
+        let exit = self.exit.clone();
 
         self.exec_jh = if loop_n == 0 {
             // let func = func.clone();
@@ -158,7 +162,7 @@ impl MidiDawThread {
                     //     Arc::new(move || func.call1(py, (&api,)))
                     // };
 
-                    loop {
+                    while exit.load(Ordering::Relaxed) {
                         // if let Err(e) = f() {
                         // if let Err(e) = func.call1(py, (&api,)) {
                         if let Err(e) = match func.deref() {
@@ -196,6 +200,9 @@ impl MidiDawThread {
                             Func::PyAny(func) => func.call1(py, (&api,)),
                         } {
                             println!("running custom: {func_name}, resulted in error, {e}");
+                            break;
+                        }
+                        if exit.load(Ordering::Relaxed) {
                             break;
                         }
                     }

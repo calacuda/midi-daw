@@ -1,5 +1,5 @@
 use std::{
-    ffi::CString, sync::{Arc, Mutex}, thread::{sleep, sleep_until, spawn}, time::{Duration, Instant}
+    ffi::CString, ops::Deref, sync::{Arc, Mutex}, thread::{sleep, sleep_until, spawn}, time::{Duration, Instant}
 };
 
 use bincode::{Decode, Encode};
@@ -287,7 +287,6 @@ fn sin<'a>(
 
     PyCFunction::new_closure(
         py,
-        None, 
         Some(Box::leak(
                 CString::new(
                     func_name
@@ -300,12 +299,13 @@ fn sin<'a>(
                 )?
                 .into_boxed_c_str(),
             )),
+        None, 
         move |args, kwargs| {
             let func_name = func_name.clone();
             let func = func.clone();
             let _jh = _jh.clone();
             // let api = api.clone();
-            let args = args.clone().unbind();
+            let args = Arc::new(args.clone().unbind());
             let freq: f32 = kwargs
                 // .map(|kwargs| kwargs.get_item("freq").ok())
                 // .map(|kwargs| kwargs.call_method1("pop", ("freq", 6.0)).ok())
@@ -315,7 +315,8 @@ fn sin<'a>(
                 .map(|freq| freq.extract::<f32>().ok())
                 .flatten()
                 .unwrap_or(6.0);
-            let kwargs = kwargs.map(|kwargs| kwargs.clone().unbind());
+            let kwargs = Arc::new(kwargs.map(|kwargs| kwargs.clone().unbind()));
+            let func = func.clone();
 
             Python::attach(move |py| -> PyResult<()> {
                 // let api: Api = kwargs
@@ -336,10 +337,15 @@ fn sin<'a>(
                 // }));
 
                 let sample_rate = if hifi { 44_100. } else { 22_050. };
-                println!("sanple-rate = {sample_rate}");
+                // let sample_rate = if hifi { 11_025. } else { 751.5625 };
+                // println!("sample-rate = {sample_rate}");
                 let wait_time = Duration::from_secs_f32(1. / sample_rate);
-                println!("wait-time: {wait_time:?}");
+                // println!("wait-time: {wait_time:?}");
                 // let kwargs = kwargs.map(|kwargs| kwargs.bind(py));
+                // let kwargs = kwargs.map(|kwargs| kwargs.bind(py).clone().unbind());
+                // let args = args.bind(py).clone().unbind();
+                let args = args.clone();
+                let kwargs = kwargs.clone();
 
                 *_jh.lock().unwrap() = Some({
                     // let func = func.clone();
@@ -354,42 +360,50 @@ fn sin<'a>(
                     }));
                     // let kwargs = kwargs.map(|kwargs| kwargs.unbind());
                     // let kwargs = kwargs.clone().map(|kwargs| kwargs.unbind());
+                    // let kwargs = kwargs.map(|kwargs| kwargs.bind(py).clone().unbind());
+                    let func = func.clone();
+                    // let args = args.bind(py).clone().unbind();
+                    let args = args.clone();
+                    let kwargs = kwargs.clone();
 
                     py.detach(move || {
                         spawn(move || {
                             Python::initialize();
 
-                            Python::attach(move |py| {
+                            // Python::attach(move |py| {
                                 if let Ok(mut auto) = auto {
-                                    let f = {
-                                        // let api = api.into_pyobject(py).unwrap();
-                                        // let kwargs = match kwargs {
-                                        //     Some(kwargs) => Some(kwargs.bind(py)),
-                                        //     None => None,
-                                        // };
-                                        let kwargs = kwargs.map(|kwargs| kwargs.bind(py).to_owned());
-                                        // let kwargs = kwargs.as_ref();
-
-                                        // Arc::new(move |s: f32| func.call(py, (&api, s), kwargs))
-                                        move |s| {
-                                            let args = args.bind(py).to_list();
-
-                                            if let Err(e) = args.append(s as f32) {
-                                                println!("couldn't add sample to args list. {e}");
-                                            }
-                                            
-                                            let args = args.to_tuple();
-
-                                            // func.call(py, args, kwargs)
-                                            func.call(
-                                                py,
-                                                args,
-                                                kwargs.as_ref(), // .map(|kwargs| kwargs.bind(py).to_owned())
-                                                                // .as_ref(),
-                                            )
-                                            // Ok(())
-                                        }
-                                    };
+                                    // let f = {
+                                    //     // let api = api.into_pyobject(py).unwrap();
+                                    //     // let kwargs = match kwargs {
+                                    //     //     Some(kwargs) => Some(kwargs.bind(py)),
+                                    //     //     None => None,
+                                    //     // };
+                                    //     // let kwargs = kwargs.map(|kwargs| kwargs.bind(py).to_owned());
+                                    //     // let kwargs = kwargs.clone();
+                                    //
+                                    //     // let kwargs = kwargs.as_ref();
+                                    //
+                                    //     // Arc::new(move |s: f32| func.call(py, (&api, s), kwargs))
+                                    //     move |py, kwargs: Option<Py<PyDict>>, s| {
+                                    //         let kwargs = kwargs.map(|kwargs| kwargs.bind(py).to_owned());
+                                    //         let args = args.bind(py).to_list();
+                                    //
+                                    //         if let Err(e) = args.append(s as f32) {
+                                    //             println!("couldn't add sample to args list. {e}");
+                                    //         }
+                                    //
+                                    //         let args = args.to_tuple();
+                                    //
+                                    //         // func.call(py, args, kwargs)
+                                    //         func.call(
+                                    //             py,
+                                    //             args,
+                                    //             kwargs.as_ref(), // .map(|kwargs| kwargs.bind(py).to_owned())
+                                    //                             // .as_ref(),
+                                    //         )
+                                    //         // Ok(())
+                                    //     }
+                                    // };
 
                                     loop {
                                         let wait = spawn({
@@ -399,8 +413,42 @@ fn sin<'a>(
                                         });
                                         // let when = Instant::now() + wait_time;
                                         // let sample = auto.step();
+                                        let s = auto.step();
 
-                                        if let Err(e) = f(auto.step()) {
+
+                                        if let Err(e) = Python::attach({
+                                            let func = func.clone();
+                                            let args = args.clone();
+                                            let kwargs = kwargs.clone();
+                                        
+                                            move |py| {
+                                                let args = args.bind(py).clone().unbind();
+                                                // let kwargs = kwargs.map(|kwargs| kwargs.bind(py).clone().unbind());
+                                                let kwargs = kwargs.clone();
+
+                                                let f = move |py, s| {
+                                                    let kwargs = kwargs.deref().as_ref().map(|kwargs| kwargs.bind(py).to_owned());
+                                                    let args = args.bind(py).to_list();
+
+                                                    if let Err(e) = args.append(s as f32) {
+                                                        println!("couldn't add sample to args list. {e}");
+                                                    }
+                                                    
+                                                    let args = args.to_tuple();
+
+                                                    // func.call(py, args, kwargs)
+                                                    func.call(
+                                                        py,
+                                                        args,
+                                                        kwargs.as_ref(), // .map(|kwargs| kwargs.bind(py).to_owned())
+                                                                        // .as_ref(),
+                                                    )
+                                                    // Ok(())
+                                                };
+
+                                                f(py, s)
+                                            }
+                                        }) {
                                             println!(
                                                 "running custom: {func_name}, resulted in error, {e}"
                                             );
@@ -413,7 +461,7 @@ fn sin<'a>(
                                         // sleep_until(when);
                                     }
                                 }
-                            })
+                            // })
                         })
                     })
                 });

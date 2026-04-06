@@ -1,11 +1,12 @@
 # from midi_daw import *
 import time
 
-from midi_daw_types import MidiChannel, NoteLen, v2
-from midi_daw_types.v2 import lfo
+from midi_daw import MidiChannel, NoteLen, v2
+from midi_daw.v2 import lfo
 
 print("\n\n", "=" * 30, "\n\n", sep="")
 song = v2.MidiDaw("Vital", MidiChannel.Ch1, virt=True)
+automa = v2.MidiDaw("Vital", MidiChannel.Ch1, virt=True)
 
 
 def play_on(dev, channel=None, loops=None, block=None):
@@ -32,19 +33,21 @@ print(devs)
 # @factory("midi-dev", loops=3,  block=False)
 @song.register
 def f(api):
-    # print(f"func-name = {f.__name__}")
-    api.play("g4", NoteLen.Sn(7))
-    print(f"py: f playing  playing g4 on {api.device}:{api.channel} again", flush=True)
-    # api.play("g4", NoteLen.Wn(1))
-    # time.sleep(1.0)
-    # print(f"py: playing g4 on {api.device}:{api.channel}")
-    api.rest(NoteLen.Sn(1))
+    # # print(f"func-name = {f.__name__}")
+    # api.play("g4", NoteLen.Sn(7))
+    # # print(f"py: f playing  playing g4 on {api.device}:{api.channel} again", flush=True)
+    # # api.play("g4", NoteLen.Wn(1))
+    # # time.sleep(1.0)
+    # # print(f"py: playing g4 on {api.device}:{api.channel}")
+    # api.rest(NoteLen.Sn(1))
+    api.play("c4", NoteLen.Sn(1))
+    api.rest(NoteLen.Sn(12 // 3 - 1))
 
 
-@song.register
+@automa.register
 @lfo.sin
 def pitch_worble(api, lfo_sample):
-    bend_amt = lfo_sample
+    bend_amt = lfo_sample * 0.75
     # print(f"py: bending by, {bend_amt}", flush=True)
     api.pitch_bend(bend_amt)
 
@@ -61,23 +64,29 @@ def f_2(api):
 # @play_on("a-third-dev", loops=3, block=False)
 @song.register
 def f_3(api):
-    n = 2
-    print(f"func-name = {f.__name__}")
-    api.play(f"c4", NoteLen.Sn(n))
-    # print(f"py: playing c_4 on {api.device}:{api.channel}")
-    api.rest(NoteLen.Sn(16 - n))
-    # time.sleep(0.1)
+    # n = 2
+    # # print(f"func-name = {f_3.__name__}")
+    # api.play(f"c4", NoteLen.Sn(n))
+    # # print(f"py: playing c_4 on {api.device}:{api.channel}")
+    # api.rest(NoteLen.Sn(16 - n))
+    # # time.sleep(0.1)
+    api.play("g4", NoteLen.Sn(1))
+    api.rest(NoteLen.Sn(12 // 2 - 1))
 
 
 if __name__ == "__main__":
-    f(loops=64, block=False)
-    f_3(loops=64, block=False)
-    pitch_worble(freq=7.5, block=False)
+    loops = 128
+
+    pitch_jh = pitch_worble(freq=7.5, block=False)
+    f_jh = f(loops=loops, block=False)
+    # f_3_jh = f_3(loops=64, block=True)
     # f_2(loops=10)
     print("non-blockers called")
     # f_3(loops=10, block=True)
+    f_3_jh = f_3(loops=int(loops * (2 / 3)), block=True)
+    song.stop()
     print("blocking thread done")
-    time.sleep(25)
+    # time.sleep(25)
     # time.sleep(2.5)
     print("exiting")
     exit(0)

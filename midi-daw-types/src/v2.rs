@@ -18,9 +18,12 @@ use std::{
     ffi::CString,
     fmt::Display,
     ops::Deref,
-    sync::{atomic::AtomicBool, Arc, Mutex, RwLock},
-    thread::{sleep, spawn, JoinHandle},
-    time::Duration,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, RwLock,
+    },
+    thread::{sleep, sleep_until, spawn, JoinHandle},
+    time::{Duration, Instant},
 };
 #[cfg(not(feature = "pyo3"))]
 use tracing::*;
@@ -89,17 +92,17 @@ fn midi_out_thread() {
                     },
                 };
 
-                println!("sending a message");
+                // println!("sending a message");
 
                 if let Err(e) = dev.send(&msg.to_midi()) {
                     error!("midi output failed with error {e}");
                     // eprintln!("midi output failed with error {e}");
                 }
 
-                println!(
-                    "midi message: {msg:?}, was sent to, {}:{}",
-                    dev_name, channel
-                );
+                // println!(
+                //     "midi message: {msg:?}, was sent to, {}:{}",
+                //     dev_name, channel
+                // );
 
                 // if let Err(e) = responce_dev.send()
                 true
@@ -241,6 +244,7 @@ impl Api {
     }
 
     pub fn rest(&self, dur: NoteDuration) {
+        let now = Instant::now();
         let (mul, denom) = match dur {
             NoteDuration::Wn(n) => (n, 4.0),
             NoteDuration::Hn(n) => (n, 2.0),
@@ -254,12 +258,13 @@ impl Api {
 
         Python::attach(|py| {
             py.detach(|| {
-                println!("py: resting for some-time");
-
-                sleep(Duration::from_secs_f64(
-                    // ((60.0 / self.tempo) * 2.0 / denom) * mul,
-                    ((60.0 / self.tempo) * denom) * mul,
-                ))
+                // println!("py: resting for some-time");
+                sleep_until(
+                    now + Duration::from_secs_f64(
+                        // ((60.0 / self.tempo) * 2.0 / denom) * mul,
+                        ((60.0 / self.tempo) * denom) * mul,
+                    ),
+                )
             })
         });
     }
@@ -270,12 +275,12 @@ impl Api {
         let y_int_correction = amt + 1.0;
         // let bend = ((u8::MAX / 2) as f32 * y_int_correction).floor() as u16;
         let bend = (8192. * y_int_correction).floor() as u16;
-        println!(
-            "bend = {bend}/{}, (from amt: {amt}) on device {:?}:{:?}",
-            u8::MAX,
-            self.device,
-            self.channel
-        );
+        // println!(
+        //     "bend = {bend}/{}, (from amt: {amt}) on device {:?}:{:?}",
+        //     u8::MAX,
+        //     self.device,
+        //     self.channel
+        // );
 
         self.__coms.send((
             (self.device.clone(), self.channel),
@@ -431,7 +436,6 @@ impl MidiDaw {
 
         PyCFunction::new_closure(
             py,
-            None,
             Some(Box::leak(
                 CString::new(
                     func_name
@@ -444,6 +448,7 @@ impl MidiDaw {
                 )?
                 .into_boxed_c_str(),
             )),
+            None,
             move |args, kwargs| {
                 let func_name = func_name.clone();
                 let func = func.clone();
@@ -515,9 +520,9 @@ impl MidiDaw {
                     // }
 
                     if block {
-                        println!("registered, not running in a thread");
+                        // println!("registered, not running in a thread");
                         if loop_n == 0 {
-                            println!("about to loop indefinately");
+                            // println!("about to loop indefinately");
 
                             loop {
                                 if let Err(e) = f() {
@@ -526,7 +531,7 @@ impl MidiDaw {
                                 }
                             }
                         } else {
-                            println!("about to loop once");
+                            // println!("about to loop once");
 
                             loop_f();
                         }
@@ -547,6 +552,30 @@ impl MidiDaw {
                 })
             },
         )
+    }
+
+    #[pyo3(signature = (thread_name = None))]
+    fn stop(&mut self, thread_name: Option<String>) {
+        if let Some(thread_name) = thread_name {
+            self.stop_thread(thread_name);
+        } else {
+            for thread_name in self.threads.clone().keys() {
+                self.stop_thread(thread_name.to_owned());
+            }
+        }
+    }
+
+    fn stop_thread(&mut self, thread_name: String) {
+        if let Some(thread) = self.threads.get_mut(&thread_name) {
+            if let Ok(thread) = thread.write() {
+                thread.exit.store(true, Ordering::Relaxed);
+                println!("thread, \"{thread_name}\", stop has been triggered.");
+            } else {
+                println!("failed to write thread exit signal for thread, \"{thread_name}\".");
+            }
+        } else {
+            println!("the thread, \"{thread_name}\", is not registered with this runner.");
+        }
     }
 }
 
@@ -768,7 +797,8 @@ fn py_mk_dev(dev_name: String) {
 // }
 
 #[cfg(feature = "pyo3")]
-#[pymodule(gil_used = false)]
+// #[pymodule(gil_used = false)]
+#[pymodule]
 #[pyo3(submodule, name = "v2")]
 /// A Python module implemented in Rust.
 pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -789,7 +819,7 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_submodule(&module)?;
         py.import("sys")?
             .getattr("modules")?
-            .set_item("midi_daw_types.lfo", &module)?;
+            .set_item("midi_daw.lfo", &module)?;
     }
 
     Ok(())
