@@ -34,7 +34,7 @@ print(devs)
 def f(api):
     # print(f"func-name = {f.__name__}")
     # api.play("g4", NoteLen.Sn(7))
-    api.play("g4", NoteLen.Sn(1))
+    api.play("g4", NoteLen.Wn(1))
     print(f"playing g4 on {api.device}:{api.channel}")
     # api.rest(NoteLen.Sn(1))
 
@@ -43,7 +43,7 @@ def f(api):
 @lfo.sin
 def pitch_worble(api, lfo_sample):
     bend_amt = lfo_sample
-    print(f"bending by, {bend_amt}")
+    # print(f"bending by, {bend_amt}")
     api.pitch_bend(bend_amt)
 
 
@@ -66,7 +66,7 @@ def f_3(api):
 
 if __name__ == "__main__":
     f(loops=64, block=False)
-    # pitch_worble(freq=10.0, block=False)
+    pitch_worble(freq=12.0, block=False)
     # f_2(loops=10)
     print("non-blockers called")
     # f_3(loops=10, block=True)

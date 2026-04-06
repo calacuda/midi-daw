@@ -89,10 +89,17 @@ fn midi_out_thread() {
                     },
                 };
 
+                println!("sending a message");
+
                 if let Err(e) = dev.send(&msg.to_midi()) {
                     error!("midi output failed with error {e}");
                     // eprintln!("midi output failed with error {e}");
                 }
+
+                println!(
+                    "midi message: {msg:?}, was sent to, {}:{}",
+                    dev_name, channel
+                );
 
                 // if let Err(e) = responce_dev.send()
                 true
@@ -119,7 +126,7 @@ fn midi_out_thread() {
             }
             ((MidiDev::Physical(dev_name), _channel), _msg) => {
                 error!("the requested physical midi device, \"{dev_name}\", is not connected.");
-                error!("known devs = {:?}", midi_devs.keys());
+                error!("known midi devs = {:?}", midi_devs.keys());
                 true
             }
             ((MidiDev::Virtual(dev_name), _channel), _msg) => {
@@ -255,10 +262,12 @@ impl Api {
     fn pitch_bend(&self, amt: f32) {
         // let amp_corection = amt * 0.5;
         let y_int_correction = amt + 1.0;
-        let bend = ((u16::MAX / 2) as f32 * y_int_correction).floor() as u16;
+        let bend = ((u8::MAX / 2) as f32 * y_int_correction).floor() as u16;
         println!(
-            "bend = {bend}, on device {:?}:{:?}",
-            self.device, self.channel
+            "bend = {bend}/{}, (from amt: {amt}) on device {:?}:{:?}",
+            u8::MAX,
+            self.device,
+            self.channel
         );
 
         self.__coms.send((
@@ -331,7 +340,7 @@ impl MidiDaw {
                 MidiDev::Virtual(dev)
             } else {
                 find_dev(&dev)
-                    .map(|dev| MidiDev::Physical(dev))
+                    .map(MidiDev::Physical)
                     .unwrap_or(MidiDev::Physical("Midi Through Port-0".into()))
             },
             channel,
@@ -404,7 +413,7 @@ impl MidiDaw {
             func_name.deref().clone()
         };
 
-        println!("storing at key: {key}");
+        println!("storing thread at key: {key}");
 
         self.threads.insert(key.clone(), thread.clone());
 
@@ -497,6 +506,7 @@ impl MidiDaw {
                     // }
 
                     if block {
+                        println!("register no-thread");
                         if loop_n == 0 {
                             loop {
                                 if let Err(e) = f() {
@@ -509,11 +519,13 @@ impl MidiDaw {
                         }
                     } else {
                         // *_jh.lock().unwrap() = Some(if loop_n == 0 {
-                        py.detach(move || {
+                        py.detach(|| {
                             if let Err(e) = thread.write().map(|mut thread| {
                                 thread.spawn_exec(func, func_name.clone(), loop_n, api.clone())
                             }) {
-                                println!("atempt to spawn exec thread failed, :(, with error: {e}");
+                                println!("atempt to spawn exec thread: {thread_name} failed, :(, with error: {e}");
+                            } else {
+                                println!("spawned thread: {thread_name}");
                             }
                         })
                     }
