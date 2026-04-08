@@ -44,6 +44,7 @@ def f(api):
     # api.rest(NoteLen.Sn(1))
     # api.play("c4", sn(1))
     api.play("1", en(1))
+    # print("1")
     api.rest(en(12 // 3 - 1))
 
 
@@ -72,6 +73,7 @@ def f_2(api):
     # time.sleep(0.15)
     # api.play("b4", sn(1))
     api.play("7", en(1))
+    # print("7")
     api.rest(en(12 // 2 - 1))
 
 
@@ -86,6 +88,7 @@ def f_3(api):
     # # time.sleep(0.1)
     # api.play("g4", sn(1))
     api.play("5", en(1))
+    # print("5")
     api.rest(en(12 // 2 - 1))
 
 
@@ -100,11 +103,11 @@ def f_3(api):
 
 @main
 def main():
-    # loops = 128
-    loops = 0
+    loops = 128
+    # loops = 0
     # pitch_jh = pitch_worble(freq=7.5, block=False)
-    # mod_jh = mod_wiggle(freq=2.5, block=False)
-    f_jh = f(loops=loops, block=False, scale="c4-maj")
+    mod_jh = mod_wiggle(freq=2.5, block=False)
+    f_jh = f(loops=int(loops * (3/2)), block=False, scale="c4-maj")
     print("non-blockers called")
     f_2_jh = f_2(loops=int(loops * (2 / 3)), block=False, scale="c4-maj")
     f_3_jh = f_3(loops=int(loops * (2 / 3)), block=True, scale="c4-maj")

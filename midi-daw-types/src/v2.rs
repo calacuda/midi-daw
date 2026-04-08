@@ -1,13 +1,13 @@
 use crate::{
-    v1::note_from_str, v2::thread::MidiDawThread, MidiChannel, MidiDeviceName, MidiMsg,
-    NoteDuration,
+    MidiChannel, MidiDeviceName, MidiMsg, NoteDuration, v1::note_from_str,
+    v2::thread::MidiDawThread,
 };
 use bincode::{Decode, Encode};
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use log::*;
-use midir::{os::unix::VirtualOutput, MidiOutput, MidiOutputConnection};
+use midir::{MidiInput, MidiOutput, MidiOutputConnection, os::unix::VirtualOutput};
 use musical_scales::{PitchClass, Scale, ScaleType};
 use pyo3::types::PyCFunction;
 #[cfg(feature = "pyo3")]
@@ -19,29 +19,124 @@ use std::{
     ffi::CString,
     fmt::Display,
     ops::Deref,
+    process,
     sync::{
+        Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
-        Arc, RwLock,
     },
-    thread::{sleep_until, spawn, JoinHandle},
+    thread::{JoinHandle, sleep_until, spawn},
     time::{Duration, Instant},
 };
 #[cfg(not(feature = "pyo3"))]
 use tracing::*;
+#[cfg(feature = "pyo3")]
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 // pub mod v2;
 pub mod automation;
 pub mod thread;
 
+pub const SYNC_DEV_NAME: &str = "MIDI-DAW-SYNC-DEV";
+pub const SYNC_DEV_PORT_NAME: &str = "SYNC-PORT";
+pub const TEMPO_SET_PORT: &str = "SET-TEMPO";
+pub const BPQ: u32 = 64;
+// pub const BPQ: u32 = 2;
+// pub const BPQ: u32 = 48;
+pub const DEFAULT_BPM: u32 = 99;
+
 // pub type Scale = Vec<String>;
 pub type MidiThreadCtrlMesg = ((MidiDev, MidiChannel), MidiMsg);
+pub type MidiSyncMesg = (usize, Sender<usize>);
 
 lazy_static! {
     /// This is an example for using doc comment attributes
     static ref MIDI_OUT_THREAD_COMS: (Sender<MidiThreadCtrlMesg>, Receiver<MidiThreadCtrlMesg>) = unbounded();
     static ref MIDI_OUT: Sender<MidiThreadCtrlMesg> = MIDI_OUT_THREAD_COMS.0.clone();
     // static ref MIDI_OUT_THREAD: JoinHandle<()> = spawn(midi_out_thread);
+    static ref MIDI_SYNC_THREAD_COMS: (Sender<MidiSyncMesg>, Receiver<MidiSyncMesg>) = unbounded();
+    static ref MIDI_SYNC: Sender<MidiSyncMesg> = MIDI_SYNC_THREAD_COMS.0.clone();
+}
 
+fn midi_sync_thread() {
+    let pid = process::id();
+    // println!("about to define midi input");
+    let Ok(mut input_dev) = MidiInput::new(&format!("midi-daw-sync-{pid}")) else {
+        error!("failed to create midi sync in");
+        return;
+    };
+    // println!("input_dev made");
+    input_dev.ignore(midir::Ignore::SysexAndActiveSense);
+    // println!("ignore set");
+
+    let in_ports = input_dev.ports();
+    // let sync_port = input_dev.find_port_by_id
+    let sync_name = format!("{SYNC_DEV_NAME}:{SYNC_DEV_PORT_NAME}");
+
+    // for port in in_ports {
+    //     println!("port_id: {:?}", input_dev.port_name(&port));
+    // }
+
+    let mut counter = 0;
+    let mut in_bar = false;
+    let do_at = Arc::new(Mutex::new(FxHashMap::<usize, Vec<Sender<usize>>>::default()));
+
+    let in_port = in_ports
+        .iter()
+        .find(|port| input_dev.port_name(port).is_ok_and(|p| p == sync_name))
+        .expect("failed to find sync port");
+
+    // _conn_in needs to be a named parameter, because it needs to be kept alive until the end of the scope
+    let _conn_in = input_dev.connect(
+        in_port,
+        "sync-signal-input",
+        {
+            let do_at = do_at.clone();
+
+            move |_stamp, message, _| {
+                let msg = midi_msg::MidiMsg::from_midi(message);
+                if msg.as_ref().is_ok_and(|msg| {
+                    msg.0
+                        == midi_msg::MidiMsg::SystemRealTime {
+                            msg: midi_msg::SystemRealTimeMsg::TimingClock,
+                        }
+                }) {
+                    // info!("incrementing counter");
+                    counter += 1;
+                } else if msg.is_ok_and(|msg| {
+                    msg.0
+                        == midi_msg::MidiMsg::SystemRealTime {
+                            msg: midi_msg::SystemRealTimeMsg::Start,
+                        }
+                }) {
+                    in_bar = true;
+                }
+
+                if let Ok(Some(things_to_do)) = do_at.lock().map(|mut tasks| tasks.remove(&counter))
+                    && in_bar
+                {
+                    for task in things_to_do.into_iter() {
+                        _ = task.send(counter);
+                    }
+                }
+            }
+        },
+        (),
+    );
+
+    loop {
+        while let Ok((at, responder)) = MIDI_SYNC_THREAD_COMS.1.recv() {
+            let Ok(mut tasks) = do_at.lock() else {
+                continue;
+            };
+
+            if let Some(things) = tasks.get_mut(&at) {
+                things.push(responder);
+            } else {
+                tasks.insert(at, vec![responder]);
+            }
+        }
+    }
+    // input_dev.connect(sync_port, port_name, callback, data)
 }
 
 fn midi_out_thread() {
@@ -113,8 +208,11 @@ fn midi_out_thread() {
             ((MidiDev::Virtual(dev_name), _channel), _msg /*, _responce_dev*/)
                 if !midi_devs.contains_key(&dev_name) =>
             {
-                info!("the requested virtual midi device, \"{dev_name}\", has yet to be made, making now.");
+                info!(
+                    "the requested virtual midi device, \"{dev_name}\", has yet to be made, making now."
+                );
                 let Ok(midi_out) = MidiOutput::new("MIDI-DAW-NEW-DEV") else {
+                    error!("failed to make midi out");
                     return false;
                 };
 
@@ -533,7 +631,9 @@ impl MidiDaw {
                         .map(|scale| scale.extract().ok())
                         .flatten();
 
-                    if let Some(scale) = scale && scale.contains("-") {
+                    if let Some(scale) = scale
+                        && scale.contains("-")
+                    {
                         if let Some((root, scale_type)) = scale.split_once("-") {
                             // println!("root = {root}");
                             api.set_scale(root.into(), scale_type.into());
@@ -952,7 +1052,18 @@ fn wn(n: u8) -> NoteDuration {
 #[pyo3(submodule, name = "v2")]
 /// A Python module implemented in Rust.
 pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let _midi_out_thread: JoinHandle<()> = spawn(midi_out_thread);
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+    FmtSubscriber::builder()
+        .with_file(true)
+        .with_line_number(true)
+        .with_level(true)
+        .with_thread_names(false)
+        .with_thread_ids(false)
+        .with_env_filter(env_filter)
+        .without_time()
+        .init();
+    let _midi_out_thread = spawn(midi_out_thread);
+    let _midi_sync_thread = spawn(midi_sync_thread);
 
     m.add_class::<MidiDaw>()?;
     m.add_function(wrap_pyfunction!(list_devs, m)?)?;

@@ -13,6 +13,8 @@ use std::sync::Arc;
 #[cfg(not(feature = "pyo3"))]
 use tracing::*;
 
+use crate::v2::DEFAULT_BPM;
+
 pub const UDS_SERVER_PATH: &str = "/tmp/midi-daw.sock";
 
 pub type MidiDeviceName = String;
@@ -384,12 +386,16 @@ pub fn get_bincode_conf() -> bincode::config::Configuration {
     bincode::config::standard()
 }
 
+pub fn tempo_from_bpm(bpm: u32) -> u32 {
+    (1_000_000 * 60) / DEFAULT_BPM
+}
+
 #[cfg(feature = "pyo3")]
 /// A Python module implemented in Rust.
 #[pymodule]
 #[pyo3(name = "midi_daw")]
 fn midi_daw_types(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    pyo3_log::init();
+    // pyo3_log::init();
 
     m.add_class::<MidiChannel>()?;
     m.add_class::<MidiTarget>()?;
