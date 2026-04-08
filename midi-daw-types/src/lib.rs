@@ -1,7 +1,7 @@
 #![feature(thread_sleep_until)]
 use bincode::{
-    error::{DecodeError, EncodeError},
     Decode, Encode,
+    error::{DecodeError, EncodeError},
 };
 #[cfg(feature = "pyo3")]
 use log::*;
