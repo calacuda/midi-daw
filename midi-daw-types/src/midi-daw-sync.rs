@@ -7,6 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use jack::Frames;
 use midi_daw::{
     tempo_from_bpm,
     v2::{BPQ, DEFAULT_BPM, SYNC_DEV_NAME, SYNC_DEV_PORT_NAME, TEMPO_SET_PORT},
@@ -65,6 +66,7 @@ fn main() {
     });
     // let mut waiting = false;
     let mut time_to_send = 0;
+    let mut counter = 0;
 
     let callback = move |c: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
         let show_p = in_port.iter(ps);
@@ -93,7 +95,8 @@ fn main() {
         }
 
         while cycle_times.next_usecs > time_to_send {
-            let next_time_to_send = time_to_send
+            let old_time_to_send = time_to_send;
+            let next_time_to_send = old_time_to_send
                 + Duration::from_micros(bpq_time(tempo.clone()).into()).as_micros() as u64;
 
             // println!("next_time_to_send: {next_time_to_send}");
@@ -106,27 +109,48 @@ fn main() {
 
             // let time = c.time_to_frames(time_to_send) - cycle_times.current_frames;
             // let time = c.time_to_frames(time_to_send - cycle_times.current_usecs);
-            let time = c.time_to_frames(time_to_send) - cycle_times.current_frames;
+
             time_to_send = next_time_to_send;
+            // BUG: cycle_times.current_frames over flows and loops back to 0 creating an issue on
+            // the next frame
+            let time = if c.time_to_frames(old_time_to_send) >= cycle_times.current_frames {
+                c.time_to_frames(old_time_to_send) - cycle_times.current_frames
+            } else {
+                info!("Cycled");
+                c.time_to_frames(old_time_to_send) - (Frames::MAX - cycle_times.current_frames)
+            };
 
             // if recv.try_recv().is_ok() {
             let mut sender = sync_pulse_sender.writer(ps);
-            let bytes = MidiMsg::SystemRealTime {
-                msg: SystemRealTimeMsg::TimingClock,
-            }
-            .to_midi();
+            let mut bytes = vec![
+                MidiMsg::SystemRealTime {
+                    msg: SystemRealTimeMsg::TimingClock,
+                }
+                .to_midi(),
+            ];
 
             // info!("time: {time}");
-
-            if let Err(e) = sender.write(&jack::RawMidi {
-                time,
-                bytes: &bytes,
-            }) {
-                error!("attempt to send sync pulse failed with error: {e}");
-            } else {
-                // info!("beat");
+            if (counter % (BPQ * 4)) == 0 {
+                bytes.push(
+                    MidiMsg::SystemRealTime {
+                        msg: SystemRealTimeMsg::Start,
+                    }
+                    .to_midi(),
+                );
             }
-            // }
+
+            counter += 1;
+
+            for bytes in bytes {
+                if let Err(e) = sender.write(&jack::RawMidi {
+                    time,
+                    bytes: &bytes,
+                }) {
+                    error!("attempt to send sync pulse failed with error: {e}");
+                } else {
+                    // info!("beat");
+                }
+            }
             // waiting = true;
         }
 

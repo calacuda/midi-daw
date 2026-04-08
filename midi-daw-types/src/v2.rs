@@ -46,7 +46,7 @@ pub const DEFAULT_BPM: u32 = 99;
 
 // pub type Scale = Vec<String>;
 pub type MidiThreadCtrlMesg = ((MidiDev, MidiChannel), MidiMsg);
-pub type MidiSyncMesg = (usize, Sender<usize>);
+pub type MidiSyncMesg = (MidiSyncCommand, Sender<usize>);
 
 lazy_static! {
     /// This is an example for using doc comment attributes
@@ -76,9 +76,13 @@ fn midi_sync_thread() {
     //     println!("port_id: {:?}", input_dev.port_name(&port));
     // }
 
-    let mut counter = 0;
+    let mut counter = Arc::new(RwLock::new(0));
+    let mut pulses_since_bar = 0;
     let mut in_bar = false;
-    let do_at = Arc::new(Mutex::new(FxHashMap::<usize, Vec<Sender<usize>>>::default()));
+    let do_at = Arc::new(Mutex::new(FxHashMap::<
+        MidiSyncPulseTimeCode,
+        Vec<Sender<usize>>,
+    >::default()));
 
     let in_port = in_ports
         .iter()
@@ -91,9 +95,13 @@ fn midi_sync_thread() {
         "sync-signal-input",
         {
             let do_at = do_at.clone();
+            let counter = counter.clone();
 
             move |_stamp, message, _| {
+                let was_in_bar = in_bar;
                 let msg = midi_msg::MidiMsg::from_midi(message);
+                // let mut threads = Vec::new();
+
                 if msg.as_ref().is_ok_and(|msg| {
                     msg.0
                         == midi_msg::MidiMsg::SystemRealTime {
@@ -101,41 +109,126 @@ fn midi_sync_thread() {
                         }
                 }) {
                     // info!("incrementing counter");
-                    counter += 1;
+                    let mut counter = counter.write().unwrap();
+                    *counter += 1;
+                    *counter %= usize::MAX;
+
+                    if in_bar {
+                        pulses_since_bar += 1;
+                        pulses_since_bar %= usize::MAX;
+                    }
+                    // info!("counter: {counter}");
                 } else if msg.is_ok_and(|msg| {
                     msg.0
                         == midi_msg::MidiMsg::SystemRealTime {
                             msg: midi_msg::SystemRealTimeMsg::Start,
                         }
                 }) {
-                    in_bar = true;
-                }
+                    // debug!("now in bar");
 
-                if let Ok(Some(things_to_do)) = do_at.lock().map(|mut tasks| tasks.remove(&counter))
-                    && in_bar
-                {
-                    for task in things_to_do.into_iter() {
-                        _ = task.send(counter);
+                    if !in_bar {
+                        let mut counter = counter.write().unwrap();
+                        *counter = 0_usize;
+                    }
+
+                    in_bar = true;
+
+                    if let Ok(counter) = counter.read()
+                        && in_bar
+                    {
+                        // counter.read().map(|counter| {
+                        // debug!("got counter: {counter}");
+                        let counter = counter.to_owned();
+
+                        // debug!("using counter: {counter}");
+                        // (
+                        //     counter,
+                        _ = do_at.lock().map(|mut tasks| {
+                            // debug!("looking for counter: {counter}");
+                            // debug!("looking in tasks: {:?}[{counter}]", tasks.keys());
+
+                            tasks
+                                .remove(&MidiSyncPulseTimeCode::OnNextBar)
+                                .clone()
+                                .iter()
+                                .for_each(|tasks| {
+                                    for task in tasks {
+                                        _ = task.send(counter);
+                                    }
+                                });
+                        });
+                        // )
+                        // });
                     }
                 }
+
+                if let Ok(counter) = counter.read()
+                    && in_bar
+                {
+                    // counter.read().map(|counter| {
+                    // debug!("got counter: {counter}");
+                    let counter = counter.to_owned();
+
+                    // debug!("using counter: {counter}");
+                    // (
+                    //     counter,
+                    _ = do_at.lock().map(|mut tasks| {
+                        // debug!("looking for counter: {counter}");
+                        // debug!("looking in tasks: {:?}", tasks.keys());
+
+                        tasks
+                            .remove(&MidiSyncPulseTimeCode::AtPulses(counter))
+                            .clone()
+                            .iter()
+                            .for_each(|tasks| {
+                                for task in tasks {
+                                    _ = task.send(counter);
+                                }
+                            });
+                    });
+                    // )
+                    // });
+                }
+                // else {
+                //     // debug!("in_bar: {in_bar}");
+                // }
             }
         },
         (),
     );
 
+    info!("connected");
     loop {
         while let Ok((at, responder)) = MIDI_SYNC_THREAD_COMS.1.recv() {
-            let Ok(mut tasks) = do_at.lock() else {
-                continue;
+            // debug!("got: {at:?}");
+
+            let at = match at {
+                MidiSyncCommand::InNPulses(at) if let Ok(counter) = counter.clone().read() => {
+                    MidiSyncPulseTimeCode::AtPulses(counter.deref() + at)
+                }
+                MidiSyncCommand::InNPulses(_) => continue,
+                MidiSyncCommand::AtPulses(at) => MidiSyncPulseTimeCode::AtPulses(at),
+                MidiSyncCommand::OnNextBar => MidiSyncPulseTimeCode::OnNextBar,
             };
 
-            if let Some(things) = tasks.get_mut(&at) {
-                things.push(responder);
-            } else {
-                tasks.insert(at, vec![responder]);
+            if let Ok(mut tasks) = do_at.lock() {
+                // continue;
+                // };
+
+                if let Some(things) = tasks.get_mut(&at) {
+                    // debug!("adding to existing task entry");
+                    things.push(responder);
+                    // debug!("things: {things:?}");
+                } else {
+                    // debug!("mk_new task entry");
+                    tasks.insert(at, vec![responder]);
+                    // debug!("tasks: {tasks:?}");
+                }
             }
         }
     }
+
+    // warn!("stopping sync thread");
     // input_dev.connect(sync_port, port_name, callback, data)
 }
 
@@ -251,6 +344,23 @@ fn midi_out_thread() {
     }
 }
 
+#[derive(
+    Serialize, Deserialize, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug,
+)]
+pub enum MidiSyncCommand {
+    InNPulses(usize),
+    AtPulses(usize),
+    OnNextBar,
+}
+
+#[derive(
+    Serialize, Deserialize, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug,
+)]
+pub enum MidiSyncPulseTimeCode {
+    AtPulses(usize),
+    OnNextBar,
+}
+
 // #[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 // #[cfg_attr(feature = "pyo3", pyo3(get_all, set_all))]
 // #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -293,21 +403,42 @@ impl Api {
 
 impl Api {
     pub fn do_rest(&self, dur: NoteDuration, now: Instant) {
-        // let now = Instant::now();
-        let (mul, denom) = match dur {
-            NoteDuration::Wn(n) => (n, 4.0),
-            NoteDuration::Hn(n) => (n, 2.0),
-            NoteDuration::Qn(n) => (n, 1.0),
-            NoteDuration::En(n) => (n, 1.0 / 2.0),
-            NoteDuration::Sn(n) => (n, 1.0 / 4.0),
-            NoteDuration::Tn(n) => (n, 1.0 / 8.0),
-            NoteDuration::S4n(n) => (n, 1.0 / 16.),
-        };
-        let mul = mul as f64;
+        // let (mul, denom) = match dur {
+        //     NoteDuration::Wn(n) => (n, 4.0),
+        //     NoteDuration::Hn(n) => (n, 2.0),
+        //     NoteDuration::Qn(n) => (n, 1.0),
+        //     NoteDuration::En(n) => (n, 1.0 / 2.0),
+        //     NoteDuration::Sn(n) => (n, 1.0 / 4.0),
+        //     NoteDuration::Tn(n) => (n, 1.0 / 8.0),
+        //     NoteDuration::S4n(n) => (n, 1.0 / 16.),
+        // };
+        // let mul = mul as f64;
+        //
+        // Python::attach(|py| {
+        //     py.detach(|| {
+        //         sleep_until(now + Duration::from_secs_f64(((60.0 / self.tempo) * denom) * mul))
+        //     })
+        // });
+        let n_pulses = match dur {
+            NoteDuration::Wn(n) => n as u32 * BPQ * 4,
+            NoteDuration::Hn(n) => n as u32 * BPQ * 2,
+            NoteDuration::Qn(n) => n as u32 * BPQ,
+            NoteDuration::En(n) => n as u32 * (BPQ / 2),
+            NoteDuration::Sn(n) => n as u32 * (BPQ / 4),
+            NoteDuration::Tn(n) => n as u32 * (BPQ / 8),
+            NoteDuration::S4n(n) => n as u32 * (BPQ / 16),
+        } as usize;
+
+        let (tx, rx) = unbounded();
+
+        if let Err(e) = MIDI_SYNC.send((MidiSyncCommand::InNPulses(n_pulses), tx)) {
+            error!("failed to communicate with sync thread. error: {e}");
+            return;
+        }
 
         Python::attach(|py| {
             py.detach(|| {
-                sleep_until(now + Duration::from_secs_f64(((60.0 / self.tempo) * denom) * mul))
+                rx.recv().expect("failed to communicate with sync thread");
             })
         });
     }
@@ -435,6 +566,17 @@ impl Api {
             (self.device.clone(), self.channel),
             MidiMsg::StopNote { note },
         ));
+    }
+
+    fn wait_for_bar(&self) {
+        let (tx, rx) = unbounded();
+
+        if let Err(e) = MIDI_SYNC.send((MidiSyncCommand::OnNextBar, tx)) {
+            error!("failed to communicate with sync thread. error: {e}");
+            return;
+        }
+
+        rx.recv().expect("failed to communicate with sync thread");
     }
 
     #[pyo3(signature = ())]
@@ -612,6 +754,7 @@ impl MidiDaw {
                 // let rx = rx.clone();
                 let thread_name = key.clone();
                 let exit = exit.clone();
+                api.wait_for_bar();
 
                 Python::attach(move |py| -> PyResult<String> {
                     let loop_n: Option<usize> = kwargs
