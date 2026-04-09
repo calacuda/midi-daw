@@ -1,4 +1,4 @@
-from this import s
+# from this import s
 
 from midi_daw import MidiChannel, NoteLen, v2
 from midi_daw.v2 import lfo, main
@@ -10,7 +10,7 @@ song = v2.MidiDaw("vital-bass", MidiChannel.Ch1, virt=True)
 @song.register
 def f(api):
     for _ in range(3):
-        api.play("f3", sn())
+        api.play("<f3 c3>", sn())
         api.rest(sn())
 
     api.rest(en())

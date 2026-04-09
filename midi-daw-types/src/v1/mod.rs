@@ -3,10 +3,10 @@ use crate::{MidiChannel, MidiTarget};
 use crate::{MidiMsg, NoteDuration};
 use automation::AutomationConf;
 #[cfg(feature = "pyo3")]
-use automation::{Automation, AutomationTypes, lfo::LfoConfig};
+use automation::{lfo::LfoConfig, Automation, AutomationTypes};
 use bincode::{
-    Decode, Encode,
     error::{DecodeError, EncodeError},
+    Decode, Encode,
 };
 #[cfg(feature = "pyo3")]
 use log::*;

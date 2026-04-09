@@ -4,10 +4,10 @@
 use std::{
     ops::Deref,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
-    thread::{JoinHandle, spawn},
+    thread::{spawn, JoinHandle},
 };
 
 use crossbeam::channel::Receiver;
@@ -19,8 +19,8 @@ use pyo3::{prelude::*, types::PyFunction};
 use tracing::*;
 
 use crate::{
+    v2::{mk_dev, Api, Func, MidiDev, MidiThreadCtrlMesg},
     MidiMsg,
-    v2::{Api, Func, MidiDev, MidiThreadCtrlMesg, mk_dev},
 };
 
 // #[cfg_attr(feature = "pyo3", pyclass)]
@@ -61,7 +61,7 @@ impl MidiDawThread {
         func: Arc<Func>,
         func_name: Arc<String>,
         loop_n: usize,
-        api: Api,
+        mut api: Api,
         // recv: Receiver<MidiThreadCtrlMesg>,
     ) {
         // self.rift = func.clone();
@@ -80,7 +80,7 @@ impl MidiDawThread {
 
                 Python::attach(move |py| {
                     // let f = {
-                    let api = api.into_pyobject(py).unwrap();
+                    // let api = api.into_pyobject(py).unwrap();
 
                     //     Arc::new(move || func.call1(py, (&api,)))
                     // };
@@ -88,12 +88,24 @@ impl MidiDawThread {
                     while exit.load(Ordering::Relaxed) {
                         // if let Err(e) = f() {
                         // if let Err(e) = func.call1(py, (&api,)) {
-                        if let Err(e) = match func.deref() {
-                            Func::PyF(func) => func.call1(py, (&api,)),
-                            Func::PyCF(func) => func.call1(py, (&api,)),
-                            Func::PyAny(func) => func.call1(py, (&api,)),
+                        if let Err(e) = {
+                            let api = api.clone().into_pyobject(py).unwrap();
+
+                            match func.deref() {
+                                Func::PyF(func) => func.call1(py, (&api,)),
+                                Func::PyCF(func) => func.call1(py, (&api,)),
+                                Func::PyAny(func) => func.call1(py, (&api,)),
+                            }
                         } {
                             println!("running custom: {func_name}, resulted in error, {e}");
+                            api.i = 0;
+                            break;
+                        } else {
+                            api.increment();
+                        }
+
+                        if exit.load(Ordering::Relaxed) {
+                            api.i = 0;
                             break;
                         }
                     }
@@ -112,20 +124,29 @@ impl MidiDawThread {
 
                 Python::attach(move |py| {
                     // let loop_f = {
-                    let api = api.into_pyobject(py).unwrap();
+                    // let api = api.into_pyobject(py).unwrap();
 
                     // Arc::new(move || {
                     for _ in 0..loop_n {
                         // if let Err(e) = func.call1(py, (&api,)) {
-                        if let Err(e) = match func.deref() {
-                            Func::PyF(func) => func.call1(py, (&api,)),
-                            Func::PyCF(func) => func.call1(py, (&api,)),
-                            Func::PyAny(func) => func.call1(py, (&api,)),
+                        if let Err(e) = {
+                            let api = api.clone().into_pyobject(py).unwrap();
+
+                            match func.deref() {
+                                Func::PyF(func) => func.call1(py, (&api,)),
+                                Func::PyCF(func) => func.call1(py, (&api,)),
+                                Func::PyAny(func) => func.call1(py, (&api,)),
+                            }
                         } {
                             println!("running custom: {func_name}, resulted in error, {e}");
+                            api.i = 0;
                             break;
+                        } else {
+                            api.increment();
                         }
+
                         if exit.load(Ordering::Relaxed) {
+                            api.i = 0;
                             break;
                         }
                     }
