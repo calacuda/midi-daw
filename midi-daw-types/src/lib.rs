@@ -1,7 +1,7 @@
 #![feature(thread_sleep_until)]
 use bincode::{
-    Decode, Encode,
     error::{DecodeError, EncodeError},
+    Decode, Encode,
 };
 #[cfg(feature = "pyo3")]
 use log::*;
@@ -386,8 +386,8 @@ pub fn get_bincode_conf() -> bincode::config::Configuration {
     bincode::config::standard()
 }
 
-pub fn tempo_from_bpm(bpm: u32) -> u32 {
-    (1_000_000 * 60) / DEFAULT_BPM
+pub fn tempo_from_bpm() -> u32 {
+    (100_000 * 60) / DEFAULT_BPM
 }
 
 #[cfg(feature = "pyo3")]

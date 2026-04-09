@@ -1,13 +1,13 @@
 use crate::{
-    MidiChannel, MidiDeviceName, MidiMsg, NoteDuration, v1::note_from_str,
-    v2::thread::MidiDawThread,
+    v1::note_from_str, v2::thread::MidiDawThread, MidiChannel, MidiDeviceName, MidiMsg,
+    NoteDuration,
 };
 use bincode::{Decode, Encode};
-use crossbeam::channel::{Receiver, Sender, unbounded};
+use crossbeam::channel::{unbounded, Receiver, Sender};
 use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use log::*;
-use midir::{MidiInput, MidiOutput, MidiOutputConnection, os::unix::VirtualOutput};
+use midir::{os::unix::VirtualOutput, MidiInput, MidiOutput, MidiOutputConnection};
 use musical_scales::{PitchClass, Scale, ScaleType};
 use pyo3::types::PyCFunction;
 #[cfg(feature = "pyo3")]
@@ -21,11 +21,11 @@ use std::{
     ops::Deref,
     process,
     sync::{
-        Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
+        Arc, Mutex, RwLock,
     },
-    thread::{JoinHandle, sleep_until, spawn},
-    time::{Duration, Instant},
+    thread::spawn,
+    time::Instant,
 };
 #[cfg(not(feature = "pyo3"))]
 use tracing::*;
@@ -42,7 +42,10 @@ pub const TEMPO_SET_PORT: &str = "SET-TEMPO";
 pub const BPQ: u32 = 64;
 // pub const BPQ: u32 = 2;
 // pub const BPQ: u32 = 48;
-pub const DEFAULT_BPM: u32 = 99;
+// pub const DEFAULT_BPM: u32 = 99;
+pub const DEFAULT_BPM: u32 = 133;
+// pub const DEFAULT_BPM: u32 = 240;
+// pub const DEFAULT_BPM: u32 = 33;
 
 // pub type Scale = Vec<String>;
 pub type MidiThreadCtrlMesg = ((MidiDev, MidiChannel), MidiMsg);
@@ -755,6 +758,7 @@ impl MidiDaw {
                 let thread_name = key.clone();
                 let exit = exit.clone();
                 api.wait_for_bar();
+                println!("running {func_name}");
 
                 Python::attach(move |py| -> PyResult<String> {
                     let loop_n: Option<usize> = kwargs
