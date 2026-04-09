@@ -405,7 +405,7 @@ impl Api {
 }
 
 impl Api {
-    pub fn do_rest(&self, dur: NoteDuration, now: Instant) {
+    pub fn do_rest(&self, dur: NoteDuration) {
         // let (mul, denom) = match dur {
         //     NoteDuration::Wn(n) => (n, 4.0),
         //     NoteDuration::Hn(n) => (n, 2.0),
@@ -445,6 +445,20 @@ impl Api {
             })
         });
     }
+
+    fn get_midi_note(&self, note: String) -> u8 {
+        if let (Some((scale, octave)), Ok(new_note)) = (&self.scale, note.parse::<usize>()) {
+            // println!("new_note: {new_note}");
+
+            if let Ok(note) = scale.idx_to_pitch(new_note - 1) {
+                note.to_midi() + 12 * octave
+            } else {
+                note_from_str(note).unwrap_or(0)
+            }
+        } else {
+            note_from_str(note).unwrap_or(0)
+        }
+    }
 }
 
 #[pymethods]
@@ -469,25 +483,14 @@ impl Api {
         vel: Option<u8>,
         blocking: Option<bool>,
     ) {
-        let now = Instant::now();
+        // let now = Instant::now();
         let dur = dur.unwrap_or(NoteDuration::Sn(1));
         // println!(
         //     "playing {note}@{vel:?} for {dur:?}, on: {:?}. blocking? {blocking:?}",
         //     self.device
         // );
-        let note =
-            if let (Some((scale, octave)), Ok(new_note)) = (&self.scale, note.parse::<usize>()) {
-                // println!("new_note: {new_note}");
-
-                if let Ok(note) = scale.idx_to_pitch(new_note - 1) {
-                    note.to_midi() + 12 * octave
-                } else {
-                    note_from_str(note).unwrap_or(0)
-                }
-            } else {
-                note_from_str(note).unwrap_or(0)
-            };
-        self.__coms.send((
+        let note = self.get_midi_note(note);
+        _ = self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::PlayNote {
                 note,
@@ -495,8 +498,8 @@ impl Api {
                 duration: dur,
             },
         ));
-        self.do_rest(dur, now);
-        self.__coms.send((
+        self.do_rest(dur);
+        _ = self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::StopNote { note },
         ));
@@ -531,8 +534,8 @@ impl Api {
     }
 
     pub fn rest(&self, dur: NoteDuration) {
-        let now = Instant::now();
-        self.do_rest(dur, now);
+        // let now = Instant::now();
+        self.do_rest(dur);
     }
 
     #[pyo3(signature = (amt))]
@@ -542,11 +545,11 @@ impl Api {
         // println!(
         //     "bend = {bend}/{}, (from amt: {amt}) on device {:?}:{:?}",
         //     u8::MAX,
-        //     self.device,
+        //     jack rust get buffer size and sample rateself.device,
         //     self.channel
         // );
 
-        self.__coms.send((
+        _ = self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::PitchBend { bend },
         ));
@@ -554,7 +557,7 @@ impl Api {
 
     #[pyo3(signature = (cc, val))]
     fn cc(&self, cc: u8, val: u8) {
-        self.__coms.send((
+        _ = self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::CC {
                 control: cc,
@@ -565,7 +568,7 @@ impl Api {
 
     #[pyo3(signature = (note))]
     fn stop(&self, note: u8) {
-        self.__coms.send((
+        _ = self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::StopNote { note },
         ));
@@ -580,6 +583,37 @@ impl Api {
         }
 
         rx.recv().expect("failed to communicate with sync thread");
+    }
+
+    /// plays a note
+    #[pyo3(signature = (notes, dur = None, vel = None, blocking = None))]
+    fn chord(
+        &self,
+        notes: Vec<String>,
+        dur: Option<NoteDuration>,
+        vel: Option<u8>,
+        blocking: Option<bool>,
+    ) {
+        let dur = dur.unwrap_or(NoteDuration::Sn(1));
+        let notes = notes.into_iter().map(|note| self.get_midi_note(note));
+
+        notes.clone().for_each(|note| {
+            _ = self.__coms.send((
+                (self.device.clone(), self.channel),
+                MidiMsg::PlayNote {
+                    note,
+                    velocity: vel.unwrap_or(100),
+                    duration: dur,
+                },
+            ));
+        });
+        self.do_rest(dur);
+        notes.clone().for_each(|note| {
+            _ = self.__coms.send((
+                (self.device.clone(), self.channel),
+                MidiMsg::StopNote { note },
+            ));
+        });
     }
 
     #[pyo3(signature = ())]
