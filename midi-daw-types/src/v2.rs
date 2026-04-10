@@ -1,6 +1,7 @@
 use crate::{
-    v1::note_from_str, v2::thread::MidiDawThread, MidiChannel, MidiDeviceName, MidiMsg,
-    NoteDuration,
+    v1::note_from_str,
+    v2::{mini_notation::Parser, thread::MidiDawThread},
+    MidiChannel, MidiDeviceName, MidiMsg, NoteDuration,
 };
 use bincode::{Decode, Encode};
 use crossbeam::channel::{unbounded, Receiver, Sender};
@@ -25,7 +26,6 @@ use std::{
         Arc, Mutex, RwLock,
     },
     thread::spawn,
-    time::Instant,
 };
 #[cfg(not(feature = "pyo3"))]
 use tracing::*;
@@ -34,6 +34,7 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 // pub mod v2;
 pub mod automation;
+pub mod mini_notation;
 pub mod thread;
 
 pub const SYNC_DEV_NAME: &str = "MIDI-DAW-SYNC-DEV";
@@ -383,7 +384,7 @@ pub struct Api {
     // tempo: f64,
     scale: Option<(Scale, u8)>,
     i: usize,
-    i_s: FxHashMap<String, usize>,
+    parsers: FxHashMap<String, Parser>,
 }
 
 impl Api {
@@ -403,7 +404,7 @@ impl Api {
             // tempo,
             scale: None,
             i: 0,
-            i_s: FxHashMap::default(),
+            parsers: FxHashMap::default(),
         }
     }
 }
@@ -450,7 +451,7 @@ impl Api {
         });
     }
 
-    fn do_get_midi_note(&self, note: String) -> u8 {
+    pub fn get_midi_note(&self, note: String) -> u8 {
         if let (Some((scale, octave)), Ok(new_note)) = (&self.scale, note.parse::<usize>()) {
             // println!("new_note: {new_note}");
 
@@ -464,52 +465,56 @@ impl Api {
         }
     }
 
-    fn parse_mini_notation(&self, notes: String, raw_notes: &mut Vec<String>) {
-        // warn!("note 2 :  {notes}");
+    // fn parse_mini_notation(&self, notes: String, raw_notes: &mut Vec<String>) {
+    //     // warn!("note 2 :  {notes}");
+    //
+    //     if notes.starts_with('<') && notes.ends_with('>') {
+    //         let notes = notes[1..notes.len() - 1].to_string();
+    //         self.parse_mini_notation(notes, raw_notes);
+    //     } else if notes.contains(" ") {
+    //         for note in notes.split(" ") {
+    //             self.parse_mini_notation(note.into(), raw_notes);
+    //         }
+    //     } else if let Some((note, Ok(x))) = notes.split_once("*").map(|(note, x)| (note, x.parse()))
+    //     {
+    //         for _ in 0..x {
+    //             raw_notes.push(note.into());
+    //         }
+    //     } else {
+    //         // info!("pushing {notes:?}");
+    //         raw_notes.push(notes);
+    //     }
+    // }
 
-        if notes.starts_with('<') && notes.ends_with('>') {
-            let notes = notes[1..notes.len() - 1].to_string();
-            self.parse_mini_notation(notes, raw_notes);
-        } else if notes.contains(" ") {
-            for note in notes.split(" ") {
-                self.parse_mini_notation(note.into(), raw_notes);
-            }
-        } else if let Some((note, Ok(x))) = notes.split_once("*").map(|(note, x)| (note, x.parse()))
-        {
-            for _ in 0..x {
-                raw_notes.push(note.into());
-            }
-        } else {
-            // info!("pushing {notes:?}");
-            raw_notes.push(notes);
-        }
-    }
-
-    pub fn get_midi_note(&mut self, notes: String) -> u8 {
-        // TODO: write PEG grammar for this
-        self.i_s.entry(notes.clone()).or_insert(0);
-
-        if (notes.starts_with('<') && notes.ends_with('>'))
-            || notes.contains("*")
-            || notes.contains(" ")
-        {
-            let mut raw_notes = Vec::new();
-            self.parse_mini_notation(notes.clone(), &mut raw_notes);
-            let note = {
-                let i = self.i_s.get_mut(&notes.clone()).unwrap();
-                let note = raw_notes[*i % raw_notes.len()].clone();
-                *i += 1;
-                note
-            };
-            self.do_get_midi_note(note)
-        } else {
-            self.do_get_midi_note(notes)
-        }
-    }
+    // pub fn get_midi_note(&mut self, notes: String) -> u8 {
+    //     // TODO: write PEG grammar for this
+    //     // self.entry(notes.clone()).or_insert(0);
+    //
+    //     if (notes.starts_with('<') && notes.ends_with('>'))
+    //         || notes.contains("*")
+    //         || notes.contains(" ")
+    //     {
+    //         let mut raw_notes = Vec::new();
+    //         self.parse_mini_notation(notes.clone(), &mut raw_notes);
+    //         let note = {
+    //             let i = self.i_s.get_mut(&notes.clone()).unwrap();
+    //             let note = raw_notes[*i % raw_notes.len()].clone();
+    //             *i += 1;
+    //             note
+    //         };
+    //         self.do_get_midi_note(note)
+    //     } else {
+    //         self.do_get_midi_note(notes)
+    //     }
+    // }
 
     fn increment(&mut self) {
         self.i += 1;
         self.i %= usize::MAX;
+    }
+
+    fn reset_i(&mut self) {
+        self.i = 0;
     }
 }
 
@@ -526,23 +531,77 @@ impl Api {
     // /// starts playback
     // fn start(&self) {}
 
+    #[pyo3(signature = (note, dur = None, vel = None, _blocking = None))]
+    fn seq(
+        &mut self,
+        note: String,
+        dur: Option<NoteDuration>,
+        vel: Option<u8>,
+        _blocking: Option<bool>,
+    ) {
+        // let key = format!("{} => {}", self.i, note.clone());
+        // println!("hashmap key = {key}");
+        // self.parsers
+        //     .entry(key.clone())
+        //     .or_insert(Parser::new(note.clone()));
+        // let key = note.clone();
+        // warn!("hashmap key = {key}");
+        // if !self.parsers.contains_key(&key) {
+        // warn!("hashmap key = {key}");
+        let mut p = Parser::new(note.clone());
+        p.parse();
+
+        // self.parsers.insert(key.clone(), p);
+        // }
+
+        // if let Some(parser) = self.parsers.get_mut(&key) {
+        loop {
+            let note = p.get_next();
+            let dur = dur.unwrap_or(NoteDuration::Sn(1));
+
+            for note in note.iter() {
+                let note = self.get_midi_note(note.clone());
+                _ = self.__coms.send((
+                    (self.device.clone(), self.channel),
+                    MidiMsg::PlayNote {
+                        note,
+                        velocity: vel.unwrap_or(100),
+                        duration: dur,
+                    },
+                ));
+            }
+
+            self.do_rest(dur);
+
+            for note in note.iter() {
+                let note = self.get_midi_note(note.clone());
+                _ = self.__coms.send((
+                    (self.device.clone(), self.channel),
+                    MidiMsg::StopNote { note },
+                ));
+            }
+        }
+
+        // self.increment()
+    }
+
     /// plays a note
-    #[pyo3(signature = (note, dur = None, vel = None, blocking = None))]
+    #[pyo3(signature = (note, dur = None, vel = None, _blocking = None))]
     fn note(
         &mut self,
         note: String,
         dur: Option<NoteDuration>,
         vel: Option<u8>,
-        blocking: Option<bool>,
+        _blocking: Option<bool>,
     ) {
-        // let now = Instant::now();
+        // let key = format!("{} => {}", self.i, note.clone());
+        // println!("hashmap key = {key}");
+        // self.parsers
+        //     .entry(key.clone())
+        //     .or_insert(Parser::new(note.clone()));
         let dur = dur.unwrap_or(NoteDuration::Sn(1));
-        // println!(
-        //     "playing {note}@{vel:?} for {dur:?}, on: {:?}. blocking? {blocking:?}",
-        //     self.device
-        // );
-        // warn!("note 1 :  {note}");
-        let note = self.get_midi_note(note);
+
+        let note = self.get_midi_note(note.clone());
         _ = self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::PlayNote {
@@ -551,11 +610,15 @@ impl Api {
                 duration: dur,
             },
         ));
+
         self.do_rest(dur);
+
         _ = self.__coms.send((
             (self.device.clone(), self.channel),
             MidiMsg::StopNote { note },
         ));
+
+        self.increment()
     }
 
     fn set_scale(&mut self, root: String, scale_type: String) {
@@ -925,7 +988,8 @@ impl MidiDaw {
                                     func.call(py, &loc_args, kwargs)
                                 }
                             }?;
-                            api.increment();
+                            // api.increment();
+                            api.reset_i();
 
                             Ok(res)
                         }
@@ -957,6 +1021,7 @@ impl MidiDaw {
                                     break;
                                 }
                                 // api.increment();
+                                // api.reset_i();
                             }
                         } else {
                             // println!("about to loop once");

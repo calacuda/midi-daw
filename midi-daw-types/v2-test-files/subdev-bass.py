@@ -10,7 +10,7 @@ song = v2.MidiDaw("vital-bass", MidiChannel.Ch1, virt=True)
 @song.register
 def f(api):
     for _ in range(3):
-        api.play("<f3 c3>", sn())
+        api.seq("<f3 c3>", sn())
         api.rest(sn())
 
     api.rest(en())

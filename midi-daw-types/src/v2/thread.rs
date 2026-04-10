@@ -101,7 +101,7 @@ impl MidiDawThread {
                             api.i = 0;
                             break;
                         } else {
-                            api.increment();
+                            api.reset_i();
                         }
 
                         if exit.load(Ordering::Relaxed) {
@@ -142,7 +142,8 @@ impl MidiDawThread {
                             api.i = 0;
                             break;
                         } else {
-                            api.increment();
+                            // api.increment();
+                            api.reset_i();
                         }
 
                         if exit.load(Ordering::Relaxed) {
