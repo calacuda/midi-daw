@@ -1,6 +1,7 @@
 from midi_daw import MidiChannel, NoteLen, v2
 from midi_daw.v2 import lfo, main
 from midi_daw.v2.note_lens import *
+# from reloadr import autoreload
 
 lead = v2.MidiDaw("vital-lead", MidiChannel.Ch1, virt=True)
 bass = v2.MidiDaw("vital-bass", MidiChannel.Ch1, virt=True)

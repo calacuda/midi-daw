@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ pub enum MnStepType {
     Serialize, Deserialize, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug,
 )]
 enum MnTokenType {
-    Alternator(usize, Vec<MnTokenType>),
+    Alternator(usize, Vec<MnTokenType>, bool),
     Chord(Vec<MnTokenType>),
     Note(String),
     Rest,
@@ -35,6 +35,7 @@ pub struct Parser {
     full_i: (usize, usize),
     notes: Vec<MnTokenType>,
     i: usize,
+    total_steps: usize,
 }
 
 impl Parser {
@@ -46,6 +47,7 @@ impl Parser {
             full_text,
             notes: Vec::new(),
             i: 0,
+            total_steps: 0,
         }
     }
 
@@ -97,6 +99,9 @@ impl Parser {
                     depth + 1,
                 );
 
+                // trace!("[depth = {depth}]: seq the rest {loc_the_rest}");
+                // println!("[depth = {depth}]: seq the rest {loc_the_rest}, ytp: {yet_to_parse}");
+
                 if let Some((n, loc_the_rest)) = loc_the_rest.strip_prefix("*").map(|s| {
                     s.split_once(" ")
                         .map(|(tok, rest)| (tok.to_string(), Some(rest.to_string())))
@@ -108,9 +113,30 @@ impl Parser {
                         tokens.append(&mut loc_tokens.clone());
                     }
 
+                    self.total_steps += loc_tokens
+                        .iter()
+                        .map(|token| match token.clone() {
+                            MnTokenType::Rest => 1,
+                            MnTokenType::Note(_) => 1,
+                            MnTokenType::Chord(_) => 1,
+                            MnTokenType::Alternator(_, notes, _) => notes.len(),
+                        })
+                        .sum::<usize>()
+                        * (n - 1);
+
                     the_rest = loc_the_rest;
                 } else {
-                    tokens.push(MnTokenType::Alternator(0, loc_tokens));
+                    // self.total_steps += loc_tokens.len();
+                    tokens.push(MnTokenType::Alternator(0, loc_tokens.clone(), false));
+                    self.total_steps += loc_tokens
+                        .iter()
+                        .map(|token| match token.clone() {
+                            MnTokenType::Rest => 1,
+                            MnTokenType::Note(_) => 1,
+                            MnTokenType::Chord(_) => 1,
+                            MnTokenType::Alternator(_, notes, _) => notes.len(),
+                        })
+                        .sum::<usize>();
                 }
                 // the_rest = Some(loc_the_rest);
                 yet_to_parse = loc_the_rest;
@@ -138,7 +164,47 @@ impl Parser {
                 );
                 // loc_tokens.append(&mut tokens);
                 // token = loc_token.clone();
-                tokens.push(MnTokenType::Chord(loc_tokens.clone()));
+                // tokens.push(MnTokenType::Chord(loc_tokens.clone()));
+
+                if let Some((n, loc_the_rest)) = loc_the_rest.strip_prefix("*").map(|s| {
+                    s.split_once(" ")
+                        .map(|(tok, rest)| (tok.to_string(), Some(rest.to_string())))
+                        .unwrap_or((s.to_string(), None))
+                }) {
+                    let n = n.parse::<usize>().unwrap_or(1);
+
+                    for _ in 0..n {
+                        // tokens.append(&mut loc_tokens.clone());
+                        tokens.push(MnTokenType::Chord(loc_tokens.clone()));
+                    }
+
+                    // self.total_steps += loc_tokens
+                    //     .iter()
+                    //     .map(|token| match token.clone() {
+                    //         MnTokenType::Rest => 1,
+                    //         MnTokenType::Note(_) => 1,
+                    //         MnTokenType::Chord(_) => 1,
+                    //         MnTokenType::Alternator(_, notes) => notes.len(),
+                    //     })
+                    //     .sum::<usize>()
+                    //     * (n - 1);
+
+                    the_rest = loc_the_rest;
+                } else {
+                    // self.total_steps += loc_tokens.len();
+                    tokens.push(MnTokenType::Chord(loc_tokens.clone()));
+                    // self.total_steps += loc_tokens
+                    //     .iter()
+                    //     .map(|token| match token.clone() {
+                    //         MnTokenType::Rest => 1,
+                    //         MnTokenType::Note(_) => 1,
+                    //         MnTokenType::Chord(_) => 1,
+                    //         MnTokenType::Alternator(_, notes) => notes.len(),
+                    //     })
+                    //     .sum::<usize>();
+                }
+
+                // self.total_steps += 1;
                 // the_rest = Some(loc_the_rest);
                 yet_to_parse = loc_the_rest;
                 trace!(
@@ -159,48 +225,7 @@ impl Parser {
                 the_rest = Some(loc_the_rest.clone());
                 tokens.append(&mut loc_tokens);
                 yet_to_parse = loc_the_rest;
-            }
-            // else if token.contains(format!("{close}*").as_str()) {
-            //     let (loc_token, loc_the_rest) = token
-            //         // .clone()
-            //         .split_once("*")
-            //         .map(|(tok, rest)| (tok.to_string(), Some(rest.to_string())))
-            //         .unwrap_or((to_parse.to_string(), None));
-            //     // loc_tokens.append(&mut self.do_parse(token.as_str()));
-            //     // self.do_parse(token.as_str(), &mut loc_tokens);
-            //     let token = loc_token.clone();
-            //
-            //     let n = if let Some(Ok(n)) = loc_the_rest
-            //         .as_ref()
-            //         .map(|the_rest| the_rest.parse::<usize>())
-            //     //   i  .clone()
-            //     //     .map(|token| token.split_once("*").map(|(_, n)| n.parse::<usize>()))
-            //     {
-            //         n
-            //     } else {
-            //         1
-            //     };
-            //
-            //     println!("[depth = {depth}]: token mulitplied");
-            //     let (loc_tokens, _loc_the_rest) = self.do_parse_pattern(close, &token, depth + 1);
-            //
-            //     for _ in 0..n {
-            //         tokens.append(&mut loc_tokens.clone());
-            //     }
-            //
-            //     // if let Some(tr) = the_rest.clone() {
-            //     //     (_, the_rest) = tr
-            //     //         .split_once(" ")
-            //     //         .map(|(tok, rest)| (tok.to_string(), Some(rest.to_string())))
-            //     //         .unwrap_or((to_parse.to_string(), None));
-            //     // }
-            //
-            //     yet_to_parse = the_rest.unwrap_or(String::new());
-            //     // glob_the_rest = the_rest;
-            //
-            //     break;
-            // }
-            else if token.contains(close) && !close.is_empty() {
+            } else if token.contains(close) && !close.is_empty() {
                 // token = token.replacen(close, "", 1);
                 let old_the_rest = the_rest.clone();
                 (token, the_rest) = token
@@ -213,6 +238,9 @@ impl Parser {
                 trace!(
                     "[depth = {depth}]: cleaned token = {close} | {token} | {the_rest:?} | {old_the_rest:?}"
                 );
+                // println!(
+                //     "[depth = {depth}]: cleaned token = {token} | {close} | {the_rest:?} | {old_the_rest:?}"
+                // );
                 // loc_tokens.append(&mut self.do_parse(token.as_str()));
                 // self.do_parse(token.as_str(), &mut loc_tokens);
 
@@ -222,12 +250,24 @@ impl Parser {
                 let (mut loc_tokens, loc_the_rest) =
                     self.do_parse_pattern(close, token.as_str(), depth + 1);
                 trace!("[depth = {depth}]: close not empty: {loc_the_rest} vs {the_rest:?}");
+                // println!("[depth = {depth}]: close not empty: {loc_the_rest} vs {the_rest:?}");
+                // println!("[depth = {depth}]: close not empty: {loc_the_rest} vs {the_rest:?}");
                 // the_rest = Some(loc_the_rest.clone());
                 tokens.append(&mut loc_tokens);
 
+                // self.total_steps += loc_tokens
+                //     .iter()
+                //     .map(|token| match token.clone() {
+                //         MnTokenType::Rest => 1,
+                //         MnTokenType::Note(_) => 1,
+                //         MnTokenType::Chord(_) => 1,
+                //         MnTokenType::Alternator(_, notes) => notes.len(),
+                //     })
+                //     .sum::<usize>();
+
                 // yet_to_parse = loc_the_rest;
                 // yet_to_parse = the_rest.unwrap_or(String::new());
-                yet_to_parse = old_the_rest.unwrap_or(String::new());
+                yet_to_parse = old_the_rest.unwrap_or(the_rest.unwrap_or(String::new()));
 
                 break;
             } else if token.is_empty() {
@@ -257,8 +297,19 @@ impl Parser {
                 trace!("[depth = {depth}]: note token {token} mulitplied by {n}");
                 let (loc_tokens, _loc_the_rest) = self.do_parse_pattern(close, &token, depth + 1);
                 trace!("[depth = {depth}]: note token {token} the_rest: {_loc_the_rest:?}");
+                // self.total_steps += loc_tokens
+                //     .iter()
+                //     .map(|token| match token.clone() {
+                //         MnTokenType::Rest => 1,
+                //         MnTokenType::Note(_) => 1,
+                //         MnTokenType::Chord(_) => 1,
+                //         MnTokenType::Alternator(_, notes) => notes.len(),
+                //     })
+                //     .sum::<usize>()
+                //     * (n - 1);
 
                 for _ in 0..n {
+                    // self.total_steps += loc_tokens.len();
                     tokens.append(&mut loc_tokens.clone());
                 }
 
@@ -274,6 +325,9 @@ impl Parser {
                     "[depth = {depth}]: note token {token}, after if-let  the_rest: {the_rest:?}"
                 );
 
+                yet_to_parse = the_rest.clone().unwrap_or(String::new());
+            } else if token == "~" {
+                tokens.push(MnTokenType::Rest);
                 yet_to_parse = the_rest.clone().unwrap_or(String::new());
             } else {
                 trace!("[depth = {depth}]: pushing note: {token}, {the_rest:?}");
@@ -297,7 +351,14 @@ impl Parser {
             }
         }
 
+        // if close == "]" {
+        //     self.total_steps += 1;
+        // } else {
+        //     self.total_steps += tokens.len();
+        // }
+
         trace!("[depth = {depth}]: do_parse_pattern 3 => ({tokens:?}, {yet_to_parse:?})");
+        // println!("[depth = {depth}]: do_parse_pattern 3 => ({tokens:?}, {yet_to_parse:?})");
 
         (tokens.clone(), yet_to_parse)
     }
@@ -385,15 +446,60 @@ impl Parser {
         // let mut tokens = Vec::new();
         // self.do_parse(self.full_text.clone().as_str(), &mut tokens);
         (self.notes, _) = self.do_parse_pattern("", self.full_text.clone().as_str(), 0);
+        let mut notes_bak = self.notes.clone();
+        // println!("notes =>  {notes_bak:?}");
+
+        if !self.notes.is_empty() && self.has_alternator(&notes_bak) {
+            let mut count = 0;
+            let mut old_count = 1;
+            let mut not_done = true;
+
+            while not_done && old_count != count {
+                old_count = count;
+                for token in notes_bak.iter_mut() {
+                    Self::do_count_steps(
+                        token,
+                        &mut count,
+                        matches!(token, MnTokenType::Chord(_)),
+                        &mut not_done,
+                    );
+                }
+
+                // println!("count = {count}");
+            }
+
+            self.total_steps = count;
+        } else {
+            self.total_steps = self.notes.len();
+        }
 
         trace!("tokens: {:?}", self.notes);
 
         // self.notes = tokens;
     }
 
+    fn has_alternator(&self, notes: &Vec<MnTokenType>) -> bool {
+        let mut seen = false;
+
+        for note in notes {
+            match note {
+                MnTokenType::Alternator(_, _, _) => {
+                    seen = true;
+                    break;
+                }
+                MnTokenType::Chord(notes) => {
+                    seen = seen || self.has_alternator(notes);
+                }
+                _ => {}
+            }
+        }
+
+        seen
+    }
+
     fn do_get_next(note: &mut MnTokenType) -> Option<MnStepType> {
         match note {
-            MnTokenType::Alternator(i, notes) => {
+            MnTokenType::Alternator(i, notes, _) => {
                 let len = notes.len();
                 let note = if len > 1 {
                     notes.get_mut(*i % len)?
@@ -427,8 +533,67 @@ impl Parser {
         }
     }
 
-    pub fn get_next(&mut self) -> Vec<String> {
+    fn do_count_steps(
+        note: &mut MnTokenType,
+        count: &mut usize,
+        in_chord: bool,
+        not_done: &mut bool,
+    ) {
+        match note {
+            MnTokenType::Alternator(i, notes, completed) => {
+                // if *i < notes.len() {
+                // if !*all_done {
+                let len = notes.len();
+
+                // for note in notes.iter_mut() {
+                if let Some(note) = notes.get_mut(*i % len) {
+                    Self::do_count_steps(note, count, false, not_done);
+                }
+                // }
+                // }
+
+                // println!("notes => {notes:?}");
+
+                *i += 1;
+
+                if !*completed {
+                    *completed = *i >= len;
+                }
+
+                *not_done = *not_done && !*completed;
+
+                // println!("not_done {not_done}");
+            }
+            MnTokenType::Chord(notes) => {
+                let old_count = *count;
+
+                for note in notes {
+                    Self::do_count_steps(note, count, true, not_done);
+                }
+
+                if *count == old_count && !in_chord {
+                    *count += 1;
+                }
+            }
+            MnTokenType::Note(_name) => {
+                if !in_chord {
+                    *count += 1;
+                }
+            }
+            MnTokenType::Rest => {
+                if !in_chord {
+                    *count += 1;
+                }
+            }
+        }
+    }
+    pub fn get_next(&mut self) -> Option<Vec<String>> {
         let len = self.notes.len();
+
+        if self.i == self.total_steps {
+            return None;
+        }
+
         let note = if len > 1 {
             self.notes.get_mut(self.i % len).unwrap()
         } else {
@@ -438,12 +603,13 @@ impl Parser {
         let res = match Self::do_get_next(note) {
             Some(MnStepType::Chord(notes)) => notes,
             Some(MnStepType::Note(note)) => vec![note],
-            Some(MnStepType::Rest) | None => Vec::with_capacity(0),
+            Some(MnStepType::Rest) => vec!["~".into()],
+            None => Vec::with_capacity(0),
         };
 
         self.i += 1;
 
-        res
+        Some(res)
     }
 }
 
@@ -455,7 +621,7 @@ mod test {
     fn single_note() {
         let mut parser = Parser::new("f3");
         parser.parse();
-        let next = parser.get_next();
+        let next = parser.get_next().unwrap();
         // let note = note_from_str("f3".into()).expect("should not be reachable");
         let note = "f3";
 
@@ -466,9 +632,10 @@ mod test {
     fn single_chord() {
         let mut parser = Parser::new("[f3 c4]");
         parser.parse();
+        assert_eq!(parser.total_steps, 1, "wrong number of notes registered");
 
         // for (i, note) in ["f3", "c4"].iter().enumerate() {
-        let next = parser.get_next();
+        let next = parser.get_next().unwrap();
         // let n_1 = note_from_str("f3".into()).expect("should not be reachable");
         // let n_2 = note_from_str("c4".into()).expect("should not be reachable");
         let n_1 = "f3";
@@ -482,13 +649,19 @@ mod test {
     fn single_seq() {
         let mut parser = Parser::new("<f3 c4>");
         parser.parse();
+        assert_eq!(parser.total_steps, 2, "wrong number of notes registered");
 
         for (i, note) in ["f3", "c4"].iter().enumerate() {
-            let next = parser.get_next();
+            let next = parser.get_next().unwrap();
             // let note = note_from_str((*note).into()).expect("should not be reachable");
             let note = note.to_string();
 
-            assert_eq!(next, vec![note], "[note {i}]: {next:?} != {:?}", vec![note])
+            assert_eq!(
+                next,
+                vec![note.clone()],
+                "[note {i}]: {next:?} != {:?}",
+                vec![note]
+            )
         }
 
         // panic!("manual fail");
@@ -498,9 +671,10 @@ mod test {
     fn three_long_seq() {
         let mut parser = Parser::new("<f3 a3 c4>");
         parser.parse();
+        assert_eq!(parser.total_steps, 3, "wrong number of notes registered");
 
         for (i, note_name) in ["f3", "a3", "c4"].iter().enumerate() {
-            let next = parser.get_next();
+            let next = parser.get_next().unwrap();
             // let note = note_from_str((*note_name).into()).expect("should not be reachable");
             let note_name = note_name.to_string();
 
@@ -518,9 +692,14 @@ mod test {
     fn chord_wrapping_seq() {
         let mut parser = Parser::new("[f3 <a3 c4>]");
         parser.parse();
+        assert_eq!(
+            parser.total_steps, 2,
+            "wrong number of notes registered, {:?}",
+            parser.notes
+        );
 
         for (i, note_names) in [["f3", "a3"], ["f3", "c4"]].iter().enumerate() {
-            let next = parser.get_next();
+            let next = parser.get_next().unwrap();
             println!("next => {next:?}");
 
             for (j, note) in note_names.iter().enumerate() {
@@ -538,9 +717,35 @@ mod test {
     fn seq_wrapping_chord() {
         let mut parser = Parser::new("<f3 [a3 c4]>");
         parser.parse();
+        assert_eq!(parser.total_steps, 2, "wrong number of notes registered");
 
         for (i, note_names) in [vec!["f3"], vec!["a3", "c4"]].iter().enumerate() {
-            let next = parser.get_next();
+            let next = parser.get_next().unwrap();
+            println!("next => {next:?}");
+
+            for (j, note_name) in note_names.iter().enumerate() {
+                // let note = note_from_str((*note_name).into()).expect("should not be reachable");
+                let note = note_name.to_string();
+
+                assert_eq!(
+                    next[j], note,
+                    "[note {i}:{j}]: {} != {}",
+                    next[j], note_name,
+                )
+            }
+        }
+
+        // panic!("manual fail");
+    }
+
+    #[test]
+    fn long_seq() {
+        let mut parser = Parser::new("<f3 a3 c4>");
+        parser.parse();
+        assert_eq!(parser.total_steps, 3, "wrong number of notes registered");
+
+        for (i, note_names) in [vec!["f3"], vec!["a3"], vec!["c4"]].iter().enumerate() {
+            let next = parser.get_next().unwrap();
             println!("next => {next:?}");
 
             for (j, note_name) in note_names.iter().enumerate() {
@@ -562,9 +767,10 @@ mod test {
     fn multiply_note_in_seq() {
         let mut parser = Parser::new("<f3*3 c4>");
         parser.parse();
+        assert_eq!(parser.total_steps, 4, "wrong number of notes registered");
 
         for (_i, note) in ["f3", "f3", "f3", "c4"].iter().enumerate() {
-            let next = parser.get_next();
+            let next = parser.get_next().unwrap();
             // let note = note_from_str(note.to_string()).expect("should not be reachable");
             let note = note.to_string();
 
@@ -576,11 +782,16 @@ mod test {
     fn multiply_a_seq() {
         let mut parser = Parser::new("<f3 c4>*3");
         parser.parse();
+        assert_eq!(
+            parser.total_steps, 6,
+            "wrong number of notes registered, was: {}, notes: {:?}",
+            parser.total_steps, parser.notes,
+        );
         assert_eq!(parser.notes.len(), 6, "wrong length token tree");
 
         for _ in 0..3 {
             for (i, note_name) in ["f3", "c4"].iter().enumerate() {
-                let next = parser.get_next();
+                let next = parser.get_next().unwrap();
                 println!("next => {next:?}");
 
                 // for (j, note_name) in note_names.iter().enumerate() {
@@ -597,5 +808,21 @@ mod test {
                 )
             }
         }
+    }
+
+    #[test]
+    fn nested_seq() {
+        let to_parse = "c4 <e4*2 b4> <c4*2 g4> g4";
+        let mut parser = Parser::new(to_parse);
+        parser.parse();
+        for i in 0..parser.total_steps {
+            println!("{i}: note => {:?}", parser.get_next());
+        }
+
+        assert_eq!(
+            parser.total_steps, 12,
+            "wrong number of notes registered, was: {}, {to_parse}, notes: {:?}",
+            parser.total_steps, parser.notes,
+        );
     }
 }

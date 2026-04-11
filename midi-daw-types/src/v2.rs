@@ -8,7 +8,7 @@ use crossbeam::channel::{Receiver, Sender, unbounded};
 use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use log::*;
-use midir::{MidiInput, MidiOutput, MidiOutputConnection, os::unix::VirtualOutput};
+use midir::{MidiIO, MidiInput, MidiOutput, MidiOutputConnection, os::unix::VirtualOutput};
 use musical_scales::{PitchClass, Scale, ScaleType};
 use pyo3::types::PyCFunction;
 #[cfg(feature = "pyo3")]
@@ -325,8 +325,25 @@ fn midi_out_thread() {
                 false
             }
             ((MidiDev::Physical(dev_name), _channel), _msg) => {
-                error!("the requested physical midi device, \"{dev_name}\", is not connected.");
-                error!("known midi devs = {:?}", midi_devs.keys());
+                warn!("the requested physical midi device, \"{dev_name}\", is not connected.");
+                warn!("known midi devs = {:?}", midi_devs.keys());
+
+                let pid = process::id();
+
+                let out = MidiOutput::new(&format!("midi-daw-{pid}")).unwrap();
+                let ports = out.ports();
+
+                for port in ports {
+                    if let Ok(p_name) = out.port_name(&port) {
+                        debug!("p_names :  {p_name} == {dev_name} ? {}", p_name == dev_name);
+
+                        if p_name == dev_name {
+                            midi_devs.insert(p_name.clone(), out.connect(&port, &p_name).unwrap());
+                            return false;
+                        }
+                    }
+                }
+
                 true
             }
             ((MidiDev::Virtual(dev_name), _channel), _msg) => {
@@ -379,11 +396,11 @@ pub struct Api {
     pub channel: MidiChannel,
     // __threads: Vec<JoinHandle<()>>,
     __coms: Sender<MidiThreadCtrlMesg>,
-    __name: String,
+    // __name: String,
     // tempo: f64,
     scale: Option<(Scale, u8)>,
     i: usize,
-    parsers: FxHashMap<String, Parser>,
+    // parsers: FxHashMap<String, Parser>,
 }
 
 impl Api {
@@ -391,7 +408,7 @@ impl Api {
         dev: MidiDev,
         channel: MidiChannel,
         // __coms: Sender<MidiThreadCtrlMesg>,
-        name: String,
+        // name: String,
         // tempo: f64,
     ) -> Self {
         Self {
@@ -399,11 +416,11 @@ impl Api {
             channel,
             // __threads: Vec::new(),
             __coms: MIDI_OUT_THREAD_COMS.0.clone(),
-            __name: name,
+            // __name: name,
             // tempo,
             scale: None,
             i: 0,
-            parsers: FxHashMap::default(),
+            // parsers: FxHashMap::default(),
         }
     }
 }
@@ -519,13 +536,21 @@ impl Api {
 
 #[pymethods]
 impl Api {
-    // #[new]
-    // fn new(dev: MidiDeviceName, channel: MidiChannel) -> Self {
-    //     Self {
-    //         device: dev,
-    //         channel,
-    //     }
-    // }
+    #[new]
+    fn new_py(dev: MidiDeviceName, channel: MidiChannel, is_virt: bool) -> Self {
+        // Self {
+        //     device: dev,
+        //     channel,
+        // }
+        Self::new(
+            if is_virt {
+                MidiDev::Virtual(dev)
+            } else {
+                MidiDev::Physical(dev)
+            },
+            channel,
+        )
+    }
 
     // /// starts playback
     // fn start(&self) {}
@@ -538,46 +563,38 @@ impl Api {
         vel: Option<u8>,
         _blocking: Option<bool>,
     ) {
-        // let key = format!("{} => {}", self.i, note.clone());
-        // println!("hashmap key = {key}");
-        // self.parsers
-        //     .entry(key.clone())
-        //     .or_insert(Parser::new(note.clone()));
-        // let key = note.clone();
-        // warn!("hashmap key = {key}");
-        // if !self.parsers.contains_key(&key) {
-        // warn!("hashmap key = {key}");
         let mut p = Parser::new(note.clone());
         p.parse();
+        let dur = dur.unwrap_or(NoteDuration::Sn(1));
 
-        // self.parsers.insert(key.clone(), p);
-        // }
+        while let Some(notes) = p.get_next() {
+            // info!("notes :  {notes:?}");
 
-        // if let Some(parser) = self.parsers.get_mut(&key) {
-        loop {
-            let note = p.get_next();
-            let dur = dur.unwrap_or(NoteDuration::Sn(1));
-
-            for note in note.iter() {
-                let note = self.get_midi_note(note.clone());
-                _ = self.__coms.send((
-                    (self.device.clone(), self.channel),
-                    MidiMsg::PlayNote {
-                        note,
-                        velocity: vel.unwrap_or(100),
-                        duration: dur,
-                    },
-                ));
+            for note in notes.iter() {
+                if note != "~" {
+                    // info!("{note}");
+                    let note = self.get_midi_note(note.clone());
+                    _ = self.__coms.send((
+                        (self.device.clone(), self.channel),
+                        MidiMsg::PlayNote {
+                            note,
+                            velocity: vel.unwrap_or(100),
+                            duration: dur,
+                        },
+                    ));
+                }
             }
 
             self.do_rest(dur);
 
-            for note in note.iter() {
-                let note = self.get_midi_note(note.clone());
-                _ = self.__coms.send((
-                    (self.device.clone(), self.channel),
-                    MidiMsg::StopNote { note },
-                ));
+            for note in notes.iter() {
+                if note != "~" {
+                    let note = self.get_midi_note(note.clone());
+                    _ = self.__coms.send((
+                        (self.device.clone(), self.channel),
+                        MidiMsg::StopNote { note },
+                    ));
+                }
             }
         }
 
@@ -793,6 +810,7 @@ pub struct MidiDaw {
     pub block: Option<bool>,
     pub scale: Option<Arc<RwLock<Scale>>>,
     pub tempo: f64,
+    n_functions: usize,
 }
 
 impl MidiDaw {
@@ -825,6 +843,7 @@ impl MidiDaw {
             block,
             scale: None,
             tempo,
+            n_functions: 0,
         }
     }
 
@@ -835,7 +854,11 @@ impl MidiDaw {
         // func: Py<PyFunction>,
         func: Py<PyAny>,
     ) -> PyResult<Bound<'a, PyCFunction>> {
-        let func_name = func.getattr(py, "__name__")?.to_string();
+        let func_name = func
+            .getattr(py, "__name__")
+            .map(|attr| attr.to_string())
+            .unwrap_or(format!("f_{}", self.n_functions));
+        self.n_functions += 1;
         println!(
             "playing \"{func_name}\" on {:?}:{:?}",
             self.device, self.channel
@@ -845,7 +868,7 @@ impl MidiDaw {
             self.device.clone(),
             self.channel,
             // tx,
-            func_name.to_string(),
+            // func_name.to_string(),
             // self.tempo,
         );
         // let func = Arc::new(func.bind(py));
@@ -1386,6 +1409,7 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     let _midi_sync_thread = spawn(midi_sync_thread);
 
     m.add_class::<MidiDaw>()?;
+    m.add_class::<Api>()?;
     m.add_function(wrap_pyfunction!(list_devs, m)?)?;
     m.add_function(wrap_pyfunction!(py_find_dev, m)?)?;
     // m.add_function(wrap_pyfunction!(py_mk_dev, m)?)?;
