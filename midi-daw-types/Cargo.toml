@@ -18,6 +18,7 @@ pyo3 = ["dep:pyo3", "dep:pyo3-log", "dep:log"]
 
 [dependencies]
 bincode = "2.0.1"
+color-eyre = "0.6.5"
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 enum_dispatch = "0.3"
 hound = "3.5"
@@ -29,6 +30,7 @@ midir = { version = "0.10.3", features = ["jack"] }
 musical_scales = "0.2.0"
 pyo3 = { version = "0.28", optional = true }
 pyo3-log = { version = "0.13", optional = true }
+ratatui = "0.30.0"
 rust-fuzzy-search = "0.1.1"
 rustc-hash = "2.1.2"
 serde = { version = "1.0", features = ["derive"] }

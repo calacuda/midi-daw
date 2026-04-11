@@ -1,14 +1,14 @@
 use crate::{
+    MidiChannel, MidiDeviceName, MidiMsg, NoteDuration,
     v1::note_from_str,
     v2::{mini_notation::Parser, thread::MidiDawThread},
-    MidiChannel, MidiDeviceName, MidiMsg, NoteDuration,
 };
 use bincode::{Decode, Encode};
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use log::*;
-use midir::{os::unix::VirtualOutput, MidiInput, MidiOutput, MidiOutputConnection};
+use midir::{MidiInput, MidiOutput, MidiOutputConnection, os::unix::VirtualOutput};
 use musical_scales::{PitchClass, Scale, ScaleType};
 use pyo3::types::PyCFunction;
 #[cfg(feature = "pyo3")]
@@ -22,8 +22,8 @@ use std::{
     ops::Deref,
     process,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex, RwLock,
+        atomic::{AtomicBool, Ordering},
     },
     thread::spawn,
 };
@@ -53,7 +53,6 @@ pub type MidiThreadCtrlMesg = ((MidiDev, MidiChannel), MidiMsg);
 pub type MidiSyncMesg = (MidiSyncCommand, Sender<usize>);
 
 lazy_static! {
-    /// This is an example for using doc comment attributes
     static ref MIDI_OUT_THREAD_COMS: (Sender<MidiThreadCtrlMesg>, Receiver<MidiThreadCtrlMesg>) = unbounded();
     static ref MIDI_OUT: Sender<MidiThreadCtrlMesg> = MIDI_OUT_THREAD_COMS.0.clone();
     // static ref MIDI_OUT_THREAD: JoinHandle<()> = spawn(midi_out_thread);
