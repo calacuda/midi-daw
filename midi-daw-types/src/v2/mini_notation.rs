@@ -83,8 +83,9 @@ impl Parser {
             trace!("[depth = {depth}]: do_parse_pattern 2 => {token}, {the_rest:?}");
 
             if token.starts_with("<") {
-                trace!("[depth = {depth}]: do_parse_pattern before alternator");
                 yet_to_parse = yet_to_parse.replacen("<", "", 1);
+                trace!("[depth = {depth}]: do_parse_pattern before alternator");
+                trace!("[depth = {depth}]: yet_to_parse = {yet_to_parse}");
                 let (loc_tokens, loc_the_rest) = self.do_parse_pattern(
                     // "<",
                     ">",
@@ -113,7 +114,9 @@ impl Parser {
                 }
                 // the_rest = Some(loc_the_rest);
                 yet_to_parse = loc_the_rest;
-                trace!("[depth = {depth}]: do_parse_pattern after Alternator => ({tokens:?}, {yet_to_parse:?})");
+                trace!(
+                    "[depth = {depth}]: do_parse_pattern after Alternator => ({tokens:?}, {yet_to_parse:?})"
+                );
                 // break;
 
                 // } else if token.ends_with(">") {
@@ -138,7 +141,9 @@ impl Parser {
                 tokens.push(MnTokenType::Chord(loc_tokens.clone()));
                 // the_rest = Some(loc_the_rest);
                 yet_to_parse = loc_the_rest;
-                trace!("[depth = {depth}]: do_parse_pattern 2 (after chord) => ({tokens:?}, {yet_to_parse:?})");
+                trace!(
+                    "[depth = {depth}]: do_parse_pattern 2 (after chord) => ({tokens:?}, {yet_to_parse:?})"
+                );
                 trace!("[depth = {depth}]: loc_tokens :  {loc_tokens:?}");
                 // break;
             } else if token.contains(" ") {
@@ -197,6 +202,7 @@ impl Parser {
             // }
             else if token.contains(close) && !close.is_empty() {
                 // token = token.replacen(close, "", 1);
+                let old_the_rest = the_rest.clone();
                 (token, the_rest) = token
                     .split_once(close)
                     .map(|(tok, rest)| {
@@ -204,7 +210,9 @@ impl Parser {
                         (tok.to_string(), Some(rest.to_string()))
                     })
                     .unwrap_or((token.replacen(close, "", 1), None));
-                trace!("[depth = {depth}]: cleaned token = {close} | {token} | {the_rest:?}");
+                trace!(
+                    "[depth = {depth}]: cleaned token = {close} | {token} | {the_rest:?} | {old_the_rest:?}"
+                );
                 // loc_tokens.append(&mut self.do_parse(token.as_str()));
                 // self.do_parse(token.as_str(), &mut loc_tokens);
 
@@ -218,7 +226,8 @@ impl Parser {
                 tokens.append(&mut loc_tokens);
 
                 // yet_to_parse = loc_the_rest;
-                yet_to_parse = the_rest.unwrap_or(String::new());
+                // yet_to_parse = the_rest.unwrap_or(String::new());
+                yet_to_parse = old_the_rest.unwrap_or(String::new());
 
                 break;
             } else if token.is_empty() {
