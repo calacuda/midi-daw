@@ -6,11 +6,11 @@ mkfifo $pipe_file
 
 echo "layout {
     pane split_direction=\"vertical\" {
-        pane command=\"jurigged\" {
-            args \"-m\" \"IPython\" \"-i\" \"${@:1}\"
+        pane size=\"60%\" command=\"zsh\" {
+            args \"-c\" \"jurigged -m IPython -i ${@:1}\"
         }
-        pane command=\"cat\" {
-            args \"$pipe_file\"
+        pane size=\"40%\" command=\"zsh\" {
+            args \"-c\" \"cat $pipe_file\"
         }
     }
 }" > /tmp/midi-daw.kdl
