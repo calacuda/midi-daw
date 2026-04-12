@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use crate::{v1::automation::AUTOMATIONS_PER_SECOND, v2::automation::AutomationTraitV2};
+use crate::v2::automation::AutomationTraitV2;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 // use std::sync::Arc;
@@ -33,7 +33,7 @@ impl AutomationTraitV2 for SinLfo {
     }
 
     fn done(&self) -> bool {
-        self.one_shot && (self.seen_zero % 3) == 0
+        self.one_shot && self.seen_zero.is_multiple_of(3)
     }
 }
 

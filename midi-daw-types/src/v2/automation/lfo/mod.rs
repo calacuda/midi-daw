@@ -1,11 +1,8 @@
 use bincode::{Decode, Encode};
-// use super::AutomationTrait;
 use enum_dispatch::enum_dispatch;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-
-use crate::v2::automation::AutomationTraitV2;
 
 pub mod sin_wave;
 pub mod wavetable;

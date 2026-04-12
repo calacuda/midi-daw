@@ -1,10 +1,6 @@
-use std::{ops::Deref, sync::Arc};
-
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use tracing::trace;
-
-use crate::v1::note_from_str;
+use tracing::{debug, trace};
 
 type MnNote = String;
 
@@ -53,25 +49,12 @@ impl Parser {
 
     fn do_parse_pattern(
         &mut self,
-        // open: &str,
         close: &str,
-        // mk_token: fn(Vec<MnTokenType>) -> MnTokenType,
-        // tokens: &mut Vec<MnTokenType>,
-        // token: String,
-        // the_rest: Option<String>,
         to_parse: &str,
         depth: usize,
     ) -> (Vec<MnTokenType>, String) {
-        // let mut token = token.clone();
-        // let mut the_rest = the_rest.clone();
         let mut tokens = Vec::new();
-        // loc_tokens.append(&mut );
-        // println!("before recursion");
-        // self.do_parse(token.replacen(open, "", 1).as_str(), &mut loc_tokens);
-        // println!("after recursion");
 
-        // while let Some(to_parse) = the_rest {
-        // let mut glob_the_rest = None;
         let mut yet_to_parse = to_parse.to_string();
 
         loop {
@@ -473,7 +456,8 @@ impl Parser {
             self.total_steps = self.notes.len();
         }
 
-        trace!("tokens: {:?}", self.notes);
+        debug!("tokens: {:?}", self.notes);
+        debug!("total_steps: {:?}", self.total_steps);
 
         // self.notes = tokens;
     }

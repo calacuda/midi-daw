@@ -8,7 +8,7 @@ use crossbeam::channel::{Receiver, Sender, unbounded};
 use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use log::*;
-use midir::{MidiIO, MidiInput, MidiOutput, MidiOutputConnection, os::unix::VirtualOutput};
+use midir::{MidiInput, MidiOutput, MidiOutputConnection, os::unix::VirtualOutput};
 use musical_scales::{PitchClass, Scale, ScaleType};
 use pyo3::types::PyCFunction;
 #[cfg(feature = "pyo3")]
@@ -49,7 +49,7 @@ pub const DEFAULT_BPM: u32 = 133;
 // pub const DEFAULT_BPM: u32 = 33;
 
 // pub type Scale = Vec<String>;
-pub type MidiThreadCtrlMesg = ((MidiDev, MidiChannel), MidiMsg);
+pub type MidiThreadCtrlMesg = ((MidiDev, MidiChannel), Option<MidiMsg>);
 pub type MidiSyncMesg = (MidiSyncCommand, Sender<usize>);
 
 lazy_static! {
@@ -79,8 +79,8 @@ fn midi_sync_thread() {
     //     println!("port_id: {:?}", input_dev.port_name(&port));
     // }
 
-    let mut counter = Arc::new(RwLock::new(0));
-    let mut pulses_since_bar = 0;
+    let counter = Arc::new(RwLock::new(0));
+    let mut _pulses_since_bar = 0;
     let mut in_bar = false;
     let do_at = Arc::new(Mutex::new(FxHashMap::<
         MidiSyncPulseTimeCode,
@@ -101,7 +101,7 @@ fn midi_sync_thread() {
             let counter = counter.clone();
 
             move |_stamp, message, _| {
-                let was_in_bar = in_bar;
+                let _was_in_bar = in_bar;
                 let msg = midi_msg::MidiMsg::from_midi(message);
                 // let mut threads = Vec::new();
 
@@ -117,8 +117,8 @@ fn midi_sync_thread() {
                     *counter %= usize::MAX;
 
                     if in_bar {
-                        pulses_since_bar += 1;
-                        pulses_since_bar %= usize::MAX;
+                        _pulses_since_bar += 1;
+                        _pulses_since_bar %= usize::MAX;
                     }
                     // info!("counter: {counter}");
                 } else if msg.is_ok_and(|msg| {
@@ -127,8 +127,6 @@ fn midi_sync_thread() {
                             msg: midi_msg::SystemRealTimeMsg::Start,
                         }
                 }) {
-                    // debug!("now in bar");
-
                     if !in_bar {
                         let mut counter = counter.write().unwrap();
                         *counter = 0_usize;
@@ -139,46 +137,27 @@ fn midi_sync_thread() {
                     if let Ok(counter) = counter.read()
                         && in_bar
                     {
-                        // counter.read().map(|counter| {
-                        // debug!("got counter: {counter}");
                         let counter = counter.to_owned();
 
-                        // debug!("using counter: {counter}");
-                        // (
-                        //     counter,
                         _ = do_at.lock().map(|mut tasks| {
-                            // debug!("looking for counter: {counter}");
-                            // debug!("looking in tasks: {:?}[{counter}]", tasks.keys());
-
-                            tasks
-                                .remove(&MidiSyncPulseTimeCode::OnNextBar)
-                                .clone()
-                                .iter()
-                                .for_each(|tasks| {
-                                    for task in tasks {
-                                        _ = task.send(counter);
-                                    }
-                                });
+                            if let Some(tasks) = tasks.remove(&MidiSyncPulseTimeCode::OnNextBar) {
+                                // .clone()
+                                // .iter()
+                                // .for_each(|tasks| {
+                                for task in tasks {
+                                    _ = task.send(counter);
+                                }
+                                // });
+                            }
                         });
-                        // )
-                        // });
                     }
                 }
 
                 if let Ok(counter) = counter.read()
                     && in_bar
                 {
-                    // counter.read().map(|counter| {
-                    // debug!("got counter: {counter}");
                     let counter = counter.to_owned();
-
-                    // debug!("using counter: {counter}");
-                    // (
-                    //     counter,
                     _ = do_at.lock().map(|mut tasks| {
-                        // debug!("looking for counter: {counter}");
-                        // debug!("looking in tasks: {:?}", tasks.keys());
-
                         tasks
                             .remove(&MidiSyncPulseTimeCode::AtPulses(counter))
                             .clone()
@@ -189,12 +168,7 @@ fn midi_sync_thread() {
                                 }
                             });
                     });
-                    // )
-                    // });
                 }
-                // else {
-                //     // debug!("in_bar: {in_bar}");
-                // }
             }
         },
         (),
@@ -244,13 +218,12 @@ fn midi_out_thread() {
 
     let mut send_to_dev = |midi_msg: MidiThreadCtrlMesg| -> bool {
         match midi_msg {
-            (
-                (MidiDev::Physical(dev_name) | MidiDev::Virtual(dev_name), channel),
-                msg, /*, responce_dev*/
-            ) if midi_devs.contains_key(&dev_name) => {
+            ((MidiDev::Physical(dev_name) | MidiDev::Virtual(dev_name), channel), Some(msg))
+                if midi_devs.contains_key(&dev_name) =>
+            {
                 let Some(dev) = midi_devs.get_mut(&dev_name) else {
                     unreachable!(
-                        "an error occured finding the midi device with the name \"{dev_name}\". not retrying"
+                        "an error occurred finding the midi device with the name \"{dev_name}\". not retrying"
                     );
                     // eprintln!("an error occured finding the midi device with the name \"{dev_name}\"");
                     // return false;
@@ -301,7 +274,7 @@ fn midi_out_thread() {
                 // if let Err(e) = responce_dev.send()
                 true
             }
-            ((MidiDev::Virtual(dev_name), _channel), _msg /*, _responce_dev*/)
+            ((MidiDev::Virtual(dev_name), _channel), _msg)
                 if !midi_devs.contains_key(&dev_name) =>
             {
                 info!(
@@ -324,9 +297,11 @@ fn midi_out_thread() {
 
                 false
             }
-            ((MidiDev::Physical(dev_name), _channel), _msg) => {
-                warn!("the requested physical midi device, \"{dev_name}\", is not connected.");
-                warn!("known midi devs = {:?}", midi_devs.keys());
+            ((MidiDev::Physical(dev_name), _channel), msg) => {
+                warn!(
+                    "the requested physical midi device, \"{dev_name}\", is not connected. will connect now"
+                );
+                // warn!("known midi devs = {:?}", midi_devs.keys());
 
                 let pid = process::id();
 
@@ -339,12 +314,17 @@ fn midi_out_thread() {
 
                         if p_name == dev_name {
                             midi_devs.insert(p_name.clone(), out.connect(&port, &p_name).unwrap());
-                            return false;
+                            trace!("msg: {msg:?}");
+
+                            return msg.is_none();
+                            // return false;
                         }
                     }
                 }
 
-                true
+                trace!("msg: {msg:?}");
+                msg.is_none()
+                // false
             }
             ((MidiDev::Virtual(dev_name), _channel), _msg) => {
                 unreachable!(
@@ -357,8 +337,14 @@ fn midi_out_thread() {
     loop {
         // poll for msg to send
         while let Ok(midi_msg) = MIDI_OUT_THREAD_COMS.1.try_recv() {
-            if !send_to_dev(midi_msg.clone()) {
+            trace!("recv-ed midi message: {midi_msg:?}");
+            let completed_task = send_to_dev(midi_msg.clone());
+
+            if !completed_task {
+                trace!("device was just made, running function again");
                 send_to_dev(midi_msg);
+            } else {
+                trace!("message sent succefully");
             }
         }
     }
@@ -387,40 +373,25 @@ pub enum MidiSyncPulseTimeCode {
 #[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 #[derive(Clone, Debug)]
 pub struct Api {
-    // NOTE: Only Needed if calling multiple functions
-    // riffs: Vec<Py<()>>,
     #[pyo3(get, name = "device")]
-    // pub device_name: MidiDeviceName,
     pub device: MidiDev,
     #[pyo3(get, set)]
     pub channel: MidiChannel,
     // __threads: Vec<JoinHandle<()>>,
     __coms: Sender<MidiThreadCtrlMesg>,
-    // __name: String,
-    // tempo: f64,
     scale: Option<(Scale, u8)>,
     i: usize,
-    // parsers: FxHashMap<String, Parser>,
 }
 
 impl Api {
-    fn new(
-        dev: MidiDev,
-        channel: MidiChannel,
-        // __coms: Sender<MidiThreadCtrlMesg>,
-        // name: String,
-        // tempo: f64,
-    ) -> Self {
+    fn new(dev: MidiDev, channel: MidiChannel) -> Self {
         Self {
             device: dev,
             channel,
             // __threads: Vec::new(),
             __coms: MIDI_OUT_THREAD_COMS.0.clone(),
-            // __name: name,
-            // tempo,
             scale: None,
             i: 0,
-            // parsers: FxHashMap::default(),
         }
     }
 }
@@ -443,86 +414,49 @@ impl Api {
         //         sleep_until(now + Duration::from_secs_f64(((60.0 / self.tempo) * denom) * mul))
         //     })
         // });
-        let n_pulses = match dur {
-            NoteDuration::Wn(n) => n as u32 * BPQ * 4,
-            NoteDuration::Hn(n) => n as u32 * BPQ * 2,
-            NoteDuration::Qn(n) => n as u32 * BPQ,
-            NoteDuration::En(n) => n as u32 * (BPQ / 2),
-            NoteDuration::Sn(n) => n as u32 * (BPQ / 4),
-            NoteDuration::Tn(n) => n as u32 * (BPQ / 8),
-            NoteDuration::S4n(n) => n as u32 * (BPQ / 16),
-        } as usize;
-
-        let (tx, rx) = unbounded();
-
-        if let Err(e) = MIDI_SYNC.send((MidiSyncCommand::InNPulses(n_pulses), tx)) {
-            error!("failed to communicate with sync thread. error: {e}");
-            return;
-        }
-
         Python::attach(|py| {
             py.detach(|| {
+                let n_pulses = match dur {
+                    NoteDuration::Wn(n) => n as u32 * BPQ * 4,
+                    NoteDuration::Hn(n) => n as u32 * BPQ * 2,
+                    NoteDuration::Qn(n) => n as u32 * BPQ,
+                    NoteDuration::En(n) => n as u32 * (BPQ / 2),
+                    NoteDuration::Sn(n) => n as u32 * (BPQ / 4),
+                    NoteDuration::Tn(n) => n as u32 * (BPQ / 8),
+                    NoteDuration::S4n(n) => n as u32 * (BPQ / 16),
+                } as usize;
+
+                let (tx, rx) = unbounded();
+
+                if let Err(e) = MIDI_SYNC.send((MidiSyncCommand::InNPulses(n_pulses), tx)) {
+                    error!("failed to communicate with sync thread. error: {e}");
+                    return;
+                }
+
                 rx.recv().expect("failed to communicate with sync thread");
             })
         });
     }
 
-    pub fn get_midi_note(&self, note: String) -> u8 {
-        if let (Some((scale, octave)), Ok(new_note)) = (&self.scale, note.parse::<usize>()) {
-            // println!("new_note: {new_note}");
+    pub fn get_midi_note(&self, note: String) -> Option<u8> {
+        if note == "~" {
+            return None;
+        }
 
-            if let Ok(note) = scale.idx_to_pitch(new_note - 1) {
-                note.to_midi() + 12 * octave
+        Some(
+            if let (Some((scale, octave)), Ok(new_note)) = (&self.scale, note.parse::<usize>()) {
+                // println!("new_note: {new_note}");
+
+                if let Ok(note) = scale.idx_to_pitch(new_note - 1) {
+                    note.to_midi() + 12 * octave
+                } else {
+                    note_from_str(note).unwrap_or(0)
+                }
             } else {
                 note_from_str(note).unwrap_or(0)
-            }
-        } else {
-            note_from_str(note).unwrap_or(0)
-        }
+            },
+        )
     }
-
-    // fn parse_mini_notation(&self, notes: String, raw_notes: &mut Vec<String>) {
-    //     // warn!("note 2 :  {notes}");
-    //
-    //     if notes.starts_with('<') && notes.ends_with('>') {
-    //         let notes = notes[1..notes.len() - 1].to_string();
-    //         self.parse_mini_notation(notes, raw_notes);
-    //     } else if notes.contains(" ") {
-    //         for note in notes.split(" ") {
-    //             self.parse_mini_notation(note.into(), raw_notes);
-    //         }
-    //     } else if let Some((note, Ok(x))) = notes.split_once("*").map(|(note, x)| (note, x.parse()))
-    //     {
-    //         for _ in 0..x {
-    //             raw_notes.push(note.into());
-    //         }
-    //     } else {
-    //         // info!("pushing {notes:?}");
-    //         raw_notes.push(notes);
-    //     }
-    // }
-
-    // pub fn get_midi_note(&mut self, notes: String) -> u8 {
-    //     // TODO: write PEG grammar for this
-    //     // self.entry(notes.clone()).or_insert(0);
-    //
-    //     if (notes.starts_with('<') && notes.ends_with('>'))
-    //         || notes.contains("*")
-    //         || notes.contains(" ")
-    //     {
-    //         let mut raw_notes = Vec::new();
-    //         self.parse_mini_notation(notes.clone(), &mut raw_notes);
-    //         let note = {
-    //             let i = self.i_s.get_mut(&notes.clone()).unwrap();
-    //             let note = raw_notes[*i % raw_notes.len()].clone();
-    //             *i += 1;
-    //             note
-    //         };
-    //         self.do_get_midi_note(note)
-    //     } else {
-    //         self.do_get_midi_note(notes)
-    //     }
-    // }
 
     fn increment(&mut self) {
         self.i += 1;
@@ -537,50 +471,65 @@ impl Api {
 #[pymethods]
 impl Api {
     #[new]
-    fn new_py(dev: MidiDeviceName, channel: MidiChannel, is_virt: bool) -> Self {
-        // Self {
-        //     device: dev,
-        //     channel,
-        // }
-        Self::new(
+    fn new_py(dev_name: MidiDeviceName, channel: MidiChannel, is_virt: bool) -> Self {
+        let s = Self::new(
             if is_virt {
-                MidiDev::Virtual(dev)
+                MidiDev::Virtual(dev_name.clone())
             } else {
-                MidiDev::Physical(dev)
+                MidiDev::Physical(dev_name.clone())
             },
             channel,
-        )
+        );
+
+        if let Err(e) = s.__coms.send(((s.device.clone(), s.channel), None)) {
+            warn!("attempt to signal midi out thread to connect to device failed with error: {e}");
+            warn!("failed to pre-register device \"{dev_name}\", will be made on the fly.");
+        }
+
+        s
     }
 
-    // /// starts playback
-    // fn start(&self) {}
-
-    #[pyo3(signature = (note, dur = None, vel = None, _blocking = None))]
+    #[pyo3(signature = (sequence_src, dur = None, vel = None, _blocking = None))]
     fn seq(
         &mut self,
-        note: String,
+        sequence_src: String,
         dur: Option<NoteDuration>,
         vel: Option<u8>,
         _blocking: Option<bool>,
     ) {
-        let mut p = Parser::new(note.clone());
-        p.parse();
+        debug!("about to parse: {sequence_src}");
+        let mut sequence = Parser::new(sequence_src.clone());
+
+        // Python::attach(|py| {
+        //     py.detach(|| {
+        //         // let mut p = Parser::new(sequence.clone());
+        //         // p.parse();
+        sequence.parse();
+
+        debug!("parsed sequence: {sequence_src}");
+        //     })
+        // });
+
         let dur = dur.unwrap_or(NoteDuration::Sn(1));
+        let mut steps = Vec::new();
 
-        while let Some(notes) = p.get_next() {
-            // info!("notes :  {notes:?}");
+        while let Some(notes) = sequence.get_next() {
+            trace!("notes :  {notes:?}");
 
+            steps.push(notes.clone());
             for note in notes.iter() {
-                if note != "~" {
-                    // info!("{note}");
-                    let note = self.get_midi_note(note.clone());
+                // if note != "~" {
+                trace!("{note}");
+                let note = self.get_midi_note(note.clone());
+
+                if let Some(note) = note {
                     _ = self.__coms.send((
                         (self.device.clone(), self.channel),
-                        MidiMsg::PlayNote {
+                        Some(MidiMsg::PlayNote {
                             note,
                             velocity: vel.unwrap_or(100),
                             duration: dur,
-                        },
+                        }),
                     ));
                 }
             }
@@ -588,17 +537,21 @@ impl Api {
             self.do_rest(dur);
 
             for note in notes.iter() {
-                if note != "~" {
-                    let note = self.get_midi_note(note.clone());
+                // if note != "~" {
+                let note = self.get_midi_note(note.clone());
+
+                if let Some(note) = note {
                     _ = self.__coms.send((
                         (self.device.clone(), self.channel),
-                        MidiMsg::StopNote { note },
+                        Some(MidiMsg::StopNote { note }),
                     ));
                 }
             }
         }
 
-        // self.increment()
+        // println!("seqeunce: {steps:?}");
+
+        self.increment()
     }
 
     /// plays a note
@@ -618,21 +571,26 @@ impl Api {
         let dur = dur.unwrap_or(NoteDuration::Sn(1));
 
         let note = self.get_midi_note(note.clone());
-        _ = self.__coms.send((
-            (self.device.clone(), self.channel),
-            MidiMsg::PlayNote {
-                note,
-                velocity: vel.unwrap_or(100),
-                duration: dur,
-            },
-        ));
+
+        if let Some(note) = note {
+            _ = self.__coms.send((
+                (self.device.clone(), self.channel),
+                Some(MidiMsg::PlayNote {
+                    note,
+                    velocity: vel.unwrap_or(100),
+                    duration: dur,
+                }),
+            ));
+        }
 
         self.do_rest(dur);
 
-        _ = self.__coms.send((
-            (self.device.clone(), self.channel),
-            MidiMsg::StopNote { note },
-        ));
+        if let Some(note) = note {
+            _ = self.__coms.send((
+                (self.device.clone(), self.channel),
+                Some(MidiMsg::StopNote { note }),
+            ));
+        }
 
         self.increment()
     }
@@ -683,7 +641,7 @@ impl Api {
 
         _ = self.__coms.send((
             (self.device.clone(), self.channel),
-            MidiMsg::PitchBend { bend },
+            Some(MidiMsg::PitchBend { bend }),
         ));
     }
 
@@ -691,10 +649,10 @@ impl Api {
     fn cc(&self, cc: u8, val: u8) {
         _ = self.__coms.send((
             (self.device.clone(), self.channel),
-            MidiMsg::CC {
+            Some(MidiMsg::CC {
                 control: cc,
                 value: val,
-            },
+            }),
         ));
     }
 
@@ -702,69 +660,57 @@ impl Api {
     fn stop(&self, note: u8) {
         _ = self.__coms.send((
             (self.device.clone(), self.channel),
-            MidiMsg::StopNote { note },
+            Some(MidiMsg::StopNote { note }),
         ));
     }
 
     fn wait_for_bar(&self) {
-        let (tx, rx) = unbounded();
-
-        if let Err(e) = MIDI_SYNC.send((MidiSyncCommand::OnNextBar, tx)) {
-            error!("failed to communicate with sync thread. error: {e}");
-            return;
-        }
-
-        rx.recv().expect("failed to communicate with sync thread");
+        // let (tx, rx) = unbounded();
+        //
+        // if let Err(e) = MIDI_SYNC.send((MidiSyncCommand::OnNextBar, tx)) {
+        //     error!("failed to communicate with sync thread. error: {e}");
+        //     return;
+        // }
+        //
+        // rx.recv().expect("failed to communicate with sync thread");
+        wait_for_bar();
     }
 
     /// plays a note
-    #[pyo3(signature = (notes, dur = None, vel = None, blocking = None))]
+    #[pyo3(signature = (notes, dur = None, vel = None, _blocking = None))]
     fn chord(
         &mut self,
-        notes: Vec<String>,
+        // notes: Vec<String>,
+        notes: String,
         dur: Option<NoteDuration>,
         vel: Option<u8>,
-        blocking: Option<bool>,
+        _blocking: Option<bool>,
     ) {
         let dur = dur.unwrap_or(NoteDuration::Sn(1));
         let notes: Vec<u8> = notes
+            .split_whitespace()
             .into_iter()
-            .map(|note| self.get_midi_note(note.to_string()))
+            .filter_map(|note| self.get_midi_note(note.to_string()))
             .collect();
 
         for note in notes.clone() {
             _ = self.__coms.send((
                 (self.device.clone(), self.channel),
-                MidiMsg::PlayNote {
+                Some(MidiMsg::PlayNote {
                     note,
                     velocity: vel.unwrap_or(100),
                     duration: dur,
-                },
+                }),
             ));
         }
         self.do_rest(dur);
         for note in notes {
             _ = self.__coms.send((
                 (self.device.clone(), self.channel),
-                MidiMsg::StopNote { note },
+                Some(MidiMsg::StopNote { note }),
             ));
         }
     }
-
-    // #[pyo3(signature = (sequence, dur = None, vel = None, blocking = None))]
-    // fn seq(
-    //     &self,
-    //     sequence: Vec<String>,
-    //     dur: Option<NoteDuration>,
-    //     vel: Option<u8>,
-    //     blocking: Option<bool>,
-    // ) {
-    //     let velocity = vel.unwrap_or(100);
-    //     let duration = dur.unwrap_or(NoteDuration::Wn(2));
-    //
-    //     // TODO: get n steps
-    //     // TODO: start stepping
-    // }
 
     #[pyo3(signature = ())]
     fn panic(&self) {
@@ -820,13 +766,13 @@ impl MidiDaw {
 #[pymethods]
 impl MidiDaw {
     #[new]
-    #[pyo3(signature = (dev, channel = MidiChannel::Ch1, tempo = 99.0, virt = false, block = None ))]
+    #[pyo3(signature = (dev, channel = MidiChannel::Ch1, virt = false, block = None, tempo = 99.0))]
     fn new(
         dev: MidiDeviceName,
         channel: MidiChannel,
-        tempo: f64,
         virt: bool,
         block: Option<bool>,
+        tempo: f64,
     ) -> Self {
         Self {
             // riffs: Vec::new(),
@@ -947,7 +893,7 @@ impl MidiDaw {
                 // let rx = rx.clone();
                 let thread_name = key.clone();
                 let exit = exit.clone();
-                api.wait_for_bar();
+                wait_for_bar();
                 println!("running {func_name}");
 
                 Python::attach(move |py| -> PyResult<String> {
@@ -988,14 +934,15 @@ impl MidiDaw {
                     // }
                     // let api = api.into_pyobject(py).unwrap();
                     let loc_api = api.clone().into_pyobject(py).unwrap();
-                    let loc_arg = args.to_list();
-
-                    if let Err(e) = loc_arg.insert(0, loc_api) {
-                        println!("failed to add api struct to args list...");
-                        println!("error message was, \"{e}\"");
-                    }
-
-                    let loc_args = loc_arg.to_tuple();
+                    // let loc_arg = args.to_list();
+                    //
+                    // if let Err(e) = loc_arg.insert(0, loc_api) {
+                    //     println!("failed to add api struct to args list...");
+                    //     println!("error message was, \"{e}\"");
+                    // }
+                    //
+                    // let loc_args = loc_arg.to_tuple();
+                    let loc_args = (loc_api,);
 
                     let mut f = {
                         // let func = func.bind(py);
@@ -1251,10 +1198,6 @@ fn py_find_dev(patern: String) -> Option<String> {
     find_dev(&patern)
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(from_py_object, unsendable))]
-#[derive(Clone)]
-pub struct VirtMidiDev(Option<Arc<MidiOutputConnection>>);
-
 #[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
 // #[cfg_attr(feature = "pyo3", pyclass)]
 #[cfg_attr(feature = "pyo3", pyo3(get_all, set_all))]
@@ -1276,14 +1219,6 @@ pub fn mk_dev(dev_name: &str) -> Result<MidiOutputConnection, String> {
         },
         Err(e) => Err(e.to_string()),
     }
-}
-
-#[pyfunction]
-#[pyo3(name = "mk_dev")]
-fn py_mk_dev(dev_name: String) {
-    // find_dev(&patern)
-    // VirtMidiDev(mk_dev(&dev_name).ok().map(Arc::new))
-    _ = mk_dev(&dev_name);
 }
 
 // #[pyfunction]
@@ -1345,6 +1280,22 @@ fn main<'a>(py: Python<'a>, func: Py<PyAny>) -> PyResult<()> {
 
     Ok(())
     // })
+}
+
+#[pyfunction]
+fn wait_for_bar() {
+    let (tx, rx) = unbounded();
+
+    if let Err(e) = MIDI_SYNC.send((MidiSyncCommand::OnNextBar, tx)) {
+        error!("failed to communicate with sync thread. error: {e}");
+        return;
+    }
+
+    Python::attach(|py| {
+        py.detach(|| {
+            rx.recv().expect("failed to communicate with sync thread");
+        })
+    });
 }
 
 #[pyfunction]
@@ -1410,10 +1361,10 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<MidiDaw>()?;
     m.add_class::<Api>()?;
+    m.add_function(wrap_pyfunction!(main, m)?)?;
     m.add_function(wrap_pyfunction!(list_devs, m)?)?;
     m.add_function(wrap_pyfunction!(py_find_dev, m)?)?;
-    // m.add_function(wrap_pyfunction!(py_mk_dev, m)?)?;
-    m.add_function(wrap_pyfunction!(main, m)?)?;
+    m.add_function(wrap_pyfunction!(wait_for_bar, m)?)?;
 
     // note_len
     {
@@ -1430,7 +1381,7 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_submodule(&module)?;
         py.import("sys")?
             .getattr("modules")?
-            .set_item("midi_daw.v2.note_lens", &module)?;
+            .set_item("midi_daw_types.v2.note_lens", &module)?;
     }
 
     // lfo
@@ -1440,7 +1391,7 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_submodule(&module)?;
         py.import("sys")?
             .getattr("modules")?
-            .set_item("midi_daw.v2.lfo", &module)?;
+            .set_item("midi_daw_types.v2.lfo", &module)?;
     }
 
     Ok(())

@@ -7,7 +7,7 @@ use std::{
 
 use color_eyre::Result;
 use lazy_static::lazy_static;
-use midi_daw::{
+use midi_daw_types::{
     tempo_from_bpm,
     v2::{BPQ, DEFAULT_BPM, SYNC_DEV_NAME, SYNC_DEV_PORT_NAME, TEMPO_SET_PORT},
 };
@@ -229,7 +229,7 @@ impl App {
             )),
         }
 
-        let messages: Vec<ListItem> = LOGS
+        let mut messages: Vec<ListItem> = LOGS
             .read()
             .map(|logs| {
                 logs.iter()
@@ -241,6 +241,7 @@ impl App {
                     .collect()
             })
             .unwrap_or(Vec::new());
+        messages.reverse();
         let messages = List::new(messages).block(Block::bordered().title("Messages"));
         frame.render_widget(messages, messages_area);
     }

@@ -1,12 +1,11 @@
 use std::{
-    ffi::CString, ops::Deref, sync::{Arc, Mutex}, thread::{sleep, sleep_until, spawn}, time::{Duration, Instant}
+    ffi::CString, ops::Deref, sync::{Arc, Mutex}, thread::{sleep, spawn}, time::{Duration}
 };
 
 use bincode::{Decode, Encode};
-use crossbeam::channel::unbounded;
 use enum_dispatch::enum_dispatch;
 use hound::{SampleFormat, WavReader};
-use lfo::{sin_wave, wavetable, Lfo};
+use lfo::{Lfo};
 use pyo3::types::{PyCFunction, PyFunction};
 #[cfg(feature = "pyo3")]
 use pyo3::{prelude::*, types::PyDict};
@@ -15,9 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     v2::{
         automation::lfo::{sin_wave::SinLfo, wavetable::WaveTable, LfoConfig},
-        find_dev, Api, MidiDev,
     },
-    MidiChannel, MidiDeviceName,
 };
 
 // pub mod envelope;

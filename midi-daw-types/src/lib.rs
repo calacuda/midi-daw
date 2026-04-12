@@ -1,17 +1,9 @@
-#![feature(thread_sleep_until)]
-use bincode::{
-    error::{DecodeError, EncodeError},
-    Decode, Encode,
-};
-#[cfg(feature = "pyo3")]
-use log::*;
+use bincode::{Decode, Encode};
 use midi_msg::Channel;
 #[cfg(feature = "pyo3")]
 use pyo3::{prelude::*, types::PyDict};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-#[cfg(not(feature = "pyo3"))]
-use tracing::*;
 
 use crate::v2::DEFAULT_BPM;
 
@@ -393,7 +385,7 @@ pub fn tempo_from_bpm() -> u32 {
 #[cfg(feature = "pyo3")]
 /// A Python module implemented in Rust.
 #[pymodule]
-#[pyo3(name = "midi_daw")]
+#[pyo3(name = "midi_daw_types")]
 fn midi_daw_types(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // pyo3_log::init();
 
@@ -409,7 +401,7 @@ fn midi_daw_types(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_submodule(&module)?;
         py.import("sys")?
             .getattr("modules")?
-            .set_item("midi_daw.v1", &module)?;
+            .set_item("midi_daw_types.v1", &module)?;
     }
 
     // v2
@@ -419,7 +411,7 @@ fn midi_daw_types(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_submodule(&module)?;
         py.import("sys")?
             .getattr("modules")?
-            .set_item("midi_daw.v2", &module)?;
+            .set_item("midi_daw_types.v2", &module)?;
     }
 
     Ok(())

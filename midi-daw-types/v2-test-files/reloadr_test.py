@@ -54,11 +54,10 @@ loops = 32
 #     hh(loops=loops, block=False) 
 
 if __name__ == "__main__":
-    lead(loops=loops, block=False)
+    # lead(loops=loops, block=False)
     bass(loops=loops, block=False)
     kick(loops=loops, block=False)
     hh(loops=loops, block=False) 
-    # lead.stop()
 
 # bass(loops=loops, block=False)
 # kick(loops=loops, block=False)
