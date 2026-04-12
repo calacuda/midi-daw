@@ -53,6 +53,12 @@ loops = 32
 #     kick(loops=loops, block=False)
 #     hh(loops=loops, block=False) 
 
+def main():
+    bass(loops=loops, block=False)
+    lead(loops=loops, block=False)
+    kick(loops=loops, block=False)
+    hh(loops=loops, block=False)
+
 if __name__ == "__main__":
     lead(loops=loops, block=False)
     bass(loops=loops, block=False)

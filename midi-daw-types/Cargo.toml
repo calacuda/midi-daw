@@ -12,14 +12,20 @@ crate-type = ["cdylib", "rlib"]
 name = "midi-daw-sync"
 path = "./src/midi-daw-sync.rs"
 
+[[bin]]
+name = "midi-daw"
+path = "./src/midi-daw.rs"
+
 [features]
 default = ["pyo3"]
 pyo3 = ["dep:pyo3", "dep:pyo3-log", "dep:log"]
 
 [dependencies]
 bincode = "2.0.1"
+bytes = "1.11.1"
 color-eyre = "0.6.5"
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
+crossterm = "0.29.0"
 enum_dispatch = "0.3"
 hound = "3.5"
 jack = { version = "0.13.5", features = ["controller"] }
@@ -28,6 +34,8 @@ log = { version = "0.4", optional = true, features = ["std"] }
 midi-msg = "0.8"
 midir = { version = "0.10.3", features = ["jack"] }
 musical_scales = "0.2.0"
+nix = { version = "0.31.2", features = ["fs"] }
+portable-pty = "0.9.0"
 pyo3 = { version = "0.28", optional = true }
 pyo3-log = { version = "0.13", optional = true }
 ratatui = "0.30.0"
@@ -36,5 +44,7 @@ rustc-hash = "2.1.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 spmc = "0.3.0"
+tokio = { version = "1.51.1", default-features = false, features = ["macros", "rt", "rt-multi-thread", "sync"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tui-term = "0.3.4"

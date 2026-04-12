@@ -1346,16 +1346,18 @@ fn wn(n: u8) -> NoteDuration {
 #[pyo3(submodule, name = "v2")]
 /// A Python module implemented in Rust.
 pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
-    FmtSubscriber::builder()
-        .with_file(true)
-        .with_line_number(true)
-        .with_level(true)
-        .with_thread_names(false)
-        .with_thread_ids(false)
-        .with_env_filter(env_filter)
-        .without_time()
-        .init();
+    // let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+    // FmtSubscriber::builder()
+    //     .with_file(true)
+    //     .with_line_number(true)
+    //     .with_level(true)
+    //     .with_thread_names(false)
+    //     .with_thread_ids(false)
+    //     .with_env_filter(env_filter)
+    //     .without_time()
+    //     .init();
+    pyo3_log::init();
+
     let _midi_out_thread = spawn(midi_out_thread);
     let _midi_sync_thread = spawn(midi_sync_thread);
 
