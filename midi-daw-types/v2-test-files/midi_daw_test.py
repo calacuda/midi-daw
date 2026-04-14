@@ -54,7 +54,7 @@ logging.getLogger('watchdog.observers.inotify_buffer').disabled = True
 def play_on(dev, channel=None, is_virt=True, loops=None, block=None, start_on_bar=True):
     from functools import wraps
     from midi_daw_types.v2 import Api, find_dev, list_devs, wait_for_bar
-    from reloading import reloading
+    # from reloading import reloading
     import threading
     import inspect
     import importlib
@@ -98,7 +98,7 @@ def play_on(dev, channel=None, is_virt=True, loops=None, block=None, start_on_ba
                 log.debug(f"about to start loop (will loop, indefinitely) for function: {f_name}")
                 i = 0
 
-                for _ in reloading(forever=True):
+                while True:
                     func(api, **kwargs)
                     i += 1
 

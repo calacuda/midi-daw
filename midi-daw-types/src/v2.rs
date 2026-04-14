@@ -925,22 +925,22 @@ impl MidiDaw {
                     // let block = loc_block.unwrap_or_else(|| block.unwrap_or());
 
                     // println!("loop_n: {loop_n:?}");
-                    let loop_n = loop_n.clone().unwrap_or(1);
+                    let loop_n = loop_n.unwrap_or(1);
                     // println!("loop_n: {loop_n:?}");
                     // if loop_n == 0 {
                     //     loop_n = 1;
                     // }
                     // let api = api.into_pyobject(py).unwrap();
                     let loc_api = api.clone().into_pyobject(py).unwrap();
-                    // let loc_arg = args.to_list();
-                    //
-                    // if let Err(e) = loc_arg.insert(0, loc_api) {
-                    //     println!("failed to add api struct to args list...");
-                    //     println!("error message was, \"{e}\"");
-                    // }
-                    //
-                    // let loc_args = loc_arg.to_tuple();
-                    let loc_args = (loc_api,);
+                    let loc_arg = args.to_list();
+
+                    if let Err(e) = loc_arg.insert(0, loc_api) {
+                        println!("failed to add api struct to args list...");
+                        println!("error message was, \"{e}\"");
+                    }
+
+                    let loc_args = loc_arg.to_tuple();
+                    // let loc_args = (loc_api,);
 
                     let mut f = {
                         // let func = func.bind(py);

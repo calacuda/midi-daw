@@ -6,12 +6,12 @@ from reloadr import autoreload
 
 
 devs = list_devs()
-print(devs)
+# print(devs)
 
 
 @play_on("Vital - bass", is_virt=False)
 def bass(m):
-    m.seq("c4 <e4*2 b4> <c4*2 g4> ~ g4", sn()) 
+    m.seq("c3 <e3*2 b3> <c3*2 g3> ~ g3", sn()) 
     wait_for_bar()
     # for chord in ["c4", "e4", "c4", "~", "g4", "c4", "e4", "c4", "~", "g4", "c4", "b4", "g4", "~", "g4"]:
     #     m.chord(chord[0])
@@ -35,6 +35,7 @@ def hh(m):
     for step in steps:
         # print(step)
         m.note(step, sn())
+    # print("done")
 
 
 @play_on("Vital - lead", is_virt=False)
@@ -60,8 +61,8 @@ def main():
     hh(loops=loops, block=False)
 
 if __name__ == "__main__":
-    lead(loops=loops, block=False)
-    bass(loops=loops, block=False)
+    # lead(loops=loops, block=False)
+    # bass(loops=loops, block=False)
     kick(loops=loops, block=False)
     hh(loops=loops, block=False) 
     # lead.stop()
