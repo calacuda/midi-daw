@@ -1,11 +1,10 @@
 use std::{
     env, fmt,
-    fs::{self, remove_file},
-    io::{self, BufWriter, Read, Write, pipe},
-    path::PathBuf,
-    process::{self, Command, Stdio},
+    fs::remove_file,
+    io::{self, BufWriter, Read, Write},
+    process,
     sync::{
-        Arc, Mutex, RwLock,
+        Arc, RwLock,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -18,16 +17,14 @@ use nix::unistd;
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use ratatui::{
     DefaultTerminal,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders},
 };
 use tokio::{
     sync::mpsc::{Sender, channel},
     task::spawn_blocking,
 };
-use tracing::Level;
-use tracing_subscriber::FmtSubscriber;
 use tui_term::{
     vt100,
     widget::{Cursor, PseudoTerminal},
@@ -39,6 +36,13 @@ struct Size {
     rows: u16,
 }
 
+fn round(num: f32) -> u16 {
+    // if num.fract() == 0.5 {
+    //     num.floor() as u16
+    // } else {
+    num.round() as u16
+    // }
+}
 async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
     let mut size = Size {
         rows: terminal.size()?.height,
@@ -49,7 +53,6 @@ async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
     let pid = process::id();
     // mk named pipe
     let pipe_path = format!("/tmp/midi-daw-{pid}.pipe");
-    // println!("path: {pipe_path}");
     // Create the FIFO with 0644 permissions
     unistd::mkfifo(pipe_path.as_str(), Mode::from_bits(0o644).unwrap())?;
 
@@ -57,7 +60,11 @@ async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
     // the named pipe
     let args: Vec<String> = env::args().collect();
     let args = args[1..].to_vec();
-    // println!("args = {args:?}");
+    // let args = args.join(" ");
+
+    // let mut py_cmd = CommandBuilder::new("zsh");
+    // py_cmd.arg("-c");
+    // py_cmd.arg(format!("jurigged -m IPython -i {args}"));
 
     let mut py_cmd = CommandBuilder::new("jurigged");
     py_cmd.arg("-m");
@@ -68,14 +75,36 @@ async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
     py_cmd.env("PROMPT_TOOLKIT_NO_CPR", "1");
     py_cmd.cwd(cwd);
 
+    // let mut log_cmd = CommandBuilder::new("zsh");
+    // log_cmd.arg("-c");
+    // log_cmd.arg(format!("cat {pipe_path}"));
     let mut log_cmd = CommandBuilder::new("cat");
     log_cmd.arg(pipe_path.clone());
 
     let mut panes: Vec<PtyPane> = Vec::new();
 
-    let pane_size = calc_pane_size(size, 2);
-    open_new_pane(&mut panes, &py_cmd, pane_size)?;
-    open_new_pane(&mut panes, &log_cmd, pane_size)?;
+    {
+        let mut pane_size = size;
+        // let pane_size = calc_pane_size(size, 2);
+        // let pane_size = ;
+        // pane_size.cols -= 2;
+        // pane_size.cols *= 6;
+        // pane_size.cols /= 10;
+        let cols = (pane_size.cols) as f32;
+        pane_size.cols = round(cols * (6.5 / 10.));
+        open_new_pane(&mut panes, &py_cmd, pane_size)?;
+    }
+    {
+        let mut pane_size = size;
+        // let pane_size = calc_pane_size(size, 2);
+        // let pane_size = ;
+        // pane_size.cols -= 2;
+        // pane_size.cols *= 4;
+        // pane_size.cols /= 10;
+        let cols = (pane_size.cols) as f32;
+        pane_size.cols -= round(cols * (6.5 / 10.));
+        open_new_pane(&mut panes, &log_cmd, pane_size)?;
+    }
     let active_pane = Some(0);
 
     loop {
@@ -83,16 +112,8 @@ async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
             let chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .margin(1)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+                .constraints([Constraint::Percentage(65), Constraint::Percentage(35)].as_ref())
                 .split(f.area());
-
-            // let pane_height = if panes.is_empty() {
-            //     chunks[0].height
-            // } else {
-            //     // (chunks[0].height.saturating_sub(1)) / panes.len() as u16
-            //     chunks[0].height / panes.len() as u16
-            //     // chunks[0].height
-            // };
 
             for (index, pane) in panes.iter().enumerate() {
                 let block = Block::default()
@@ -112,22 +133,9 @@ async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
                 let parser = pane.parser.read().unwrap();
                 let screen = parser.screen();
                 let pseudo_term = PseudoTerminal::new(screen).block(block).cursor(cursor);
-                // let pane_chunk = Rect {
-                //     x: chunks[index].x,
-                //     y: chunks[0].y , /* Adjust the y coordinate for
-                //                                                     * each pane */
-                //     width: chunks[index].width,
-                //     height: pane_height, // Use the calculated pane height directly
-                // };
+
                 f.render_widget(pseudo_term, chunks[index]);
             }
-
-            // let explanation =
-            //     "Ctrl+n to open a new pane | Ctrl+x to close the active pane | Ctrl+q to quit";
-            // let explanation = Paragraph::new(explanation)
-            //     .style(Style::default().add_modifier(Modifier::BOLD | Modifier::REVERSED))
-            //     .alignment(Alignment::Center);
-            // f.render_widget(explanation, chunks[1]);
         })?;
 
         if event::poll(Duration::from_millis(10))? {
@@ -191,35 +199,9 @@ async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
     }
 }
 
-fn cleanup_exited_panes(panes: &mut Vec<PtyPane>, active_pane: &mut Option<usize>) {
-    let mut i = 0;
-    while i < panes.len() {
-        if !panes[i].is_alive() {
-            let _removed_pane = panes.remove(i);
-            if let Some(active) = active_pane {
-                match (*active).cmp(&i) {
-                    std::cmp::Ordering::Greater => {
-                        *active = active.saturating_sub(1);
-                    }
-                    std::cmp::Ordering::Equal => {
-                        if panes.is_empty() {
-                            *active_pane = None;
-                        } else if i >= panes.len() {
-                            *active_pane = Some(panes.len() - 1);
-                        }
-                    }
-                    std::cmp::Ordering::Less => {}
-                }
-            }
-        } else {
-            i += 1;
-        }
-    }
-}
-
 fn calc_pane_size(mut size: Size, nr_panes: usize) -> Size {
-    size.rows -= 2;
-    size.rows /= nr_panes as u16;
+    size.cols -= 2;
+    size.cols /= nr_panes as u16;
     size
 }
 
@@ -233,7 +215,7 @@ struct PtyPane {
     parser: Arc<RwLock<vt100::Parser>>,
     sender: Sender<Bytes>,
     master_pty: Box<dyn MasterPty>,
-    exited: Arc<AtomicBool>,
+    // exited: Arc<AtomicBool>,
 }
 
 impl PtyPane {
@@ -303,7 +285,7 @@ impl PtyPane {
             parser,
             sender: tx,
             master_pty: pty_pair.master,
-            exited,
+            // exited,
         })
     }
 
@@ -323,9 +305,9 @@ impl PtyPane {
             .unwrap();
     }
 
-    fn is_alive(&self) -> bool {
-        !self.exited.load(Ordering::Relaxed)
-    }
+    // fn is_alive(&self) -> bool {
+    //     !self.exited.load(Ordering::Relaxed)
+    // }
 }
 
 async fn handle_pane_key_event(pane: &mut PtyPane, key: &KeyEvent) -> bool {
@@ -393,63 +375,6 @@ fn open_new_pane(panes: &mut Vec<PtyPane>, cmd: &CommandBuilder, size: Size) -> 
     let new_pane = PtyPane::new(size, cmd.clone())?;
     panes.push(new_pane);
     Ok(())
-}
-
-// fn open_logs_pane(panes: &mut Vec<PtyPane>, cmd: &CommandBuilder, size: Size) -> io::Result<()> {
-//     let new_pane = PtyPane::new(size, cmd.clone())?;
-//     panes.push(new_pane);
-//     Ok(())
-// }
-
-async fn close_active_pane(
-    panes: &mut Vec<PtyPane>,
-    active_pane: &mut Option<usize>,
-) -> io::Result<()> {
-    if let Some(active_index) = active_pane {
-        let _pane = panes.remove(*active_index);
-        // TODO: shutdown pane correctly
-        if !panes.is_empty() {
-            let remaining_panes = panes.len();
-            let new_active_index = *active_index % remaining_panes;
-            *active_pane = Some(new_active_index);
-        }
-    }
-    Ok(())
-}
-
-fn init_panic_hook() {
-    let log_file = Some(PathBuf::from("/tmp/tui-term/smux.log"));
-    let log_file = match log_file {
-        Some(path) => {
-            if let Some(parent) = path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            Some(fs::File::create(path).unwrap())
-        }
-        None => None,
-    };
-
-    let subscriber = FmtSubscriber::builder()
-        // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
-        // will be written to output path.
-        .with_max_level(Level::TRACE)
-        .with_writer(Mutex::new(log_file.unwrap()))
-        .with_thread_ids(true)
-        .with_ansi(true)
-        .with_line_number(true);
-
-    let subscriber = subscriber.finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-
-    // Set the panic hook to log panic information before panicking
-    std::panic::set_hook(Box::new(|panic| {
-        let original_hook = std::panic::take_hook();
-        tracing::error!("Panic Error: {}", panic);
-        ratatui::restore();
-
-        original_hook(panic);
-    }));
-    tracing::debug!("Set panic hook")
 }
 
 impl fmt::Debug for PtyPane {
