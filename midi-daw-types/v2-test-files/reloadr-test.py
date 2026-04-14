@@ -12,9 +12,9 @@ devs = list_devs()
 @play_on("Vital - bass", is_virt=False)
 def bass(m):
     m.seq("c3 <e3*2 b3> <c3*2 g3> ~ g3", sn()) 
-    wait_for_bar()
     # for chord in ["c4", "e4", "c4", "~", "g4", "c4", "e4", "c4", "~", "g4", "c4", "b4", "g4", "~", "g4"]:
     #     m.chord(chord[0])
+    wait_for_bar()
 
 
 @play_on("909", MidiChannel.Ch10, is_virt=False)
@@ -28,19 +28,21 @@ def kick(m):
 
 @play_on("909", MidiChannel.Ch10, is_virt=False)
 def hh(m):
-    # m.seq("f#2 f#2 a#2 ~ ~ f#2 f#2 a#2 f#2 f#2 a#2 ~ ~ f#2 f#2 a#2", sn())
-    steps = "f#2 f#2 a#2 ~ ~ f#2 f#2 a#2 f#2 f#2 a#2 ~ ~ f#2 f#2 a#2".split(" ")
+    m.seq("f#2 f#2 a#2 ~ ~ f#2 f#2 a#2 f#2 f#2 a#2 ~ ~ f#2 f#2 a#2", sn())
+    # steps = "f#2 f#2 a#2 ~ ~ f#2 f#2 a#2 f#2 f#2 a#2 ~ ~ f#2 f#2 a#2".split(" ")
     # steps = ["f#2"] * 16
 
-    for step in steps:
-        # print(step)
-        m.note(step, sn())
+    # for step in steps:
+    #     # print(step)
+    #     m.note(step, sn())
     # print("done")
 
 
 @play_on("Vital - lead", is_virt=False)
 def lead(m):
     m.seq("c4 <e4*2 b4> <c4*2 g4> ~ g4", sn()) 
+    # for chord in ["c4", "e4", "c4", "~", "g4", "c4", "e4", "c4", "~", "g4", "c4", "b4", "g4", "~", "g4"]:
+    #     m.chord(chord[0])
     wait_for_bar()
 
 
