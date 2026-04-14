@@ -240,7 +240,7 @@ impl App {
                     })
                     .collect()
             })
-            .unwrap_or(Vec::new());
+            .unwrap_or_default();
         messages.reverse();
         let messages = List::new(messages).block(Block::bordered().title("Messages"));
         frame.render_widget(messages, messages_area);
@@ -259,7 +259,7 @@ fn bpq_time(tempo_time: Arc<RwLock<u32>>) -> u32 {
         / BPQ
 }
 
-fn main() {
+pub fn main() {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
     FmtSubscriber::builder()
         .with_file(true)

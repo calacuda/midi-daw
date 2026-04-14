@@ -43,7 +43,7 @@ fn round(num: f32) -> u16 {
     num.round() as u16
     // }
 }
-async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
+async fn run_smux(terminal: &mut DefaultTerminal, files: Vec<String>) -> io::Result<()> {
     let mut size = Size {
         rows: terminal.size()?.height,
         cols: terminal.size()?.width,
@@ -58,8 +58,8 @@ async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
 
     // run jurigged in a subprocess with the "JURIDGED_CODE_REDIRECT" env var set to the path of
     // the named pipe
-    let args: Vec<String> = env::args().collect();
-    let args = args[1..].to_vec();
+    // let args: Vec<String> = env::args().collect();
+    // let args = args[1..].to_vec();
     // let args = args.join(" ");
 
     // let mut py_cmd = CommandBuilder::new("zsh");
@@ -70,7 +70,8 @@ async fn run_smux(terminal: &mut DefaultTerminal) -> io::Result<()> {
     py_cmd.arg("-m");
     py_cmd.arg("IPython");
     py_cmd.arg("-i");
-    py_cmd.args(args);
+    // py_cmd.args(args);
+    py_cmd.args(files);
     py_cmd.env("JURIGGGED_CODE_REDIRECT", pipe_path.clone());
     py_cmd.env("PROMPT_TOOLKIT_NO_CPR", "1");
     py_cmd.cwd(cwd);
@@ -387,10 +388,10 @@ impl fmt::Debug for PtyPane {
 }
 
 #[tokio::main]
-async fn main() -> io::Result<()> {
+pub async fn run(files: Vec<String>) -> io::Result<()> {
     // spin up ratatui with the ability to read the output of jurigged and the script
     let mut terminal = ratatui::init();
-    let result = run_smux(&mut terminal).await;
+    let result = run_smux(&mut terminal, files).await;
     ratatui::restore();
 
     result
