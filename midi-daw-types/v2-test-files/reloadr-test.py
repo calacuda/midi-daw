@@ -20,10 +20,18 @@ def bass(m):
 @play_on("909", MidiChannel.Ch10, is_virt=False)
 def kick(m):
     # m.seq("c2 [c2 e2] c2 [c2 e2]", qn())
+    # notes = ["c2", "c2 e2", "c2", "c2 e2"]
     notes = ["c2", "c2 e2", "c2", "c2 e2"]
+    # print(notes[:None])
 
-    for chord in notes:
-        m.chord(chord, qn())
+    for i in [None, -1]:
+        for chord in notes[:i]:
+            m.chord(chord, qn(), vel=127)
+
+
+    m.chord("c2 d#2", en(), vel=127)
+    m.note("d#2", en(), vel=127)
+    # wait_for_bar()
 
 
 @play_on("909", MidiChannel.Ch10, is_virt=False)
@@ -40,13 +48,48 @@ def hh(m):
 
 @play_on("Vital - lead", is_virt=False)
 def lead(m):
-    m.seq("c4 <e4*2 b4> <c4*2 g4> ~ g4", sn()) 
+    # m.seq("c4 <e4*2 b4> <c4*2 g4> ~ g4", sn()) 
+    m.seq("c4 <a4*2 d4> <c4*2 e4> ~ e4", sn()) 
     # for chord in ["c4", "e4", "c4", "~", "g4", "c4", "e4", "c4", "~", "g4", "c4", "b4", "g4", "~", "g4"]:
     #     m.chord(chord[0])
     wait_for_bar()
 
 
-loops = 32
+@play_on("Vital - lead", is_virt=False)
+def mod_wiggle(m):
+    for _ in range(4):
+        m.cc(1, 120)
+        m.rest(sn())
+        m.cc(1, 0)
+        m.rest(sn(3))
+
+    wait_for_bar()
+
+
+def do_side_chain(m):
+    for _ in range(4):
+        m.cc(7, int(127 * 0.56))
+        m.rest(sn())
+        m.cc(7, int(127 * 0.67))
+        m.rest(sn(3))
+
+
+@play_on("Vital - lead", is_virt=False)
+def lead_sc(m):
+    do_side_chain(m)
+
+
+@play_on("Vital - bass", is_virt=False)
+def bass_sc(m):
+    do_side_chain(m)
+
+
+loops = -1
+
+
+def sc():
+    lead_sc(loops=loops)
+    bass_sc(loops=loops)
 
 
 # @main

@@ -51,10 +51,14 @@ logging.getLogger('watchdog').disabled = True
 logging.getLogger('watchdog.observers.inotify_buffer').disabled = True
 
 
+# maps func-name to the atomic bool that controls stopping
+# TODO: use this
+THREADS = {}
+
+
 def play_on(dev, channel=None, is_virt=True, loops=None, block=None, start_on_bar=True):
     from functools import wraps
     from midi_daw_types.v2 import Api, find_dev, list_devs, wait_for_bar
-    # from reloading import reloading
     import threading
     import inspect
     import importlib
