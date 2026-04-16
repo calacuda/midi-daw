@@ -618,7 +618,7 @@ impl Api {
         vel: Option<u8>,
         blocking: Option<bool>,
     ) {
-        self.note(note, dur, vel, blocking);
+        self.seq(note, dur, vel, blocking);
     }
 
     pub fn rest(&self, dur: NoteDuration) {

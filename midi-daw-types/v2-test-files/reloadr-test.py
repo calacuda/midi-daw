@@ -11,7 +11,7 @@ devs = list_devs()
 
 @play_on("Vital - bass", is_virt=False)
 def bass(m):
-    m.seq("c3 <e3*2 b3> <c3*2 g3> ~ g3", sn()) 
+    m.seq("c3 <e3*2 b3> <c3*2 f3> ~ g3", sn()) 
     # for chord in ["c4", "e4", "c4", "~", "g4", "c4", "e4", "c4", "~", "g4", "c4", "b4", "g4", "~", "g4"]:
     #     m.chord(chord[0])
     wait_for_bar()
@@ -21,15 +21,21 @@ def bass(m):
 def kick(m):
     # m.seq("c2 [c2 e2] c2 [c2 e2]", qn())
     # notes = ["c2", "c2 e2", "c2", "c2 e2"]
-    notes = ["c2", "c2 e2", "c2", "c2 e2"]
+    # notes = ["c2", "c2 d#2", "c2", "c2 d#2"]
+    notes_1 = ["c2", "c2 e2", "c2", "c2 e2"]
+    notes_2 = ["c2", "c2 e2 d#2", "c2"]
     # print(notes[:None])
 
-    for i in [None, -1]:
-        for chord in notes[:i]:
-            m.chord(chord, qn(), vel=127)
+    # for i in [None, -1]:
+    #     for chord in notes[:i]:
+    #         m.chord(chord, qn(), vel=127)
+    for chord in notes_1:
+        m.chord(chord, qn(), vel=127)
 
+    for chord in notes_2:
+        m.chord(chord, qn(), vel=127)
 
-    m.chord("c2 d#2", en(), vel=127)
+    m.chord("c2 e2 d#2", en(), vel=127)
     m.note("d#2", en(), vel=127)
     # wait_for_bar()
 
@@ -101,7 +107,9 @@ def sc():
 
 def main():
     bass(loops=loops, block=False)
+    bass_sc(loops=loops, block=False)
     lead(loops=loops, block=False)
+    lead_sc(loops=loops, block=False)
     kick(loops=loops, block=False)
     hh(loops=loops, block=False)
 

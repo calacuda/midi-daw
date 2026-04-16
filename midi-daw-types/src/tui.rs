@@ -68,8 +68,6 @@ async fn run_smux(terminal: &mut DefaultTerminal, files: Vec<String>) -> io::Res
     // py_cmd.arg(format!("cd \"{cwd:?}\" && jurigged -i {}", files.join(" ")));
 
     let mut py_cmd = CommandBuilder::new("jurigged");
-    // py_cmd.arg("-m");
-    // py_cmd.arg("IPython");
     py_cmd.arg("-i");
     // py_cmd.args(args);
     py_cmd.args(files);
