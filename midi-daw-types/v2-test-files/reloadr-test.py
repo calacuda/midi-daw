@@ -1,7 +1,8 @@
 from midi_daw_types import MidiChannel 
 from midi_daw_types.v2 import lfo, main, wait_for_bar, list_devs
 from midi_daw_types.v2.note_lens import *
-from midi_daw_test import play_on
+# from midi_daw_test import play_on, stop_fn
+from midi_daw_test import *
 from reloadr import autoreload
 
 

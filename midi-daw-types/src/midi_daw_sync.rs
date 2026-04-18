@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use ansi_to_tui::IntoText;
 use color_eyre::Result;
 use lazy_static::lazy_static;
 use midi_daw_types::{
@@ -23,6 +24,7 @@ use ratatui::{
 };
 use tracing::*;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+// use tracing_subscriber_multi::*;
 
 lazy_static! {
     static ref LOGS: RwLock<Vec<String>> = RwLock::new(Vec::new());
@@ -45,6 +47,22 @@ enum InputMode {
     #[default]
     Normal,
     Editing,
+}
+
+struct LogAppender;
+
+impl std::io::Write for LogAppender {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let msg =
+            String::from_utf8(buf.to_vec()).map_err(|e| std::io::Error::other(format!("{e}")))?;
+        _ = LOGS.write().map(|mut logs| logs.push(msg.clone()));
+
+        Ok(msg.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 impl App {
@@ -129,9 +147,7 @@ impl App {
         } else if cmd.eq_ignore_ascii_case("bar") || cmd.eq_ignore_ascii_case("step") {
             _ = COUNTER.write().map(|mut counter| *counter = 0);
         } else {
-            _ = LOGS.write().map(|mut logs| {
-                logs.push(format!("[ERROR]: wrong or unknown command: \"{cmd}\""));
-            });
+            error!("wrong or unknown command: \"{cmd}\"");
         }
 
         self.input.clear();
@@ -229,20 +245,33 @@ impl App {
             )),
         }
 
-        let mut messages: Vec<ListItem> = LOGS
+        // let mut messages: Vec<ListItem> = LOGS
+        // let mut messages: Vec<Text> = LOGS
+        let mut messages: Vec<String> = LOGS
             .read()
             .map(|logs| {
-                logs.iter()
-                    .enumerate()
-                    .map(|(i, m)| {
-                        let content = Line::from(ratatui::prelude::Span::raw(format!("{i}: {m}")));
-                        ListItem::new(content)
-                    })
-                    .collect()
+                logs.clone()
+                //         // .enumerate()
+                //         // .map(|(i, m)| {
+                //         .map(|m| {
+                //             // let content = Line::from(
+                //             //     //     ratatui::prelude::Span::raw(format!(
+                //             //     //     "{i}: {}",
+                //             //     m.into_text().unwrap(),
+                //             //     // ))
+                //             // );
+                //             // ListItem::new(m.into_text().unwrap())
+                //             m.into_text().unwrap()
+                //         })
+                //         .collect()
             })
             .unwrap_or_default();
         messages.reverse();
-        let messages = List::new(messages).block(Block::bordered().title("Messages"));
+        let messages = messages.join("");
+
+        // let messages = List::new(messages).block(Block::bordered().title("Messages"));
+        let messages = Paragraph::new(messages.into_text().unwrap())
+            .block(Block::bordered().title("Messages"));
         frame.render_widget(messages, messages_area);
     }
 }
@@ -269,6 +298,12 @@ pub fn main() {
         .with_thread_ids(false)
         .with_env_filter(env_filter)
         .without_time()
+        .with_writer(std::sync::Mutex::new(
+            // DualWriter::new(
+            // std::io::stderr(),
+            LogAppender,
+            // )
+        ))
         .init();
 
     let (client, _status) = loop {
@@ -353,16 +388,13 @@ pub fn main() {
                     }
                     .to_midi(),
                 );
-                // debug!("bar");
-                _ = LOGS.write().map(|mut logs| {
-                    logs.push(format!(
-                        "new bar triggered. counter is {}",
-                        counter
-                            .read()
-                            .map(|counter| format!("{counter}"))
-                            .unwrap_or("???".into())
-                    ))
-                });
+                info!(
+                    "new bar triggered. counter is {}",
+                    counter
+                        .read()
+                        .map(|counter| format!("{counter}"))
+                        .unwrap_or("???".into())
+                );
             }
 
             _ = counter.write().map(|mut counter| *counter += 1);
@@ -372,12 +404,7 @@ pub fn main() {
                     time,
                     bytes: &bytes,
                 }) {
-                    // error!("attempt to send sync pulse failed with error: {e}");
-                    _ = LOGS.write().map(|mut logs| {
-                        logs.push(format!(
-                            "[ERROR]: attempt to send sync pulse failed with error: {e}"
-                        ))
-                    });
+                    error!("attempt to send sync pulse failed with error: {e}")
                 }
             }
         }
@@ -400,8 +427,9 @@ pub fn main() {
     // if color_eyre::install().is_ok() {
     if let Err(e) = color_eyre::install() {
         error!("running TUI failed with error, \"{e}\"");
-    } else {
-        _ = ratatui::run(|terminal| App::new().run(terminal));
+    } else if let Err(e) = ratatui::run(|terminal| App::new().run(terminal)) {
+        error!("{e}");
+        println!("{}", LOGS.read().unwrap().join("\n"));
     }
     // }
 

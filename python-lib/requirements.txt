@@ -6,3 +6,5 @@ JACK-Client==0.5.5
 numpy==2.4.4
 musical-scales==2.0.0
 jurigged @ git+ssh://git@github.com/calacuda/jurigged.git@acc46c5cdf83691061c92676a430fc9b0a29db05
+atomicx==0.0.15
+loguru==0.7.3
