@@ -270,7 +270,6 @@ class Plugin:
     def param(self, param: str, value=None):
         """returns the value of the parameter, or sets the value if provided"""
         # TODO: get/set param
-
         return None
 
     # def connect(self, src_name: str, sink_name: str):

@@ -32,6 +32,7 @@ use tracing::*;
 
 // pub mod v2;
 pub mod automation;
+pub mod host;
 pub mod mini_notation;
 pub mod thread;
 

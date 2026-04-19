@@ -34,7 +34,7 @@ jack = { version = "0.13.5", features = ["controller"] }
 lazy_static = "1.5.0"
 log = { version = "0.4", optional = true, features = ["std"] }
 midi-msg = "0.8"
-midir = { version = "0.10.3", features = ["jack"] }
+midir = { version = "0.10", features = ["jack"] }
 musical_scales = "0.2.0"
 nix = { version = "0.31.2", features = ["fs"] }
 portable-pty = "0.9.0"
@@ -51,3 +51,5 @@ tokio = { version = "1.51.1", default-features = false, features = ["macros", "r
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tui-term = "0.3.4"
+
+# cxx-juce = { git = "https://github.com/JamesHallowell/cxx-juce", version = "0.8.0", features = ["juce-8", "juce_audio_processors", "vst3"] }

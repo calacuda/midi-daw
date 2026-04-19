@@ -2,6 +2,7 @@ use std::{
     ops::Deref,
     panic,
     sync::{Arc, RwLock},
+    thread::spawn,
     time::Duration,
 };
 
@@ -10,7 +11,7 @@ use color_eyre::Result;
 use lazy_static::lazy_static;
 use midi_daw_types::{
     tempo_from_bpm,
-    v2::{BPQ, DEFAULT_BPM, SYNC_DEV_NAME, SYNC_DEV_PORT_NAME, TEMPO_SET_PORT},
+    v2::{BPQ, DEFAULT_BPM, SYNC_DEV_NAME, SYNC_DEV_PORT_NAME, TEMPO_SET_PORT, host},
 };
 use midi_msg::{Meta, MidiMsg, SystemRealTimeMsg};
 use ratatui::{
@@ -363,7 +364,7 @@ pub fn main() {
 
         messages.retain_mut(|(time, _msg)| *time >= ps.n_frames());
 
-        while c.time_to_frames(cycle_times.next_usecs) > time_to_send {
+        while c.time_to_frames(cycle_times.next_usecs) >= time_to_send {
             let last_time_send = time_to_send;
             time_to_send = time_to_send.wrapping_add(bpq_time(tempo.clone()));
 
@@ -409,6 +410,10 @@ pub fn main() {
             }
         }
 
+        // if !c.time_to_frames(cycle_times.next_usecs) > time_to_send {
+        //     time_to_send = time_to_send.wrapping_add(bpq_time(tempo.clone()));
+        // }
+
         jack::Control::Continue
     };
 
@@ -424,14 +429,18 @@ pub fn main() {
         eprintln!("Panic: {info:?}");
     }));
 
-    // if color_eyre::install().is_ok() {
+    // let _jh = spawn(|| {
+    // let plugin_path = PathBuf::from();
+
+    // });
+    let plugin = host::plugin_from_path("/home/yogurt/.vst3/Wt Synth.vst3/".into());
+
     if let Err(e) = color_eyre::install() {
         error!("running TUI failed with error, \"{e}\"");
     } else if let Err(e) = ratatui::run(|terminal| App::new().run(terminal)) {
         error!("{e}");
         println!("{}", LOGS.read().unwrap().join("\n"));
     }
-    // }
 
     // Optional deactivation.
     if let Err(err) = active_client.deactivate() {
