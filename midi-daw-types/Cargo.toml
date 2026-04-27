@@ -34,7 +34,7 @@ jack = { version = "0.13.5", features = ["controller"] }
 lazy_static = "1.5.0"
 log = { version = "0.4", optional = true, features = ["std"] }
 midi-msg = "0.8"
-midir = { version = "0.10", features = ["jack"] }
+midir = { version = "0.11", features = ["jack"] }
 musical_scales = "0.2.0"
 nix = { version = "0.31.2", features = ["fs"] }
 portable-pty = "0.9.0"

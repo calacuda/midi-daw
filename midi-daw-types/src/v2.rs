@@ -10,9 +10,12 @@ use lazy_static::lazy_static;
 use log::*;
 use midir::{MidiInput, MidiOutput, MidiOutputConnection, os::unix::VirtualOutput};
 use musical_scales::{PitchClass, Scale, ScaleType};
-use pyo3::types::PyCFunction;
+// use pyo3::types::PyCFunction;
 #[cfg(feature = "pyo3")]
-use pyo3::{prelude::*, types::PyFunction};
+use pyo3::{
+    prelude::*,
+    types::{PyCFunction, PyFunction},
+};
 use rust_fuzzy_search::fuzzy_search_best_n;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -1363,6 +1366,7 @@ pub fn v2(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<MidiDaw>()?;
     m.add_class::<Api>()?;
+    m.add_class::<host::PluginCmd>()?;
     m.add_function(wrap_pyfunction!(main, m)?)?;
     m.add_function(wrap_pyfunction!(list_devs, m)?)?;
     m.add_function(wrap_pyfunction!(py_find_dev, m)?)?;

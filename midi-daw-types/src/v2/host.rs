@@ -1,16 +1,32 @@
 use std::path::PathBuf;
 
+use bincode::{Decode, Encode};
+use crossbeam::channel::{Receiver, Sender, unbounded};
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
 use rack::prelude::*;
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 use tracing::*;
 
-struct PluginInfo {
+pub type PluginParamMessage = (usize, PluginCmd);
+
+#[cfg_attr(feature = "pyo3", pyclass(from_py_object))]
+#[cfg_attr(feature = "pyo3", pyo3(get_all, set_all))]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, PartialOrd, Clone)]
+pub enum PluginCmd {
+    StepPramBy(isize),
+    SetParamTo(f32),
+}
+
+pub struct PluginInfo {
     info: rack::prelude::PluginInfo,
     param_names: FxHashMap<String, ParameterInfo>,
+    tx: Sender<PluginParamMessage>,
 }
 
 impl PluginInfo {
-    fn new(plugin: &Plugin) -> Self {
+    fn new(plugin: &Plugin, tx: Sender<PluginParamMessage>) -> Self {
         let info = plugin.info().clone();
         let mut param_names = FxHashMap::default();
 
@@ -20,7 +36,11 @@ impl PluginInfo {
             }
         }
 
-        Self { info, param_names }
+        Self {
+            info,
+            param_names,
+            tx,
+        }
     }
 }
 
@@ -46,8 +66,17 @@ fn do_plugin_from_path(plugin_path: PathBuf) -> Result<Plugin> {
     }
 }
 
-pub fn plugin_from_path(plugin_path: PathBuf) -> Option<(PluginInfo, Plugin)> {
+pub fn plugin_from_path(
+    plugin_path: PathBuf,
+) -> Option<(
+    PluginInfo,
+    Plugin,
+    // Sender<PluginParamMessage>,
+    Receiver<PluginParamMessage>,
+)> {
+    let (tx, rx) = unbounded();
+
     do_plugin_from_path(plugin_path)
         .ok()
-        .map(|plugin| (PluginInfo::new(&plugin), plugin))
+        .map(|plugin| (PluginInfo::new(&plugin, tx), plugin, rx))
 }

@@ -1,0 +1,57 @@
+use cxx_juce::{
+    JUCE,
+    juce_audio_processors::{AudioPluginFormatManager, OwnedArrayPluginDescription},
+};
+use tracing::*;
+
+use std::path::PathBuf;
+
+pub fn plugin_from_path(plugin_path: PathBuf) {
+    println!("plugin_path = {plugin_path:?}");
+    let juce = JUCE::initialise();
+
+    let mut manager = AudioPluginFormatManager::new(&juce);
+    manager.add_default_formats();
+
+    manager.for_each_format_mut(|mut format| {
+        println!("🔎 Searching for {} plugins...", format.get_name());
+
+        let default_locations = format.as_mut().get_default_locations_to_search();
+        let identifiers = format
+            .as_mut()
+            .search_paths_for_plugins(&default_locations, true, true);
+
+        let mut descriptions = OwnedArrayPluginDescription::default();
+        for identifier in identifiers {
+            format
+                .as_mut()
+                .find_all_types_for_file(&mut descriptions, &identifier);
+        }
+
+        for description in &descriptions {
+            let f_path = PathBuf::from(description.file_or_identifier.to_string());
+
+            println!(
+                "  - {} (v{}), {}, {:?}",
+                description.name, description.version, description.manufacturer_name, f_path,
+            );
+
+            if f_path == plugin_path {
+                println!("^^^ found plugin ^^^");
+                // TODO: start jack client
+                let mut plugin = format.create_instance_from_description(
+                    description,
+                    48_000.,
+                    128,
+                    &mut "".into(),
+                );
+                let plugin = plugin.pin_mut().cast_mut();
+                println!("{}", plugin.get_name());
+                plugin.prepare_to_play(48_000., 128);
+                // TODO: process audio and midi via jack
+
+                break;
+            }
+        }
+    });
+}
